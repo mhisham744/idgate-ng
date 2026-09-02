@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #26407f 0%, transparent 55%),
+    radial-gradient(900px 500px at 110% 10%, #0d9488 0%, transparent 45%),
+    linear-gradient(160deg, #151f42 0%, #1b2a5c 50%, #14263f 100%);
+  background-attachment: fixed;
+  font-family: 'Inter', 'Cairo', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Arabic / RTL uses Cairo first */
+[dir='rtl'] {
+  font-family: 'Cairo', 'Inter', system-ui, sans-serif;
+}
+
+/* Hide scrollbars inside the phone but keep scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* thin scrollbar for panels */
+.thin-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 999px;
+}
+
+/* Logical-property helpers so RTL flips automatically */
+@layer utilities {
+  .ps-safe {
+    padding-inline-start: 1rem;
+  }
+  .pe-safe {
+    padding-inline-end: 1rem;
+  }
+}

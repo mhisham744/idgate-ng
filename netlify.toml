@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# The app uses HashRouter, so no SPA rewrites are strictly required.
+# This fallback keeps any non-hash deep link safe.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
