@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
-              <div className="truncate font-mono text-[10px] text-slate-500" dir="ltr">{r.address}</div>
+              <div className="truncate font-mono text-[10px] text-slate-500"><bdi>{r.address}</bdi></div>
             </div>
             <ChevronDown size={18} className="text-slate-400" />
           </button>
@@ -127,8 +127,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
               <div className="min-w-0 flex-1 text-start">
                 <div className="truncate text-sm font-semibold">{r.displayName}</div>
-                <div className="truncate font-mono text-[10px] text-white/70" dir="ltr">
-                  {r.address}
+                <div className="truncate font-mono text-[10px] text-white/70">
+                  <bdi>{r.address}</bdi>
                 </div>
               </div>
               <ChevronDown size={18} className="text-white/70" />
