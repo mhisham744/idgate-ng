@@ -6,6 +6,7 @@ import { useLang, useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
 import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
 import type { ActiveAccount } from '@/types'
 
 const TABS = [
@@ -58,6 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { t, dir } = useLang()
   const location = useLocation()
   const active = useStore((s) => s.active)
+  const me = useStore((s) => s.currentNormal())
   const resolve = useResolveActor()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
@@ -98,7 +100,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
+              <div className="flex items-center gap-1.5">
+                <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
+                {active?.kind === 'normal' && <VerificationBadge level={levelOf(me?.verification)} variant="icon" />}
+              </div>
               <div className="truncate font-mono text-[11px] text-gate-700"><bdi>{r.address}</bdi></div>
             </div>
             <ChevronDown size={18} className="text-slate-400" />
@@ -237,6 +242,7 @@ function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () => void
             selected={activeKey === `n:${normalId}`}
             onClick={() => pick({ kind: 'normal', normalId })}
             actor={{ kind: 'normal', normalId }}
+            trailing={<VerificationBadge level={levelOf(person?.verification)} />}
           />
         </div>
 
@@ -280,10 +286,12 @@ function AccountOption({
   selected,
   onClick,
   actor,
+  trailing,
 }: {
   selected: boolean
   onClick: () => void
   actor: ActiveAccount
+  trailing?: React.ReactNode
 }) {
   return (
     <button
@@ -294,6 +302,7 @@ function AccountOption({
       )}
     >
       <ActorLine actor={actor} size={40} />
+      {trailing}
       {selected && <Check size={18} className="ms-auto shrink-0 text-gate-600" />}
     </button>
   )

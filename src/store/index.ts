@@ -23,13 +23,27 @@ import type {
 } from '@/types'
 import { buildSeed } from '@/data/seed'
 import type { AppData } from '@/data/seed'
-import { actorKey, mergedPermission, uid } from '@/lib/identity'
+import { actorKey, colorFor, mergedPermission, uid } from '@/lib/identity'
 import { TRANSACTIONS } from '@/data/reference'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived-helper (pure) — resolve what an active account is allowed to do.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Ability = 'create' | 'change' | 'display' | 'delete'
+
+/** Payload collected by the new-account KYC wizard. */
+export interface NewNormalInput {
+  firstName: string
+  surname: string
+  gender: 'Male' | 'Female'
+  dateOfBirth?: string
+  nationality?: import('@/types').Country
+  city: string
+  nationalId?: string
+  mobile: string
+  email?: string
+  verification: import('@/types').VerificationInfo
+}
 
 interface State extends AppData {
   // session
@@ -49,6 +63,8 @@ interface State extends AppData {
 
   // ── session actions ──────────────────────────────────────────────────────────
   signIn: (normalId: string) => void
+  /** Create a freshly-proofed personal account (KYC) and sign in as it. Returns the new id. */
+  registerNormal: (input: NewNormalInput) => string
   logout: () => void
   setActive: (a: ActiveAccount) => void
   setOnboarded: (v: boolean) => void
@@ -205,6 +221,34 @@ export const useStore = create<State>()(
       // ── session ────────────────────────────────────────────────────────────────
       signIn: (normalId) =>
         set({ normalId, active: { kind: 'normal', normalId }, onboarded: true }),
+      registerNormal: (input) => {
+        const id = uid('n')
+        const fullName = `${input.firstName} ${input.surname}`.trim()
+        const person: import('@/types').NormalCharacter = {
+          id,
+          firstName: input.firstName.trim(),
+          surname: input.surname.trim(),
+          fullName,
+          gender: input.gender,
+          dateOfBirth: input.dateOfBirth,
+          nationalities: [input.nationality ?? 'Egypt'],
+          residenceCountry: input.nationality ?? 'Egypt',
+          city: input.city.trim(),
+          nationalId: input.nationalId?.trim() || undefined,
+          motherTongue: 'Arabic',
+          contacts: { mobile: input.mobile.trim(), email: input.email?.trim() || undefined },
+          verification: input.verification,
+          privacy: { personalInfo: 'contacts', contactsInfo: 'contacts', education: 'public', career: 'public' },
+          avatarColor: colorFor(fullName || id),
+        }
+        set((s) => ({
+          normals: [...s.normals, person],
+          normalId: id,
+          active: { kind: 'normal', normalId: id },
+          onboarded: true,
+        }))
+        return id
+      },
       logout: () => set({ normalId: null, active: null }),
       setActive: (active) => set({ active }),
       setOnboarded: (onboarded) => set({ onboarded }),

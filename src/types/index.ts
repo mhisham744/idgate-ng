@@ -136,6 +136,23 @@ export interface PermissionSet {
 // Master data — Natural person
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Assurance tier earned by a personal account through identity proofing:
+ *   basic     — contact channels (mobile/email) verified only
+ *   verified  — + national-ID document + face/liveness + registry match
+ *   authority — + cleared to act as an entity Admin / Managing Director
+ */
+export type VerificationLevel = 'basic' | 'verified' | 'authority'
+
+export interface VerificationInfo {
+  level: VerificationLevel
+  contact?: boolean
+  document?: boolean
+  liveness?: boolean
+  registry?: boolean
+  verifiedAt?: string
+}
+
 export interface NormalCharacter {
   id: string
   firstName: string
@@ -150,6 +167,8 @@ export interface NormalCharacter {
   nationalId?: string
   passports?: string[]
   drivingLicense?: string
+  /** Identity-proofing outcome for this personal account (KYC). */
+  verification?: VerificationInfo
   motherTongue: Language
   languages?: { language: Language; level: 'Basic' | 'Average' | 'Fluent' }[]
   contacts: {

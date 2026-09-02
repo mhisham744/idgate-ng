@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { ShieldCheck, Globe } from 'lucide-react'
-import { useStore } from '@/store'
+import { ShieldCheck, Globe, LogIn, UserPlus } from 'lucide-react'
 import { useLang, useI18n } from '@/i18n'
-import { personalAddress, colorFor } from '@/lib/identity'
-import { Button, Card, Avatar, cx } from '@/ui/primitives'
+import { Button, Card } from '@/ui/primitives'
+import { SignIn } from '@/screens/onboarding/SignIn'
+import { RegisterWizard } from '@/screens/onboarding/RegisterWizard'
+
+type Mode = 'landing' | 'signin' | 'register'
 
 export function Onboarding() {
   const { t, isRtl } = useLang()
@@ -11,11 +13,7 @@ export function Onboarding() {
   const lang = useI18n((s) => s.lang)
   const toggleLang = useI18n((s) => s.toggle)
 
-  const normals = useStore((s) => s.normals)
-  const virtualsFor = useStore((s) => s.virtualsFor)
-  const signIn = useStore((s) => s.signIn)
-
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [mode, setMode] = useState<Mode>('landing')
 
   return (
     <div className="relative flex min-h-dvh w-full flex-col items-center justify-center p-5">
@@ -31,9 +29,9 @@ export function Onboarding() {
 
       <div className="w-full max-w-md space-y-5">
         {/* Brand hero */}
-        <div className="flex flex-col items-center text-center text-light gap-3 pt-2">
-          <div className="w-16 h-16 rounded-3xl bg-light/15 backdrop-blur flex items-center justify-center">
-            <ShieldCheck className="w-8 h-8 text-light" aria-hidden />
+        <div className="flex flex-col items-center gap-3 pt-2 text-center text-light">
+          <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-light/15 backdrop-blur">
+            <ShieldCheck className="h-8 w-8 text-light" aria-hidden />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('appName')}</h1>
@@ -41,73 +39,35 @@ export function Onboarding() {
           </div>
         </div>
 
-        {/* Concept card */}
-        <Card className="p-5 space-y-4 animate-slide-up">
-          <p className="text-sm text-slate-600 leading-relaxed text-start">
-            {L(
-              'One identity, many roles. Be yourself, or act through an official position granted by a company, ministry, or club — with communication that is always accountable.',
-              'هوية واحدة بأدوار متعددة. كن نفسك، أو تصرّف عبر منصب رسمي ممنوح من شركة أو وزارة أو نادٍ — مع تواصل رسمي وموثّق دائمًا.',
-            )}
-          </p>
-
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-slate-800 text-start">
-              {t('chooseIdentity')}
-            </h2>
+        {mode === 'landing' && (
+          <Card className="animate-slide-up space-y-4 p-5">
+            <p className="text-start text-sm leading-relaxed text-slate-600">
+              {L(
+                'One identity, many roles. Be yourself, or act through an official position granted by a company, ministry, or club — with communication that is always accountable.',
+                'هوية واحدة بأدوار متعددة. كن نفسك، أو تصرّف عبر منصب رسمي ممنوح من شركة أو وزارة أو نادٍ — مع تواصل رسمي وموثّق دائمًا.',
+              )}
+            </p>
 
             <div className="space-y-2">
-              {normals.map((n) => {
-                const roles = virtualsFor(n.id).length
-                const active = selectedId === n.id
-                return (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => setSelectedId(n.id)}
-                    className={cx(
-                      'w-full flex items-center gap-3 rounded-2xl border p-3 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
-                      active
-                        ? 'border-gate-500 bg-gate-50 ring-2 ring-gate-500/30'
-                        : 'border-slate-200 bg-white hover:bg-slate-50',
-                    )}
-                  >
-                    <Avatar name={n.fullName} color={colorFor(n.id)} size={44} />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-slate-900 truncate">
-                        {n.fullName}
-                      </div>
-                      <div className="font-mono text-[11px] text-gate-700 truncate text-start">
-                        <bdi>{personalAddress(n)}</bdi>
-                      </div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {n.city}
-                        {' · '}
-                        {roles} {L(roles === 1 ? 'role' : 'roles', 'أدوار')}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
+              <Button full size="lg" onClick={() => setMode('signin')}>
+                <LogIn size={18} /> {L('Sign in', 'تسجيل الدخول')}
+              </Button>
+              <Button full size="lg" variant="secondary" onClick={() => setMode('register')}>
+                <UserPlus size={18} /> {L('Create a new IDGate account', 'إنشاء حساب IDGate جديد')}
+              </Button>
             </div>
-          </div>
 
-          <Button
-            variant="primary"
-            size="lg"
-            full
-            disabled={!selectedId}
-            onClick={() => selectedId && signIn(selectedId)}
-          >
-            {t('enterApp')}
-          </Button>
+            <p className="text-center text-xs text-slate-500">
+              {L(
+                'New accounts are verified with ID, liveness, and a registry check.',
+                'الحسابات الجديدة تُوثَّق بالبطاقة والحيوية والتحقق من السجل.',
+              )}
+            </p>
+          </Card>
+        )}
 
-          <p className="text-center text-xs text-slate-500">
-            {L(
-              'Tip: switch language anytime from the globe button.',
-              'ملاحظة: يمكنك تبديل اللغة في أي وقت من زر الكرة الأرضية.',
-            )}
-          </p>
-        </Card>
+        {mode === 'signin' && <SignIn onBack={() => setMode('landing')} />}
+        {mode === 'register' && <RegisterWizard onBack={() => setMode('landing')} />}
       </div>
     </div>
   )

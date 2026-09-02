@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { personalAddress } from '@/lib/identity'
+import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
 import {
   Avatar,
   Button,
@@ -126,7 +127,10 @@ export function PersonalMasterData() {
         <div className="flex items-center gap-3">
           <Avatar name={me.fullName} color={me.avatarColor} size={52} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-bold text-slate-800">{me.fullName}</div>
+            <div className="flex items-center gap-2">
+              <div className="truncate text-base font-bold text-slate-800">{me.fullName}</div>
+              <VerificationBadge level={levelOf(me.verification)} />
+            </div>
             <div className="truncate font-mono text-xs text-gate-700" dir="ltr">
               {personalAddress(me)}
             </div>
