@@ -1,22 +1,42 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // IDGate brand — deep "identity" indigo/teal system
+        // Neutral surface/ink scale — remapped to CSS vars so it flips in dark mode.
+        white: 'rgb(var(--c-white) / <alpha-value>)',
+        // A fixed pure-white for text/overlays that sit on colored (brand) surfaces
+        // and must stay light in both themes.
+        light: '#ffffff',
+        slate: {
+          50: 'rgb(var(--c-slate-50) / <alpha-value>)',
+          100: 'rgb(var(--c-slate-100) / <alpha-value>)',
+          200: 'rgb(var(--c-slate-200) / <alpha-value>)',
+          300: 'rgb(var(--c-slate-300) / <alpha-value>)',
+          400: 'rgb(var(--c-slate-400) / <alpha-value>)',
+          500: 'rgb(var(--c-slate-500) / <alpha-value>)',
+          600: 'rgb(var(--c-slate-600) / <alpha-value>)',
+          700: 'rgb(var(--c-slate-700) / <alpha-value>)',
+          800: 'rgb(var(--c-slate-800) / <alpha-value>)',
+          900: 'rgb(var(--c-slate-900) / <alpha-value>)',
+          950: 'rgb(var(--c-slate-950) / <alpha-value>)',
+        },
+        // IDGate brand — deep "identity" indigo. Var-remapped so brand text/tints
+        // stay legible on dark surfaces (filled brand surfaces brighten slightly).
         gate: {
-          50: '#eef4ff',
-          100: '#d9e6ff',
-          200: '#bcd3ff',
-          300: '#8eb6ff',
-          400: '#598dff',
-          500: '#3563f0',
-          600: '#2447d6',
-          700: '#1f39ad',
-          800: '#203488',
-          900: '#20326c',
-          950: '#151f42',
+          50: 'rgb(var(--c-gate-50) / <alpha-value>)',
+          100: 'rgb(var(--c-gate-100) / <alpha-value>)',
+          200: 'rgb(var(--c-gate-200) / <alpha-value>)',
+          300: 'rgb(var(--c-gate-300) / <alpha-value>)',
+          400: 'rgb(var(--c-gate-400) / <alpha-value>)',
+          500: 'rgb(var(--c-gate-500) / <alpha-value>)',
+          600: 'rgb(var(--c-gate-600) / <alpha-value>)',
+          700: 'rgb(var(--c-gate-700) / <alpha-value>)',
+          800: 'rgb(var(--c-gate-800) / <alpha-value>)',
+          900: 'rgb(var(--c-gate-900) / <alpha-value>)',
+          950: 'rgb(var(--c-gate-950) / <alpha-value>)',
         },
         teal: {
           400: '#2dd4bf',

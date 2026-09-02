@@ -55,7 +55,7 @@ export function IDGateCode() {
       <p className="text-sm text-slate-500">{t('idgateCodeDesc')}</p>
 
       <Card className="overflow-hidden">
-        <div className="px-5 py-4 text-white" style={{ backgroundColor: accent }}>
+        <div className="px-5 py-4 text-light" style={{ backgroundColor: accent }}>
           <div className="text-xs uppercase tracking-wide opacity-80">{t('idgateCode')}</div>
           <div className="text-lg font-bold">{ent!.commercialName}</div>
           <div className="text-sm opacity-90">{vc!.positionName}</div>

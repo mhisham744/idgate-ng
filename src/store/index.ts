@@ -44,6 +44,8 @@ interface State extends AppData {
   virtual: (id: string) => VirtualCharacter | undefined
   profilesForVirtual: (v: VirtualCharacter) => Profile[]
   can: (key: TransactionKey, ability?: Ability) => boolean
+  /** Resolve a group's membership criteria + explicit members into concrete recipients. */
+  groupRecipients: (groupId: string) => ActorRef[]
 
   // ── session actions ──────────────────────────────────────────────────────────
   signIn: (normalId: string) => void
@@ -83,7 +85,9 @@ interface State extends AppData {
   respondLinkRequest: (id: string, status: 'accepted' | 'rejected') => void
 
   // ── groups ─────────────────────────────────────────────────────────────────
-  addGroup: (g: Omit<Group, 'id'>) => void
+  addGroup: (g: Omit<Group, 'id'>) => string
+  updateGroup: (id: string, patch: Partial<Group>) => void
+  removeGroup: (id: string) => void
 
   // ── master data: entities & structures ─────────────────────────────────────────
   registerEntity: (e: Omit<LegalEntity, 'id' | 'status'> & { status?: EntityStatus }) => string
@@ -136,6 +140,66 @@ export const useStore = create<State>()(
         if (!v || v.status !== 'active') return false
         const profs = get().profilesForVirtual(v)
         return mergedPermission(profs, key)[ability]
+      },
+      groupRecipients: (groupId) => {
+        const s = get()
+        const g = s.groups.find((x) => x.id === groupId)
+        if (!g) return []
+
+        // Set of node ids that a criterion "covers": the node itself + all descendants
+        // (a group message reaches that node level and every level below it).
+        const coverage = (rootId: string): Set<string> => {
+          const kin = s.structures
+          const out = new Set<string>([rootId])
+          let changed = true
+          while (changed) {
+            changed = false
+            for (const n of kin) {
+              if (n.parentId && out.has(n.parentId) && !out.has(n.id)) {
+                out.add(n.id)
+                changed = true
+              }
+            }
+          }
+          return out
+        }
+        const cov = {
+          corporate: g.corporateNodeId ? coverage(g.corporateNodeId) : null,
+          relation: g.relationNodeId ? coverage(g.relationNodeId) : null,
+          organization: g.organizationNodeId ? coverage(g.organizationNodeId) : null,
+          geographical: g.geographicalNodeId ? coverage(g.geographicalNodeId) : null,
+        }
+        const hasCriteria =
+          !!g.positionName || !!cov.corporate || !!cov.relation || !!cov.organization || !!cov.geographical
+
+        const keys = new Set<string>()
+        const out: ActorRef[] = []
+        const push = (ref: ActorRef) => {
+          const k = ref.kind === 'virtual' ? `v:${ref.virtualId}` : `n:${ref.normalId}`
+          if (!keys.has(k)) {
+            keys.add(k)
+            out.push(ref)
+          }
+        }
+
+        // criteria-matched active virtuals in the same entity
+        if (hasCriteria) {
+          for (const v of s.virtuals) {
+            if (v.entityId !== g.entityId || v.status !== 'active') continue
+            if (g.positionName && v.positionName !== g.positionName) continue
+            if (cov.corporate && !(v.structure.corporate && cov.corporate.has(v.structure.corporate))) continue
+            if (cov.relation && !(v.structure.relation && cov.relation.has(v.structure.relation))) continue
+            if (cov.organization && !(v.structure.organization && cov.organization.has(v.structure.organization))) continue
+            if (cov.geographical && !(v.structure.geographical && cov.geographical.has(v.structure.geographical))) continue
+            push({ kind: 'virtual', virtualId: v.id })
+          }
+        }
+
+        // explicit members (always included, even if blocked criteria wouldn't match)
+        for (const id of g.explicitMemberIds ?? []) {
+          if (s.virtuals.some((v) => v.id === id)) push({ kind: 'virtual', virtualId: id })
+        }
+        return out
       },
 
       // ── session ────────────────────────────────────────────────────────────────
@@ -354,7 +418,14 @@ export const useStore = create<State>()(
       },
 
       // ── groups ────────────────────────────────────────────────────────────────
-      addGroup: (g) => set((s) => ({ groups: [{ ...g, id: uid('g') }, ...s.groups] })),
+      addGroup: (g) => {
+        const id = uid('g')
+        set((s) => ({ groups: [{ ...g, id }, ...s.groups] }))
+        return id
+      },
+      updateGroup: (id, patch) =>
+        set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) })),
+      removeGroup: (id) => set((s) => ({ groups: s.groups.filter((g) => g.id !== id) })),
 
       // ── master data ─────────────────────────────────────────────────────────────
       registerEntity: (e) => {

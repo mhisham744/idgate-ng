@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useStore } from '@/store'
 import { useI18n } from '@/i18n'
+import { useTheme } from '@/theme'
 import { AppShell } from '@/components/AppShell'
 import { Onboarding } from '@/screens/Onboarding'
 import { Home } from '@/screens/Home'
@@ -47,12 +48,20 @@ export default function App() {
   const onboarded = useStore((s) => s.onboarded)
   const normalId = useStore((s) => s.normalId)
   const lang = useI18n((s) => s.lang)
+  const theme = useTheme((s) => s.theme)
 
   // Reflect language on <html> for global dir + font.
   useEffect(() => {
     document.documentElement.lang = lang
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'
   }, [lang])
+
+  // Reflect appearance on <html> — Tailwind's `dark:` variants key off `.dark`.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#151f42')
+  }, [theme])
 
   const signedIn = onboarded && normalId
 

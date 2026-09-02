@@ -8,6 +8,9 @@ import {
   CheckCircle2,
   Layers,
   Link2,
+  List,
+  Network,
+  Pencil,
   Plus,
   Shield,
   Trash2,
@@ -28,18 +31,23 @@ import { STRUCTURE_ROOT_CODE } from '@/types'
 import type { Ability } from '@/store'
 import type { Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
 import { useResolveActor } from '@/components/identity'
+import { OrgChart } from '@/components/OrgChart'
+import { GroupFormSheet } from '@/components/GroupForm'
 import {
   Avatar,
   Badge,
   Button,
   Card,
   Chip,
+  cx,
   EmptyState,
   Field,
   Input,
+  Modal,
   Row,
   Sheet,
 } from '@/ui/primitives'
+import type { Group } from '@/types'
 
 type Tab = 'structures' | 'profiles' | 'positions' | 'virtuals' | 'delegations' | 'groups'
 const STRUCTURE_KINDS = Object.keys(STRUCTURE_LABELS) as StructureKind[]
@@ -69,10 +77,16 @@ export function EntityManage() {
   const linkVirtual = useStore((s) => s.linkVirtual)
   const unlinkVirtual = useStore((s) => s.unlinkVirtual)
   const blockVirtual = useStore((s) => s.blockVirtual)
+  const removeGroup = useStore((s) => s.removeGroup)
 
   const [tab, setTab] = useState<Tab>('structures')
   const [profileSheet, setProfileSheet] = useState<Profile | null>(null)
   const [linkTarget, setLinkTarget] = useState<VirtualCharacter | null>(null)
+  const [structView, setStructView] = useState<'list' | 'chart'>('list')
+  const [chartKind, setChartKind] = useState<StructureKind>('corporate')
+  const [groupForm, setGroupForm] = useState(false)
+  const [groupEdit, setGroupEdit] = useState<Group | null>(null)
+  const [groupDelete, setGroupDelete] = useState<Group | null>(null)
 
   const ent = id ? entity(id) : undefined
 
@@ -146,18 +160,63 @@ export function EntityManage() {
 
       {tab === 'structures' && (
         <div className="space-y-3">
-          {STRUCTURE_KINDS.map((kind) => (
-            <StructureCard
-              key={kind}
-              L={L}
-              lang={lang}
-              kind={kind}
-              entityId={id}
-              nodes={entStructures.filter((n) => n.kind === kind)}
-              addStructureNode={addStructureNode}
-              removeStructureNode={removeStructureNode}
-            />
-          ))}
+          {/* view toggle */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex rounded-2xl bg-slate-100 p-1">
+              <button
+                onClick={() => setStructView('list')}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
+                  structView === 'list' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <List size={14} /> {L('List', 'قائمة')}
+              </button>
+              <button
+                onClick={() => setStructView('chart')}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
+                  structView === 'chart' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <Network size={14} /> {L('Org chart', 'مخطط تنظيمي')}
+              </button>
+            </div>
+          </div>
+
+          {structView === 'list' ? (
+            STRUCTURE_KINDS.map((kind) => (
+              <StructureCard
+                key={kind}
+                L={L}
+                lang={lang}
+                kind={kind}
+                entityId={id}
+                nodes={entStructures.filter((n) => n.kind === kind)}
+                addStructureNode={addStructureNode}
+                removeStructureNode={removeStructureNode}
+              />
+            ))
+          ) : (
+            <div className="space-y-3">
+              {/* kind selector */}
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 thin-scroll">
+                {STRUCTURE_KINDS.map((kind) => (
+                  <Chip key={kind} active={chartKind === kind} onClick={() => setChartKind(kind)}>
+                    {bl(STRUCTURE_LABELS[kind], lang)}
+                  </Chip>
+                ))}
+              </div>
+              <OrgChart
+                key={chartKind}
+                entityId={id}
+                kind={chartKind}
+                nodes={entStructures.filter((n) => n.kind === chartKind)}
+                L={L}
+                rootLabel={bl(STRUCTURE_LABELS[chartKind], lang)}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -211,16 +270,55 @@ export function EntityManage() {
 
       {tab === 'groups' && (
         <div className="space-y-2">
+          <Button
+            full
+            variant={entGroups.length === 0 ? 'primary' : 'secondary'}
+            disabled={entVirtuals.length === 0}
+            onClick={() => {
+              setGroupEdit(null)
+              setGroupForm(true)
+            }}
+          >
+            <Plus size={16} /> {t('createGroup')}
+          </Button>
+          {entVirtuals.length === 0 && (
+            <p className="px-1 text-[11px] text-slate-400">
+              {L('Create a virtual account first to own a group.', 'أنشئ حسابًا افتراضيًا أولًا ليكون مالكًا للمجموعة.')}
+            </p>
+          )}
           {entGroups.length === 0 ? (
             <EmptyState icon={<UsersRound size={36} />} title={t('empty')} />
           ) : (
             entGroups.map((g) => (
-              <Card key={g.id} className="px-1">
-                <Row
-                  leading={<Avatar name={g.name} color="#0d9488" size={38} square icon={<UsersRound size={16} />} />}
-                  title={g.name}
-                  subtitle={g.positionName ? `${L('Position', 'الوظيفة')}: ${g.positionName}` : L('Custom criteria', 'معايير مخصصة')}
-                />
+              <Card key={g.id} className="p-3.5">
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={g.name} color="#0d9488" size={38} square icon={<UsersRound size={16} />} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-800">{g.name}</div>
+                    <div className="truncate text-xs text-slate-500">
+                      {g.positionName ? `${L('Position', 'الوظيفة')}: ${g.positionName}` : L('Custom criteria', 'معايير مخصصة')}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setGroupEdit(g)
+                        setGroupForm(true)
+                      }}
+                      className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+                      aria-label={L('Edit', 'تعديل')}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => setGroupDelete(g)}
+                      className="rounded-full p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      aria-label={L('Delete', 'حذف')}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
               </Card>
             ))
           )}
@@ -287,6 +385,44 @@ export function EntityManage() {
           </div>
         )}
       </Sheet>
+
+      {/* create / edit group */}
+      <GroupFormSheet
+        open={groupForm}
+        onClose={() => setGroupForm(false)}
+        entityId={id}
+        ownerVirtualId={entVirtuals[0]?.id}
+        group={groupEdit}
+        lang={lang}
+        L={L}
+        t={t}
+      />
+
+      {/* delete group confirm */}
+      <Modal open={!!groupDelete} onClose={() => setGroupDelete(null)}>
+        <div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-800">{L('Delete group', 'حذف المجموعة')}</h2>
+          <p className="text-sm text-slate-600">
+            {L('Delete', 'حذف')} <span className="font-semibold text-slate-800">{groupDelete?.name}</span>?{' '}
+            {L('This cannot be undone.', 'لا يمكن التراجع عن هذا.')}
+          </p>
+          <div className="flex gap-2">
+            <Button full variant="subtle" onClick={() => setGroupDelete(null)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              full
+              variant="danger"
+              onClick={() => {
+                if (groupDelete) removeGroup(groupDelete.id)
+                setGroupDelete(null)
+              }}
+            >
+              <Trash2 size={16} className="me-1.5" /> {L('Delete', 'حذف')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -321,13 +457,16 @@ function StructureCard({
     return addStructureNode({ entityId, kind, code: STRUCTURE_ROOT_CODE[kind], name: kind, level: 0, parentId: null })
   }
 
+  // Unique, node-distinguishing code: next value above the highest in this structure.
+  const nextCode = () => nodes.reduce((m, n) => Math.max(m, n.code), STRUCTURE_ROOT_CODE[kind]) + 1
+
   const submitAdd = (parentId: string | null, level: number) => {
     if (!text.trim()) return
     const pid = parentId ?? ensureRoot()
     addStructureNode({
       entityId,
       kind,
-      code: STRUCTURE_ROOT_CODE[kind] + level,
+      code: nextCode(),
       name: text.trim(),
       level,
       parentId: pid,
@@ -340,7 +479,9 @@ function StructureCard({
     <div key={n.id}>
       <div className="flex items-center gap-2 py-1" style={{ paddingInlineStart: n.level * 14 }}>
         <span className="font-mono text-[10px] text-gate-500" dir="ltr">{n.code}</span>
-        <span className="flex-1 truncate text-xs text-slate-700">{n.name}</span>
+        <span className="flex-1 truncate text-xs text-slate-700">
+          {n.level === 0 ? bl(STRUCTURE_LABELS[kind], lang) : n.name}
+        </span>
         {n.level > 0 && (
           <>
             <button onClick={() => setAddParent(addParent === n.id ? null : n.id)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">

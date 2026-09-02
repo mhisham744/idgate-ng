@@ -277,7 +277,7 @@ export function PersonalMasterData() {
                       className={
                         'rounded-full px-2.5 py-1 text-xs font-medium ' +
                         (form.privacy[key] === o.value
-                          ? 'bg-gate-600 text-white'
+                          ? 'bg-gate-600 text-light'
                           : 'bg-slate-100 text-slate-500')
                       }
                     >

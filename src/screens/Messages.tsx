@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Plus, Send as SendIcon } from 'lucide-react'
+import { Plus, Send as SendIcon, Users, User, X, UsersRound } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime } from '@/lib/identity'
 import { useResolveActor, ActorLine } from '@/components/identity'
 import {
+  Badge,
   Button,
   Card,
   Field,
@@ -14,6 +15,7 @@ import {
   EmptyState,
   Sheet,
   Row,
+  cx,
 } from '@/ui/primitives'
 import type { ActorRef, ActiveAccount, Message } from '@/types'
 
@@ -33,6 +35,9 @@ export function Messages() {
   const messages = useStore((s) => s.messages)
   const normals = useStore((s) => s.normals)
   const virtuals = useStore((s) => s.virtuals)
+  const groups = useStore((s) => s.groups)
+  const virtual = useStore((s) => s.virtual)
+  const groupRecipients = useStore((s) => s.groupRecipients)
   const sendMessage = useStore((s) => s.sendMessage)
   const markRead = useStore((s) => s.markRead)
   const can = useStore((s) => s.can)
@@ -51,6 +56,20 @@ export function Messages() {
       .forEach((v) => opts.push({ kind: 'virtual', virtualId: v.id }))
     return opts.filter((r) => actorKey(r) !== meKey)
   }, [normals, virtuals, meKey])
+
+  // ── Group options: groups from the active virtual's entity (or all when personal) ─
+  const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
+  const groupOptions = useMemo(
+    () => {
+      const src = activeVirtual ? groups.filter((g) => g.entityId === activeVirtual.entityId) : groups
+      return src.map((g) => ({
+        id: g.id,
+        name: g.name,
+        recipients: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey),
+      }))
+    },
+    [groups, activeVirtual, groupRecipients, meKey],
+  )
 
   // ── Threads: latest message per threadId that involves me ────────────────────
   const threads = useMemo(() => {
@@ -165,14 +184,16 @@ export function Messages() {
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
         options={recipientOptions}
+        groups={groupOptions}
         canSend={can('msg.send')}
         resolveLabel={(r) => {
           const info = resolve(r)
           return info.address ? `${info.displayName} — ${info.address}` : info.displayName
         }}
+        resolveName={(r) => resolve(r).displayName}
         keyOf={actorKey}
         onSend={(to, subject, body) => {
-          sendMessage([to], subject, body)
+          sendMessage(to, subject, body)
           setComposeOpen(false)
         }}
         isRtl={isRtl}
@@ -275,7 +296,7 @@ function ThreadSheet({
                 <div
                   className={
                     mine
-                      ? 'rounded-3xl rounded-ee-md bg-gate-600 px-4 py-2.5 text-sm text-white'
+                      ? 'rounded-3xl rounded-ee-md bg-gate-600 px-4 py-2.5 text-sm text-light'
                       : 'rounded-3xl rounded-es-md bg-slate-100 px-4 py-2.5 text-sm text-slate-800'
                   }
                 >
@@ -294,12 +315,16 @@ function ThreadSheet({
 }
 
 // ── Compose sheet ────────────────────────────────────────────────────────────────
+type GroupOption = { id: string; name: string; recipients: ActorRef[] }
+
 function ComposeSheet({
   open,
   onClose,
   options,
+  groups,
   canSend,
   resolveLabel,
+  resolveName,
   keyOf,
   onSend,
   isRtl,
@@ -308,25 +333,46 @@ function ComposeSheet({
   open: boolean
   onClose: () => void
   options: ActorRef[]
+  groups: GroupOption[]
   canSend: boolean
   resolveLabel: (r: ActorRef) => string
+  resolveName: (r: ActorRef) => string
   keyOf: (r: ActorRef) => string
-  onSend: (to: ActorRef, subject: string, body: string) => void
+  onSend: (to: ActorRef[], subject: string, body: string) => void
   isRtl: boolean
   t: (k: string) => string
 }) {
-  const [toKey, setToKey] = useState('')
+  const [mode, setMode] = useState<'people' | 'group'>('people')
+  const [selected, setSelected] = useState<ActorRef[]>([])
+  const [groupId, setGroupId] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
 
   const reset = () => {
-    setToKey('')
+    setMode('people')
+    setSelected([])
+    setGroupId('')
     setSubject('')
     setBody('')
   }
 
-  const target = options.find((r) => keyOf(r) === toKey) ?? null
-  const valid = !!target && subject.trim().length > 0 && body.trim().length > 0
+  const selectedKeys = new Set(selected.map(keyOf))
+  const addable = options.filter((r) => !selectedKeys.has(keyOf(r)))
+  const addRecipient = (k: string) => {
+    const r = options.find((o) => keyOf(o) === k)
+    if (r) setSelected((prev) => [...prev, r])
+  }
+  const removeRecipient = (k: string) => setSelected((prev) => prev.filter((r) => keyOf(r) !== k))
+
+  const chosenGroup = groups.find((g) => g.id === groupId) ?? null
+  const recipients = mode === 'people' ? selected : chosenGroup?.recipients ?? []
+  const valid = recipients.length > 0 && subject.trim().length > 0 && body.trim().length > 0
+
+  const send = () => {
+    if (!valid) return
+    onSend(recipients, subject.trim(), body.trim())
+    reset()
+  }
 
   return (
     <Sheet
@@ -338,16 +384,11 @@ function ComposeSheet({
       title={t('newMessage')}
       footer={
         canSend ? (
-          <Button
-            full
-            disabled={!valid}
-            onClick={() => {
-              if (!target) return
-              onSend(target, subject.trim(), body.trim())
-              reset()
-            }}
-          >
-            <SendIcon size={16} /> {t('send')}
+          <Button full disabled={!valid} onClick={send}>
+            <SendIcon size={16} />{' '}
+            {recipients.length > 1
+              ? `${t('send')} · ${recipients.length}`
+              : t('send')}
           </Button>
         ) : (
           <div className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
@@ -358,16 +399,114 @@ function ComposeSheet({
     >
       {canSend ? (
         <div className="space-y-4 py-2">
-          <Field label={t('to')} required>
-            <Select value={toKey} onChange={(e) => setToKey(e.target.value)}>
-              <option value="">{L(isRtl, 'Select recipient…', 'اختر المستلم…')}</option>
-              {options.map((r) => (
-                <option key={keyOf(r)} value={keyOf(r)}>
-                  {resolveLabel(r)}
+          {/* mode toggle */}
+          <div className="inline-flex w-full rounded-2xl bg-slate-100 p-1">
+            <button
+              onClick={() => setMode('people')}
+              className={cx(
+                'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
+                mode === 'people' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}
+            >
+              <User size={14} /> {L(isRtl, 'People', 'أشخاص')}
+            </button>
+            <button
+              onClick={() => setMode('group')}
+              className={cx(
+                'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
+                mode === 'group' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}
+            >
+              <Users size={14} /> {L(isRtl, 'Group', 'مجموعة')}
+            </button>
+          </div>
+
+          {mode === 'people' ? (
+            <Field label={t('to')} required>
+              {selected.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {selected.map((r) => (
+                    <span
+                      key={keyOf(r)}
+                      className="inline-flex items-center gap-1 rounded-full bg-gate-50 py-1 ps-2.5 pe-1 text-xs font-medium text-gate-700"
+                    >
+                      {resolveName(r)}
+                      <button
+                        onClick={() => removeRecipient(keyOf(r))}
+                        className="flex h-4 w-4 items-center justify-center rounded-full text-gate-400 transition hover:bg-gate-200 hover:text-gate-700"
+                        aria-label={L(isRtl, 'Remove', 'إزالة')}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <Select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) addRecipient(e.target.value)
+                }}
+                disabled={addable.length === 0}
+              >
+                <option value="">
+                  {addable.length === 0
+                    ? L(isRtl, 'No more recipients', 'لا مزيد من المستلمين')
+                    : selected.length === 0
+                      ? L(isRtl, 'Select recipient…', 'اختر المستلم…')
+                      : L(isRtl, 'Add another…', 'إضافة آخر…')}
                 </option>
-              ))}
-            </Select>
-          </Field>
+                {addable.map((r) => (
+                  <option key={keyOf(r)} value={keyOf(r)}>
+                    {resolveLabel(r)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <Field label={L(isRtl, 'Group', 'المجموعة')} required>
+              {groups.length === 0 ? (
+                <p className="rounded-2xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+                  {L(isRtl, 'No groups available.', 'لا توجد مجموعات متاحة.')}
+                </p>
+              ) : (
+                <>
+                  <Select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+                    <option value="">{L(isRtl, 'Select group…', 'اختر مجموعة…')}</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name} · {g.recipients.length}
+                      </option>
+                    ))}
+                  </Select>
+                  {chosenGroup && (
+                    <div className="mt-2 rounded-2xl bg-teal-50/60 p-3">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-700">
+                        <UsersRound size={13} />
+                        {chosenGroup.recipients.length}{' '}
+                        {L(isRtl, 'recipients reached', 'مستلم')}
+                      </div>
+                      {chosenGroup.recipients.length === 0 ? (
+                        <p className="mt-1 text-[11px] text-amber-600">
+                          {L(isRtl, 'This group currently resolves to no active recipients.', 'لا تشمل هذه المجموعة حاليًا أي مستلمين نشطين.')}
+                        </p>
+                      ) : (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {chosenGroup.recipients.slice(0, 6).map((r) => (
+                            <Badge key={keyOf(r)} tone="teal">{resolveName(r)}</Badge>
+                          ))}
+                          {chosenGroup.recipients.length > 6 && (
+                            <Badge tone="slate">+{chosenGroup.recipients.length - 6}</Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </Field>
+          )}
+
           <Field label={t('subject')} required>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
           </Field>

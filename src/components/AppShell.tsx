@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MessageSquare, Bell, Wrench, Settings, ChevronDown, Check, Plus, Globe } from 'lucide-react'
+import { Home, MessageSquare, Bell, Wrench, Settings, ChevronDown, Check, Plus, Globe, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, useI18n } from '@/i18n'
+import { useTheme } from '@/theme'
 import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import type { ActiveAccount } from '@/types'
@@ -30,6 +31,25 @@ function LangToggle({ className }: { className?: string }) {
     >
       <Globe size={14} />
       {lang === 'ar' ? 'EN' : 'ع'}
+    </button>
+  )
+}
+
+/** Light/dark appearance toggle — paired with LangToggle. */
+function ThemeToggle({ className }: { className?: string }) {
+  const { isRtl } = useLang()
+  const theme = useTheme((s) => s.theme)
+  const toggle = useTheme((s) => s.toggle)
+  const dark = theme === 'dark'
+  return (
+    <button
+      onClick={toggle}
+      className={cx('flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2', className)}
+      aria-label={isRtl ? 'تبديل المظهر' : 'Toggle appearance'}
+      aria-pressed={dark}
+      title={dark ? (isRtl ? 'الوضع الفاتح' : 'Light mode') : (isRtl ? 'الوضع الداكن' : 'Dark mode')}
+    >
+      {dark ? <Sun size={14} /> : <Moon size={14} />}
     </button>
   )
 }
@@ -98,7 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="relative">
                   <Icon size={20} strokeWidth={isActive ? 2.4 : 2} />
                   {badge > 0 && (
-                    <span className="absolute -top-1.5 -end-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                    <span className="absolute -top-1.5 -end-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-light">
                       {badge}
                     </span>
                   )}
@@ -111,29 +131,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
           <span className="text-[11px] text-slate-400">{dir === 'rtl' ? 'نموذج تجريبي' : 'Interactive demo'}</span>
-          <LangToggle className="bg-slate-100 text-slate-600 hover:bg-slate-200 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white" />
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle className="bg-slate-100 text-slate-600 hover:bg-slate-200 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white" />
+            <LangToggle className="bg-slate-100 text-slate-600 hover:bg-slate-200 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white" />
+          </div>
         </div>
       </aside>
 
       {/* ── Main column ─────────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="relative z-30 shrink-0 bg-gradient-to-b from-gate-700 to-gate-600 px-4 pt-[max(2.25rem,env(safe-area-inset-top))] pb-3 text-white lg:hidden">
+        <header className="relative z-30 shrink-0 bg-gradient-to-b from-[#1f39ad] to-[#2447d6] px-4 pt-[max(2.25rem,env(safe-area-inset-top))] pb-3 text-light lg:hidden">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSwitcherOpen(true)}
-              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-white/10 px-3 py-2 backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-0"
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-light/10 px-3 py-2 backdrop-blur transition hover:bg-light/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-light/70 focus-visible:ring-offset-0"
             >
               <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
               <div className="min-w-0 flex-1 text-start">
                 <div className="truncate text-sm font-semibold">{r.displayName}</div>
-                <div className="truncate font-mono text-[10px] text-white/70">
+                <div className="truncate font-mono text-[10px] text-light/70">
                   <bdi>{r.address}</bdi>
                 </div>
               </div>
-              <ChevronDown size={18} className="text-white/70" />
+              <ChevronDown size={18} className="text-light/70" />
             </button>
-            <LangToggle className="shrink-0 bg-white/10 text-white hover:bg-white/20 focus-visible:ring-white/70 focus-visible:ring-offset-0" />
+            <ThemeToggle className="shrink-0 bg-light/10 text-light hover:bg-light/20 focus-visible:ring-light/70 focus-visible:ring-offset-0" />
+            <LangToggle className="shrink-0 bg-light/10 text-light hover:bg-light/20 focus-visible:ring-light/70 focus-visible:ring-offset-0" />
           </div>
         </header>
 
@@ -161,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <div className="relative">
                     <Icon size={22} strokeWidth={isActive ? 2.4 : 2} />
                     {badge > 0 && (
-                      <span className="absolute -top-1.5 -end-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                      <span className="absolute -top-1.5 -end-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-light">
                         {badge}
                       </span>
                     )}

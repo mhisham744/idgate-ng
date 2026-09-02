@@ -48,9 +48,9 @@ export function AboutConcept() {
       </button>
 
       {/* Intro */}
-      <Card className="bg-gate-600 p-5 text-white">
+      <Card className="bg-gate-600 p-5 text-light">
         <div className="text-lg font-bold">{t('appName')}</div>
-        <div className="mt-1 text-sm text-white/90">{t('subtitle')}</div>
+        <div className="mt-1 text-sm text-light/90">{t('subtitle')}</div>
       </Card>
 
       {/* 1. Three dimensions */}
@@ -140,7 +140,7 @@ export function AboutConcept() {
         <ol className="space-y-2">
           {steps.map((s, i) => (
             <li key={i} className="flex items-start gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gate-600 text-xs font-bold text-white">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gate-600 text-xs font-bold text-light">
                 {i + 1}
               </span>
               <span className="pt-0.5 text-sm text-slate-700">{L(s.en, s.ar)}</span>

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, Plus, Send, MessagesSquare } from 'lucide-react'
+import { ArrowLeft, Users, Plus, Send, MessagesSquare, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '@/store'
-import { useLang, bl } from '@/i18n'
+import { useLang } from '@/i18n'
 import {
   Button,
   Card,
@@ -10,12 +10,12 @@ import {
   Field,
   Input,
   Textarea,
-  Select,
   EmptyState,
   Sheet,
+  Modal,
   SectionHeader,
 } from '@/ui/primitives'
-import { STRUCTURE_LABELS } from '@/data/reference'
+import { GroupFormSheet } from '@/components/GroupForm'
 import type { Group, StructureKind } from '@/types'
 
 const KIND_FIELDS: { field: keyof Pick<Group, 'corporateNodeId' | 'relationNodeId' | 'organizationNodeId' | 'geographicalNodeId'>; kind: StructureKind }[] = [
@@ -36,11 +36,11 @@ export function GroupsScreen() {
   const virtual = useStore((s) => s.virtual)
   const active = useStore((s) => s.active)
   const can = useStore((s) => s.can)
-  const addGroup = useStore((s) => s.addGroup)
+  const removeGroup = useStore((s) => s.removeGroup)
   const createNotification = useStore((s) => s.createNotification)
 
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
-  const canCreate =
+  const canManage =
     !!activeVirtual && (can('admin.createGroupVirtual') || can('admin.createGroupNormal'))
 
   const visible = activeVirtual
@@ -75,32 +75,18 @@ export function GroupsScreen() {
     setSent(true)
   }
 
-  // ── create group ──
-  const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
-  const [positionName, setPositionName] = useState('')
-  const [nodeSel, setNodeSel] = useState<Record<string, string>>({})
+  // ── create / edit / delete ──
+  const [formOpen, setFormOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Group | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
 
-  const entStructures = activeVirtual
-    ? structures.filter((n) => n.entityId === activeVirtual.entityId)
-    : []
-
-  function submitGroup() {
-    if (!activeVirtual || !name.trim()) return
-    addGroup({
-      entityId: activeVirtual.entityId,
-      ownerVirtualId: activeVirtual.id,
-      name: name.trim(),
-      positionName: positionName.trim() || undefined,
-      corporateNodeId: nodeSel.corporate || undefined,
-      relationNodeId: nodeSel.relation || undefined,
-      organizationNodeId: nodeSel.organization || undefined,
-      geographicalNodeId: nodeSel.geographical || undefined,
-    })
-    setName('')
-    setPositionName('')
-    setNodeSel({})
-    setCreating(false)
+  function openCreate() {
+    setEditTarget(null)
+    setFormOpen(true)
+  }
+  function openEdit(g: Group) {
+    setEditTarget(g)
+    setFormOpen(true)
   }
 
   function criteriaBadges(g: Group) {
@@ -133,8 +119,8 @@ export function GroupsScreen() {
         </p>
       </div>
 
-      {canCreate && (
-        <Button full onClick={() => setCreating(true)}>
+      {canManage && (
+        <Button full onClick={openCreate}>
           <Plus size={16} className="me-1.5" />
           {t('createGroup')}
         </Button>
@@ -150,9 +136,29 @@ export function GroupsScreen() {
               {!activeVirtual && <SectionHeader title={ent?.commercialName ?? entId} />}
               {list.map((g) => (
                 <Card key={g.id} className="p-4 space-y-3">
-                  <div>
-                    <div className="text-sm font-bold text-slate-800">{g.name}</div>
-                    {ent && <div className="text-xs text-slate-500">{ent.commercialName}</div>}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-800">{g.name}</div>
+                      {ent && <div className="text-xs text-slate-500">{ent.commercialName}</div>}
+                    </div>
+                    {canManage && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => openEdit(g)}
+                          className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+                          aria-label={L('Edit', 'تعديل')}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(g)}
+                          className="rounded-full p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                          aria-label={L('Delete', 'حذف')}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {criteriaBadges(g).length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
@@ -214,45 +220,46 @@ export function GroupsScreen() {
         )}
       </Sheet>
 
-      {/* create sheet */}
-      <Sheet
-        open={creating}
-        onClose={() => setCreating(false)}
-        title={t('createGroup')}
-        footer={
-          <Button full onClick={submitGroup} disabled={!name.trim()}>
-            {t('createGroup')}
-          </Button>
-        }
-      >
-        <div className="space-y-3">
-          <Field label={L('Group name', 'اسم المجموعة')} required>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label={t('positions')} hint={t('optional')}>
-            <Input value={positionName} onChange={(e) => setPositionName(e.target.value)} />
-          </Field>
-          {KIND_FIELDS.map(({ kind }) => {
-            const nodes = entStructures.filter((n) => n.kind === kind)
-            return (
-              <Field key={kind} label={bl(STRUCTURE_LABELS[kind], lang)} hint={t('optional')}>
-                <Select
-                  value={nodeSel[kind] ?? ''}
-                  onChange={(e) => setNodeSel((s) => ({ ...s, [kind]: e.target.value }))}
-                >
-                  <option value="">{L('Any', 'الكل')}</option>
-                  {nodes.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {'— '.repeat(n.level)}
-                      {n.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            )
-          })}
+      {/* create / edit sheet */}
+      {activeVirtual && (
+        <GroupFormSheet
+          open={formOpen}
+          onClose={() => setFormOpen(false)}
+          entityId={activeVirtual.entityId}
+          ownerVirtualId={activeVirtual.id}
+          group={editTarget}
+          lang={lang}
+          L={L}
+          t={t}
+        />
+      )}
+
+      {/* delete confirm */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
+        <div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-800">{L('Delete group', 'حذف المجموعة')}</h2>
+          <p className="text-sm text-slate-600">
+            {L('Delete', 'حذف')} <span className="font-semibold text-slate-800">{deleteTarget?.name}</span>?{' '}
+            {L('This cannot be undone.', 'لا يمكن التراجع عن هذا.')}
+          </p>
+          <div className="flex gap-2">
+            <Button full variant="subtle" onClick={() => setDeleteTarget(null)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              full
+              variant="danger"
+              onClick={() => {
+                if (deleteTarget) removeGroup(deleteTarget.id)
+                setDeleteTarget(null)
+              }}
+            >
+              <Trash2 size={16} className="me-1.5" />
+              {L('Delete', 'حذف')}
+            </Button>
+          </div>
         </div>
-      </Sheet>
+      </Modal>
     </div>
   )
 }

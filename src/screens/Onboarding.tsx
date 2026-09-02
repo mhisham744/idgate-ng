@@ -22,7 +22,7 @@ export function Onboarding() {
       {/* Language toggle (top corner) */}
       <button
         onClick={toggleLang}
-        className="absolute top-4 end-4 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-0"
+        className="absolute top-4 end-4 flex items-center gap-1.5 rounded-full bg-light/10 px-3 py-1.5 text-xs font-medium text-light backdrop-blur transition hover:bg-light/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-light/70 focus-visible:ring-offset-0"
         aria-label="Toggle language"
       >
         <Globe size={14} />
@@ -31,13 +31,13 @@ export function Onboarding() {
 
       <div className="w-full max-w-md space-y-5">
         {/* Brand hero */}
-        <div className="flex flex-col items-center text-center text-white gap-3 pt-2">
-          <div className="w-16 h-16 rounded-3xl bg-white/15 backdrop-blur flex items-center justify-center">
-            <ShieldCheck className="w-8 h-8 text-white" aria-hidden />
+        <div className="flex flex-col items-center text-center text-light gap-3 pt-2">
+          <div className="w-16 h-16 rounded-3xl bg-light/15 backdrop-blur flex items-center justify-center">
+            <ShieldCheck className="w-8 h-8 text-light" aria-hidden />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('appName')}</h1>
-            <p className="text-sm text-white/80">{t('subtitle')}</p>
+            <p className="text-sm text-light/80">{t('subtitle')}</p>
           </div>
         </div>
 

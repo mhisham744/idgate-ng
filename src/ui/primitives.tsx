@@ -27,11 +27,11 @@ export function Button({
         size === 'sm' && 'px-3 py-1.5 text-xs',
         size === 'md' && 'px-4 py-2.5 text-sm',
         size === 'lg' && 'px-5 py-3 text-base',
-        variant === 'primary' && 'bg-gate-600 text-white shadow-sm hover:bg-gate-700 active:shadow-none',
+        variant === 'primary' && 'bg-gate-600 text-light shadow-sm hover:bg-gate-700 active:shadow-none',
         variant === 'secondary' && 'bg-gate-50 text-gate-700 hover:bg-gate-100 border border-gate-100',
         variant === 'ghost' && 'text-gate-700 hover:bg-gate-50',
         variant === 'subtle' && 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-        variant === 'danger' && 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 active:shadow-none',
+        variant === 'danger' && 'bg-rose-600 text-light shadow-sm hover:bg-rose-700 active:shadow-none',
         full && 'w-full',
         className,
       )}
@@ -83,7 +83,7 @@ export function Avatar({
     .toUpperCase()
   return (
     <div
-      className={cx('flex items-center justify-center font-semibold text-white shrink-0', square ? 'rounded-xl' : 'rounded-full')}
+      className={cx('flex items-center justify-center font-semibold text-light shrink-0', square ? 'rounded-xl' : 'rounded-full')}
       style={{ width: size, height: size, background: color ?? '#64748b', fontSize: size * 0.36 }}
     >
       {icon ?? initials ?? '?'}
@@ -134,7 +134,7 @@ export function Chip({
       onClick={onClick}
       className={cx(
         'whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
-        active ? 'bg-gate-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50',
+        active ? 'bg-gate-600 text-light shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50',
       )}
     >
       {children}
@@ -230,7 +230,7 @@ export function Sheet({
   return (
     <SheetCtx.Provider value={{ close: onClose }}>
       <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center sm:p-6">
-        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
         <div className="relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl animate-slide-up sm:max-h-[80vh] sm:max-w-md sm:rounded-3xl">
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
             <div className="mx-auto absolute inset-x-0 top-2 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
@@ -252,7 +252,7 @@ export function Modal({ open, onClose, children }: { open: boolean; onClose: () 
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
       <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto thin-scroll rounded-3xl bg-white p-5 shadow-2xl animate-scale-in">{children}</div>
     </div>
   )
@@ -270,7 +270,7 @@ export function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: 
     >
       <span
         className={cx(
-          'absolute top-0.5 start-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+          'absolute top-0.5 start-0.5 h-5 w-5 rounded-full bg-light shadow transition-transform',
           checked ? 'translate-x-4 rtl:-translate-x-4' : 'translate-x-0',
         )}
       />
