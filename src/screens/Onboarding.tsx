@@ -22,7 +22,7 @@ export function Onboarding() {
       {/* Language toggle (top corner) */}
       <button
         onClick={toggleLang}
-        className="absolute top-4 end-4 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/20"
+        className="absolute top-4 end-4 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-0"
         aria-label="Toggle language"
       >
         <Globe size={14} />
@@ -42,7 +42,7 @@ export function Onboarding() {
         </div>
 
         {/* Concept card */}
-        <Card className="space-y-4">
+        <Card className="p-5 space-y-4 animate-slide-up">
           <p className="text-sm text-slate-600 leading-relaxed text-start">
             {L(
               'One identity, many roles. Be yourself, or act through an official position granted by a company, ministry, or club — with communication that is always accountable.',
@@ -65,7 +65,7 @@ export function Onboarding() {
                     type="button"
                     onClick={() => setSelectedId(n.id)}
                     className={cx(
-                      'w-full flex items-center gap-3 rounded-2xl border p-3 text-start transition',
+                      'w-full flex items-center gap-3 rounded-2xl border p-3 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
                       active
                         ? 'border-gate-500 bg-gate-50 ring-2 ring-gate-500/30'
                         : 'border-slate-200 bg-white hover:bg-slate-50',
@@ -76,7 +76,7 @@ export function Onboarding() {
                       <div className="font-semibold text-slate-900 truncate">
                         {n.fullName}
                       </div>
-                      <div className="font-mono text-xs text-slate-500 truncate text-start">
+                      <div className="font-mono text-[11px] text-gate-600 truncate text-start">
                         <bdi>{personalAddress(n)}</bdi>
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
@@ -101,7 +101,7 @@ export function Onboarding() {
             {t('enterApp')}
           </Button>
 
-          <p className="text-center text-xs text-slate-400">
+          <p className="text-center text-xs text-slate-500">
             {L(
               'Tip: switch language anytime from the globe button.',
               'ملاحظة: يمكنك تبديل اللغة في أي وقت من زر الكرة الأرضية.',

@@ -1,7 +1,7 @@
 import { clsx } from 'clsx'
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { createContext, useContext, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 
 // A tiny classnames helper so screens don't each re-import clsx.
 export function cx(...args: Parameters<typeof clsx>) {
@@ -23,15 +23,15 @@ export function Button({
   return (
     <button
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-2xl font-medium transition-all active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none',
+        'inline-flex items-center justify-center gap-2 rounded-2xl font-medium transition-all active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         size === 'sm' && 'px-3 py-1.5 text-xs',
         size === 'md' && 'px-4 py-2.5 text-sm',
         size === 'lg' && 'px-5 py-3 text-base',
-        variant === 'primary' && 'bg-gate-600 text-white shadow-sm hover:bg-gate-700',
+        variant === 'primary' && 'bg-gate-600 text-white shadow-sm hover:bg-gate-700 active:shadow-none',
         variant === 'secondary' && 'bg-gate-50 text-gate-700 hover:bg-gate-100 border border-gate-100',
         variant === 'ghost' && 'text-gate-700 hover:bg-gate-50',
         variant === 'subtle' && 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-        variant === 'danger' && 'bg-rose-600 text-white hover:bg-rose-700',
+        variant === 'danger' && 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 active:shadow-none',
         full && 'w-full',
         className,
       )}
@@ -43,13 +43,14 @@ export function Button({
 }
 
 // ── Card ────────────────────────────────────────────────────────────────────
-export function Card({ className, children, onClick }: { className?: string; children: ReactNode; onClick?: () => void }) {
+export function Card({ className, children, onClick, style }: { className?: string; children: ReactNode; onClick?: () => void; style?: CSSProperties }) {
   return (
     <div
       onClick={onClick}
+      style={style}
       className={cx(
         'rounded-3xl bg-white shadow-card border border-slate-100/80',
-        onClick && 'cursor-pointer transition-transform active:scale-[0.99]',
+        onClick && 'cursor-pointer transition-all hover:shadow-card-hover active:scale-[0.99]',
         className,
       )}
     >
@@ -97,7 +98,7 @@ export function Badge({
   className,
 }: {
   children: ReactNode
-  tone?: 'slate' | 'green' | 'amber' | 'red' | 'gate' | 'teal'
+  tone?: 'slate' | 'green' | 'amber' | 'red' | 'gate' | 'teal' | 'violet'
   className?: string
 }) {
   return (
@@ -110,6 +111,7 @@ export function Badge({
         tone === 'red' && 'bg-rose-100 text-rose-700',
         tone === 'gate' && 'bg-gate-100 text-gate-700',
         tone === 'teal' && 'bg-teal-100 text-teal-700',
+        tone === 'violet' && 'bg-violet-100 text-violet-700',
         className,
       )}
     >
@@ -131,7 +133,7 @@ export function Chip({
     <button
       onClick={onClick}
       className={cx(
-        'whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors',
+        'whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         active ? 'bg-gate-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50',
       )}
     >
@@ -147,7 +149,7 @@ export function Field({ label, hint, children, required }: { label: string; hint
       <div className="mb-1.5 flex items-center gap-1.5">
         <span className="text-xs font-semibold text-slate-700">{label}</span>
         {required && <span className="text-rose-500">*</span>}
-        {hint && <span className="text-[10px] text-slate-400">· {hint}</span>}
+        {hint && <span className="text-[10px] text-slate-500">· {hint}</span>}
       </div>
       {children}
     </label>
@@ -163,17 +165,29 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={cx(inputCls, 'resize-none', props.className)} />
 }
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cx(inputCls, 'appearance-none pe-8', props.className)} />
+export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className={cx('relative', className)}>
+      <select {...props} className={cx(inputCls, 'w-full appearance-none pe-9')} />
+      <ChevronDown
+        size={16}
+        className="pointer-events-none absolute inset-y-0 end-3 my-auto text-slate-400"
+      />
+    </div>
+  )
 }
 
 // ── EmptyState ─────────────────────────────────────────────────────────────────
 export function EmptyState({ icon, title, subtitle }: { icon?: ReactNode; title: string; subtitle?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-      {icon && <div className="text-slate-300">{icon}</div>}
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+      {icon && (
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+          {icon}
+        </div>
+      )}
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      {subtitle && <p className="max-w-[15rem] text-xs text-slate-400">{subtitle}</p>}
+      {subtitle && <p className="max-w-[15rem] text-xs text-slate-500">{subtitle}</p>}
     </div>
   )
 }
@@ -219,9 +233,9 @@ export function Sheet({
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
         <div className="relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl animate-slide-up sm:max-h-[80vh] sm:max-w-md sm:rounded-3xl">
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
-            <div className="mx-auto absolute inset-x-0 top-2 h-1 w-10 rounded-full bg-slate-200" />
-            {title && <h2 className="text-base font-bold text-slate-800 mt-2">{title}</h2>}
-            <button onClick={onClose} className="ms-auto mt-2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+            <div className="mx-auto absolute inset-x-0 top-2 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
+            {title && <h2 className="text-base font-bold text-slate-800">{title}</h2>}
+            <button onClick={onClose} className="ms-auto rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
               <X size={18} />
             </button>
           </div>
@@ -239,7 +253,7 @@ export function Modal({ open, onClose, children }: { open: boolean; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl animate-scale-in">{children}</div>
+      <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto thin-scroll rounded-3xl bg-white p-5 shadow-2xl animate-scale-in">{children}</div>
     </div>
   )
 }
@@ -249,12 +263,15 @@ export function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: 
   return (
     <button
       onClick={() => onChange(!checked)}
-      className={cx('relative h-6 w-10 rounded-full transition-colors', checked ? 'bg-gate-600' : 'bg-slate-300')}
+      className={cx(
+        'relative h-6 w-10 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+        checked ? 'bg-gate-600' : 'bg-slate-300',
+      )}
     >
       <span
         className={cx(
-          'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all',
-          checked ? 'start-[1.125rem]' : 'start-0.5',
+          'absolute top-0.5 start-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-4 rtl:-translate-x-4' : 'translate-x-0',
         )}
       />
     </button>

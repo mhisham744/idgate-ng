@@ -25,7 +25,7 @@ function LangToggle({ className }: { className?: string }) {
   return (
     <button
       onClick={toggle}
-      className={cx('flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition', className)}
+      className={cx('flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2', className)}
       aria-label="Toggle language"
     >
       <Globe size={14} />
@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-dvh w-full bg-slate-100 text-slate-900" dir={dir}>
       {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
       <aside className="hidden w-72 shrink-0 flex-col border-e border-slate-200 bg-white lg:flex">
-        <div className="flex items-center gap-2.5 px-5 py-5">
+        <div className="flex items-center gap-2.5 px-6 py-5">
           <img src="gate.svg" alt="" className="h-8 w-8" />
           <div className="leading-tight">
             <div className="font-bold tracking-tight text-gate-800">{t('appName')}</div>
@@ -70,12 +70,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="px-3">
           <button
             onClick={() => setSwitcherOpen(true)}
-            className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-start transition hover:bg-slate-100"
+            className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-start transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           >
             <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
-              <div className="truncate font-mono text-[10px] text-slate-500"><bdi>{r.address}</bdi></div>
+              <div className="truncate font-mono text-[11px] text-gate-600"><bdi>{r.address}</bdi></div>
             </div>
             <ChevronDown size={18} className="text-slate-400" />
           </button>
@@ -91,8 +91,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={tab.key}
                 to={tab.to}
                 className={cx(
-                  'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive ? 'bg-gate-50 text-gate-700' : 'text-slate-600 hover:bg-slate-50',
+                  'flex items-center gap-3 rounded-2xl border-s-2 border-transparent px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+                  isActive ? 'border-s-2 border-gate-600 bg-gate-50 text-gate-700 font-semibold' : 'text-slate-600 hover:bg-slate-50',
                 )}
               >
                 <div className="relative">
@@ -109,20 +109,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
           <span className="text-[11px] text-slate-400">{dir === 'rtl' ? 'نموذج تجريبي' : 'Interactive demo'}</span>
-          <LangToggle className="bg-slate-100 text-slate-600 hover:bg-slate-200" />
+          <LangToggle className="bg-slate-100 text-slate-600 hover:bg-slate-200 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white" />
         </div>
       </aside>
 
       {/* ── Main column ─────────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="relative z-30 shrink-0 bg-gradient-to-b from-gate-700 to-gate-600 px-4 pt-9 pb-3 text-white lg:hidden">
+        <header className="relative z-30 shrink-0 bg-gradient-to-b from-gate-700 to-gate-600 px-4 pt-[max(2.25rem,env(safe-area-inset-top))] pb-3 text-white lg:hidden">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSwitcherOpen(true)}
-              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-white/10 px-3 py-2 backdrop-blur transition hover:bg-white/15"
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-white/10 px-3 py-2 backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-0"
             >
               <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
               <div className="min-w-0 flex-1 text-start">
@@ -133,17 +133,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <ChevronDown size={18} className="text-white/70" />
             </button>
-            <LangToggle className="shrink-0 bg-white/10 text-white hover:bg-white/20" />
+            <LangToggle className="shrink-0 bg-white/10 text-white hover:bg-white/20 focus-visible:ring-white/70 focus-visible:ring-offset-0" />
           </div>
         </header>
 
         {/* Scrollable content — capped to a comfortable reading column, centered */}
         <main className="relative flex-1 overflow-y-auto thin-scroll">
-          <div className="mx-auto w-full max-w-2xl">{children}</div>
+          <div className="mx-auto w-full max-w-2xl lg:py-4">{children}</div>
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="shrink-0 border-t border-slate-200 bg-white/95 px-1 pb-5 pt-1.5 backdrop-blur lg:hidden">
+        <nav className="shrink-0 border-t border-slate-200 bg-white/95 px-1 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur lg:hidden">
           <div className="flex items-stretch justify-around">
             {TABS.map((tab) => {
               const isActive = location.pathname.startsWith(tab.to)
@@ -154,8 +154,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={tab.key}
                   to={tab.to}
                   className={cx(
-                    'relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 transition-colors',
-                    isActive ? 'text-gate-600' : 'text-slate-400',
+                    'relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+                    isActive ? 'bg-gate-50 text-gate-600' : 'text-slate-400',
                   )}
                 >
                   <div className="relative">
@@ -260,7 +260,7 @@ function AccountOption({
     <button
       onClick={onClick}
       className={cx(
-        'flex w-full items-center gap-2 rounded-2xl border p-2.5 text-start transition',
+        'flex w-full items-center gap-2 rounded-2xl border p-2.5 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         selected ? 'border-gate-300 bg-gate-50/60 ring-1 ring-gate-200' : 'border-slate-100 bg-white hover:bg-slate-50',
       )}
     >

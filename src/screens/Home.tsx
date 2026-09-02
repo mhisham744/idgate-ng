@@ -63,7 +63,7 @@ export function Home() {
       case 'advertising':
         return 'red' as const
       case 'data':
-        return 'slate' as const
+        return 'violet' as const
     }
   }
 
@@ -99,7 +99,7 @@ export function Home() {
   return (
     <div className="p-4 space-y-4 pb-8">
       {/* Composer */}
-      <Card className="space-y-3">
+      <Card className="p-4 space-y-3">
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -112,7 +112,7 @@ export function Home() {
             value={composerCat}
             onChange={(e) => setComposerCat(e.target.value as Category)}
             disabled={!canSend}
-            className="flex-1"
+            className="w-auto min-w-[8rem]"
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -120,6 +120,7 @@ export function Home() {
               </option>
             ))}
           </Select>
+          <div className="flex-1" />
           <Button
             variant="primary"
             onClick={submit}
@@ -129,12 +130,12 @@ export function Home() {
           </Button>
         </div>
         {!canSend && (
-          <p className="text-xs text-slate-400 text-start">{t('noPermission')}</p>
+          <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
         )}
       </Card>
 
       {/* Category filter */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-4 px-4">
         <Chip active={filter === 'all'} onClick={() => setFilter('all')}>
           {L('All', 'الكل')}
         </Chip>
@@ -148,16 +149,17 @@ export function Home() {
       {/* Feed */}
       {visible.length === 0 ? (
         <EmptyState
-          icon={<MessageCircle className="w-6 h-6" />}
+          icon={<MessageCircle className="w-7 h-7" />}
           title={t('empty')}
           subtitle={t('feed')}
         />
       ) : (
-        <div className="space-y-3">
-          {visible.map((p) => (
+        <div className="space-y-4">
+          {visible.map((p, i) => (
             <PostCard
               key={p.id}
               post={p}
+              index={i}
               meKey={meKey}
               lang={lang}
               catLabel={catLabel(p.category)}
@@ -175,6 +177,7 @@ export function Home() {
 
 function PostCard({
   post,
+  index,
   meKey,
   lang,
   catLabel,
@@ -184,10 +187,11 @@ function PostCard({
   onSave,
 }: {
   post: Post
+  index: number
   meKey: string
   lang: 'en' | 'ar'
   catLabel: string
-  catTone: 'slate' | 'green' | 'amber' | 'red' | 'gate' | 'teal'
+  catTone: 'slate' | 'green' | 'amber' | 'red' | 'gate' | 'teal' | 'violet'
   L: (en: string, ar: string) => string
   onReact: () => void
   onSave: () => void
@@ -212,36 +216,36 @@ function PostCard({
   }
 
   return (
-    <Card className="space-y-3">
+    <Card className="p-4 space-y-3 animate-fade-in" style={{ animationDelay: `${index * 40}ms` }}>
       <div className="flex items-start justify-between gap-2">
         <ActorLine actor={post.author} size={40} showAddress />
-        <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
           <Badge tone={catTone}>{catLabel}</Badge>
-          <span className="text-xs text-slate-400">
+          <span className="text-[11px] leading-none text-slate-500">
             {relativeTime(post.createdAt, lang)}
           </span>
         </div>
       </div>
 
-      <p className="text-sm text-slate-800 whitespace-pre-wrap text-start">
+      <p className="text-[15px] leading-relaxed text-slate-800 whitespace-pre-wrap text-start">
         {post.body}
       </p>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 text-slate-500 border-t border-slate-100 pt-2">
+      <div className="flex items-center gap-1 text-slate-500 border-t border-slate-100 -mx-4 px-3 pt-2 mt-1">
         <ActionButton
           active={reacted}
           onClick={onReact}
           icon={<Heart className={cx('w-4 h-4', reacted && 'fill-current')} />}
           label={String(post.reactions)}
-          activeClass="text-red-500"
+          activeClass="text-rose-500 bg-rose-50"
         />
         <ActionButton
           active={open}
           onClick={() => setOpen((v) => !v)}
           icon={<MessageCircle className="w-4 h-4" />}
           label={String(post.comments.length)}
-          activeClass="text-gate-600"
+          activeClass="text-gate-600 bg-gate-50"
         />
         <ActionButton
           onClick={() => {}}
@@ -254,7 +258,7 @@ function PostCard({
           active={saved}
           onClick={onSave}
           icon={<Bookmark className={cx('w-4 h-4', saved && 'fill-current')} />}
-          activeClass="text-gate-600"
+          activeClass="text-gate-600 bg-gate-50"
         />
       </div>
 
@@ -262,14 +266,14 @@ function PostCard({
       {open && (
         <div className="space-y-3 border-t border-slate-100 pt-3">
           {post.comments.length === 0 ? (
-            <p className="text-xs text-slate-400 text-start">{t('comments')}</p>
+            <p className="text-xs text-slate-500 text-start">{t('comments')}</p>
           ) : (
             post.comments.map((c) => {
               return (
                 <div key={c.id} className="flex flex-col gap-0.5">
                   <ActorLine actor={c.author} size={28} />
-                  <p className="text-sm text-slate-700 ps-9 text-start">{c.body}</p>
-                  <span className="text-xs text-slate-400 ps-9">
+                  <p className="text-sm text-slate-700 ps-[38px] text-start">{c.body}</p>
+                  <span className="text-xs text-slate-500 ps-[38px]">
                     {relativeTime(c.createdAt, lang)}
                   </span>
                 </div>
@@ -296,7 +300,7 @@ function PostCard({
               </Button>
             </div>
           ) : (
-            <p className="text-xs text-slate-400 text-start">{t('noPermission')}</p>
+            <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
           )}
         </div>
       )}
@@ -325,7 +329,7 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition',
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         disabled
           ? 'text-slate-300 cursor-not-allowed'
           : active

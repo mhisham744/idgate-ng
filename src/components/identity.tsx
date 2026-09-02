@@ -59,7 +59,7 @@ export function ActorLine({
     <div className="flex items-center gap-2.5 min-w-0">
       <Avatar name={r.displayName} color={r.color} size={size} square={r.isVirtual} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
+        <div className="truncate text-sm font-semibold text-slate-800 leading-tight">{r.displayName}</div>
         {showAddress && r.address && (
           <div className="truncate font-mono text-[11px] text-gate-600">
             <bdi>{r.address}</bdi>
