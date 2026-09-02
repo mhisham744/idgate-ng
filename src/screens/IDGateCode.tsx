@@ -3,7 +3,7 @@ import { ArrowLeft, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
-import { virtualAddress } from '@/lib/identity'
+import { personalAddress, virtualAddress } from '@/lib/identity'
 import { Button, Card, EmptyState } from '@/ui/primitives'
 
 export function IDGateCode() {
@@ -76,6 +76,12 @@ export function IDGateCode() {
             <div className="flex items-center justify-between px-5 py-2.5">
               <span className="text-slate-500">{t('linkedTo')}</span>
               <span className="font-semibold text-slate-800">{host.fullName}</span>
+            </div>
+          )}
+          {host && (
+            <div className="flex items-center justify-between px-5 py-2.5">
+              <span className="text-slate-500">{L('Personal account code', 'كود الحساب الشخصي')}</span>
+              <span dir="ltr" className="font-mono text-slate-800">{personalAddress(host)}</span>
             </div>
           )}
           {vc!.positionCode && (

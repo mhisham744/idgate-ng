@@ -31,6 +31,7 @@ import { STRUCTURE_ROOT_CODE } from '@/types'
 import type { Ability } from '@/store'
 import type { Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
 import { useResolveActor } from '@/components/identity'
+import { personalAddress } from '@/lib/identity'
 import { OrgChart } from '@/components/OrgChart'
 import { GroupFormSheet } from '@/components/GroupForm'
 import {
@@ -256,7 +257,7 @@ export function EntityManage() {
                 L={L}
                 t={t}
                 v={v}
-                hostName={v.linkedNormalId ? normals.find((n) => n.id === v.linkedNormalId)?.fullName : undefined}
+                host={v.linkedNormalId ? normals.find((n) => n.id === v.linkedNormalId) : undefined}
                 onLink={() => setLinkTarget(v)}
                 onUnlink={() => unlinkVirtual(v.id)}
                 onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
@@ -622,7 +623,7 @@ function VirtualRow({
   L,
   t,
   v,
-  hostName,
+  host,
   onLink,
   onUnlink,
   onBlock,
@@ -630,7 +631,7 @@ function VirtualRow({
   L: (en: string, ar: string) => string
   t: (k: string) => string
   v: VirtualCharacter
-  hostName?: string
+  host?: import('@/types').NormalCharacter
   onLink: () => void
   onUnlink: () => void
   onBlock: () => void
@@ -649,9 +650,31 @@ function VirtualRow({
         </div>
         <Badge tone={tone}>{statusText}</Badge>
       </div>
-      {hostName && (
-        <div className="text-[11px] text-slate-500">
-          {t('linkedTo')} <span className="font-medium text-slate-700">{hostName}</span>
+      {host && (
+        <div className="space-y-0.5 rounded-xl bg-slate-50 px-2.5 py-1.5">
+          <div className="text-[11px] text-slate-500">
+            {t('linkedTo')} <span className="font-medium text-slate-700">{host.fullName}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span>{L('Personal account code', 'كود الحساب الشخصي')}</span>
+            <span dir="ltr" className="font-mono text-gate-700">{personalAddress(host)}</span>
+          </div>
+        </div>
+      )}
+      {(v.positionCode || (v.additionalCodes && v.additionalCodes.length > 0)) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400">
+          {v.positionCode && (
+            <span className="inline-flex items-center gap-1">
+              {L('Position code', 'كود المنصب')}
+              <span dir="ltr" className="font-mono text-slate-600">{v.positionCode}</span>
+            </span>
+          )}
+          {v.additionalCodes && v.additionalCodes.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              {L('Additional', 'إضافية')}
+              <span dir="ltr" className="font-mono text-slate-600">{v.additionalCodes.join(', ')}</span>
+            </span>
+          )}
         </div>
       )}
       <div className="flex flex-wrap gap-1.5">
