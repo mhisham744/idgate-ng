@@ -139,7 +139,7 @@ export function Directory() {
                     <Avatar name={e.commercialName} color={e.logoColor} size={44} square icon={<Building2 size={20} />} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-bold text-slate-800">{e.commercialName}</div>
-                      <div className="truncate font-mono text-[11px] text-gate-600" dir="ltr">
+                      <div className="truncate font-mono text-[11px] text-gate-700" dir="ltr">
                         {e.domain}.{e.orgType}.{e.legalEntityType}
                       </div>
                     </div>

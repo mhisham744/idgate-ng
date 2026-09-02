@@ -161,7 +161,7 @@ export function GroupFormSheet({
                     onClick={() => toggleMember(v.id)}
                     className={cx(
                       'flex w-full items-center gap-2.5 rounded-2xl border p-2.5 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
-                      sel ? 'border-teal-300 bg-teal-50/70' : 'border-slate-100 bg-white hover:bg-slate-50',
+                      sel ? 'border-teal-400 bg-teal-500/10' : 'border-slate-100 bg-white hover:bg-slate-50',
                     )}
                   >
                     <Avatar name={v.positionName} color="#0d9488" size={34} square />

@@ -72,7 +72,7 @@ export function MyEntities() {
                   <Badge tone="slate">{bl(LEGAL_TYPE_LABELS[e.legalEntityType], lang)}</Badge>
                 </div>
 
-                <div className="mt-2 font-mono text-[11px] text-gate-600" dir="ltr">
+                <div className="mt-2 font-mono text-[11px] text-gate-700" dir="ltr">
                   {e.domain}.{e.orgType}.{e.legalEntityType}
                 </div>
 

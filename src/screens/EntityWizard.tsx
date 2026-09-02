@@ -420,7 +420,7 @@ function Step3({
               <div className="space-y-1">
                 {nodes.map((n) => (
                   <div key={n.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-                    <span className="font-mono text-[10px] text-gate-500" dir="ltr">{n.code}</span>
+                    <span className="font-mono text-[10px] text-gate-700" dir="ltr">{n.code}</span>
                     <span className="truncate">{n.name}</span>
                   </div>
                 ))}
@@ -703,7 +703,7 @@ function Step6({
           {virtuals.map((v) => (
             <div key={v.id} className="rounded-xl bg-slate-50 px-3 py-2">
               <div className="text-xs font-semibold text-slate-700">{v.positionName}</div>
-              <div className="font-mono text-[10px] text-gate-600" dir="ltr">{unlinkedAddress(v, entity)}</div>
+              <div className="font-mono text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
             </div>
           ))}
         </div>

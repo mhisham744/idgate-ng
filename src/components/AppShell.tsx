@@ -75,6 +75,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const r = resolve(active)
 
+  // Data-dense org-management screens use the full width; everything else stays
+  // in the comfortable phone-style reading column.
+  const wide = location.pathname.startsWith('/settings/entity/')
+
   return (
     <div className="flex h-dvh w-full bg-slate-100 text-slate-900" dir={dir}>
       {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
@@ -95,7 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
-              <div className="truncate font-mono text-[11px] text-gate-600"><bdi>{r.address}</bdi></div>
+              <div className="truncate font-mono text-[11px] text-gate-700"><bdi>{r.address}</bdi></div>
             </div>
             <ChevronDown size={18} className="text-slate-400" />
           </button>
@@ -161,9 +165,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {/* Scrollable content — capped to a comfortable reading column, centered */}
+        {/* Scrollable content — phone-style reading column by default; data-dense
+            org-management screens break out to use the full available width. */}
         <main className="relative flex-1 overflow-y-auto thin-scroll">
-          <div className="mx-auto w-full max-w-2xl lg:py-4">{children}</div>
+          <div className={cx('mx-auto w-full lg:py-4', wide ? 'max-w-[110rem]' : 'max-w-2xl')}>{children}</div>
         </main>
 
         {/* Mobile bottom nav */}

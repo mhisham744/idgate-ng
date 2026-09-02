@@ -76,7 +76,7 @@ export function Onboarding() {
                       <div className="font-semibold text-slate-900 truncate">
                         {n.fullName}
                       </div>
-                      <div className="font-mono text-[11px] text-gate-600 truncate text-start">
+                      <div className="font-mono text-[11px] text-gate-700 truncate text-start">
                         <bdi>{personalAddress(n)}</bdi>
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">

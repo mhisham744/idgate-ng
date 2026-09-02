@@ -127,7 +127,7 @@ export function PersonalMasterData() {
           <Avatar name={me.fullName} color={me.avatarColor} size={52} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-bold text-slate-800">{me.fullName}</div>
-            <div className="truncate font-mono text-xs text-gate-600" dir="ltr">
+            <div className="truncate font-mono text-xs text-gate-700" dir="ltr">
               {personalAddress(me)}
             </div>
           </div>

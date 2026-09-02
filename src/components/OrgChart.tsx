@@ -2,8 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Building2,
   ChevronDown,
+  Expand,
   Maximize2,
   Plus,
+  Shrink,
   Trash2,
   X,
   ZoomIn,
@@ -114,6 +116,7 @@ export function OrgChart({
   const [panning, setPanning] = useState(false)
   const [addText, setAddText] = useState('')
   const [pendingDelete, setPendingDelete] = useState<StructureNode | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ active: boolean; moved: boolean; sx: number; sy: number; ox: number; oy: number }>({
@@ -166,11 +169,20 @@ export function OrgChart({
     if (!vw || !vh) return
     const s = Math.max(
       MIN_SCALE,
-      Math.min(1.1, (vw - 2 * FIT_PAD) / width, (vh - 2 * FIT_PAD) / height),
+      Math.min(1.4, (vw - 2 * FIT_PAD) / width, (vh - 2 * FIT_PAD) / height),
     )
     const tx = (vw - width * s) / 2
     const ty = height * s < vh - 2 * FIT_PAD ? (vh - height * s) / 2 : FIT_PAD
     setView({ tx, ty, scale: s })
+  }
+
+  // Fit using a freshly measured viewport rect (robust right after a layout
+  // change like entering/leaving fullscreen, before the ResizeObserver fires).
+  const fitToViewport = () => {
+    const el = viewportRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    fit(r.width, r.height)
   }
 
   // measure viewport (the canvas is always rendered, so the ref is stable)
@@ -195,6 +207,25 @@ export function OrgChart({
     fit(vp.w, vp.h)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vp.w, vp.h, nodes.length])
+
+  // Re-fit across a fullscreen transition (the viewport size changes), and lock
+  // body scroll while the overlay is open. Escape leaves fullscreen.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => fitToViewport())
+    if (!fullscreen) return () => cancelAnimationFrame(id)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !pendingDelete) setFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      cancelAnimationFrame(id)
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullscreen])
 
   // ── Zoom around a viewport point ───────────────────────────────────────────
   const zoomAt = (factor: number, cxp: number, cyp: number) => {
@@ -308,7 +339,30 @@ export function OrgChart({
   const pendingDesc = pendingDelete ? descCount.get(pendingDelete.id) ?? 0 : 0
 
   return (
-    <div className="space-y-2">
+    <div
+      className={cx(
+        fullscreen
+          ? 'fixed inset-0 z-50 flex flex-col gap-2 bg-slate-100 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] animate-fade-in'
+          : 'space-y-2',
+      )}
+    >
+      {fullscreen && (
+        <div className="flex shrink-0 items-center justify-between px-1">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gate-600 text-light">
+              <Building2 size={15} />
+            </span>
+            {rootLabel}
+          </div>
+          <button
+            onClick={() => setFullscreen(false)}
+            aria-label={L('Exit fullscreen', 'إنهاء ملء الشاشة')}
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+          >
+            <Shrink size={14} /> {L('Exit', 'إنهاء')}
+          </button>
+        </div>
+      )}
       {/* Canvas — always rendered so the viewport ref/observer stay attached */}
       <div
         ref={viewportRef}
@@ -316,7 +370,10 @@ export function OrgChart({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onClick={onCanvasClick}
-        className="relative h-[62vh] min-h-[380px] w-full touch-none select-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+        className={cx(
+          'relative w-full touch-none select-none overflow-hidden border border-slate-200 bg-slate-50',
+          fullscreen ? 'min-h-0 flex-1 rounded-2xl' : 'h-[62vh] min-h-[380px] rounded-2xl',
+        )}
         style={{
           backgroundImage: 'radial-gradient(circle, rgba(148,163,184,0.35) 1px, transparent 1px)',
           backgroundSize: `${22 * view.scale}px ${22 * view.scale}px`,
@@ -324,6 +381,20 @@ export function OrgChart({
           cursor: panning ? 'grabbing' : 'grab',
         }}
       >
+        {/* Enter-fullscreen — always available (even before the first node) */}
+        {!fullscreen && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setFullscreen(true)
+            }}
+            aria-label={L('Fullscreen', 'ملء الشاشة')}
+            title={L('Fullscreen', 'ملء الشاشة')}
+            className="absolute end-3 top-3 z-10 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gate-700 shadow-sm transition hover:bg-gate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+          >
+            <Expand size={14} /> {L('Fullscreen', 'ملء الشاشة')}
+          </button>
+        )}
         {nodes.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -414,7 +485,7 @@ export function OrgChart({
                       )}
                       <div className="min-w-0 flex-1">
                         <div
-                          className={cx('font-mono text-[10px]', isRoot ? 'text-light/70' : 'text-gate-500')}
+                          className={cx('font-mono text-[10px]', isRoot ? 'text-light/70' : 'text-gate-700')}
                           dir="ltr"
                         >
                           {n.code}
@@ -498,7 +569,7 @@ export function OrgChart({
               <ControlBtn onClick={() => zoomButton(1 / 1.2)} title={L('Zoom out', 'تصغير')}>
                 <ZoomOut size={16} />
               </ControlBtn>
-              <ControlBtn onClick={() => fit()} title={L('Fit', 'ملاءمة')}>
+              <ControlBtn onClick={() => fitToViewport()} title={L('Fit', 'ملاءمة')}>
                 <Maximize2 size={16} />
               </ControlBtn>
             </div>

@@ -129,7 +129,7 @@ export function EntityManage() {
           <Avatar name={ent.commercialName} color={ent.logoColor} size={48} square icon={<Building2 size={22} />} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-bold text-slate-800">{ent.commercialName}</div>
-            <div className="truncate font-mono text-[11px] text-gate-600" dir="ltr">
+            <div className="truncate font-mono text-[11px] text-gate-700" dir="ltr">
               {ent.domain}.{ent.orgType}.{ent.legalEntityType}
             </div>
           </div>
@@ -185,18 +185,20 @@ export function EntityManage() {
           </div>
 
           {structView === 'list' ? (
-            STRUCTURE_KINDS.map((kind) => (
-              <StructureCard
-                key={kind}
-                L={L}
-                lang={lang}
-                kind={kind}
-                entityId={id}
-                nodes={entStructures.filter((n) => n.kind === kind)}
-                addStructureNode={addStructureNode}
-                removeStructureNode={removeStructureNode}
-              />
-            ))
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 [&>*]:self-start">
+              {STRUCTURE_KINDS.map((kind) => (
+                <StructureCard
+                  key={kind}
+                  L={L}
+                  lang={lang}
+                  kind={kind}
+                  entityId={id}
+                  nodes={entStructures.filter((n) => n.kind === kind)}
+                  addStructureNode={addStructureNode}
+                  removeStructureNode={removeStructureNode}
+                />
+              ))}
+            </div>
           ) : (
             <div className="space-y-3">
               {/* kind selector */}
@@ -221,11 +223,11 @@ export function EntityManage() {
       )}
 
       {tab === 'profiles' && (
-        <div className="space-y-2">
-          {entProfiles.length === 0 ? (
-            <EmptyState icon={<Shield size={36} />} title={t('empty')} />
-          ) : (
-            entProfiles.map((p) => (
+        entProfiles.length === 0 ? (
+          <EmptyState icon={<Shield size={36} />} title={t('empty')} />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 [&>*]:self-start">
+            {entProfiles.map((p) => (
               <Card key={p.id} onClick={() => setProfileSheet(p)} className="px-1">
                 <Row
                   leading={<Avatar name={p.name} color="#4f46e5" size={38} square icon={<Shield size={16} />} />}
@@ -234,9 +236,9 @@ export function EntityManage() {
                   trailing={<Badge tone="gate">{Object.keys(p.permissions).length}</Badge>}
                 />
               </Card>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {tab === 'positions' && (
@@ -244,11 +246,11 @@ export function EntityManage() {
       )}
 
       {tab === 'virtuals' && (
-        <div className="space-y-2">
-          {entVirtuals.length === 0 ? (
-            <EmptyState icon={<Users size={36} />} title={t('empty')} />
-          ) : (
-            entVirtuals.map((v) => (
+        entVirtuals.length === 0 ? (
+          <EmptyState icon={<Users size={36} />} title={t('empty')} />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 [&>*]:self-start">
+            {entVirtuals.map((v) => (
               <VirtualRow
                 key={v.id}
                 L={L}
@@ -259,9 +261,9 @@ export function EntityManage() {
                 onUnlink={() => unlinkVirtual(v.id)}
                 onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
               />
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {tab === 'delegations' && (
@@ -289,8 +291,9 @@ export function EntityManage() {
           {entGroups.length === 0 ? (
             <EmptyState icon={<UsersRound size={36} />} title={t('empty')} />
           ) : (
-            entGroups.map((g) => (
-              <Card key={g.id} className="p-3.5">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 [&>*]:self-start">
+              {entGroups.map((g) => (
+                <Card key={g.id} className="p-3.5">
                 <div className="flex items-center gap-2.5">
                   <Avatar name={g.name} color="#0d9488" size={38} square icon={<UsersRound size={16} />} />
                   <div className="min-w-0 flex-1">
@@ -320,7 +323,8 @@ export function EntityManage() {
                   </div>
                 </div>
               </Card>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -478,7 +482,7 @@ function StructureCard({
   const renderNode = (n: StructureNode) => (
     <div key={n.id}>
       <div className="flex items-center gap-2 py-1" style={{ paddingInlineStart: n.level * 14 }}>
-        <span className="font-mono text-[10px] text-gate-500" dir="ltr">{n.code}</span>
+        <span className="font-mono text-[10px] text-gate-700" dir="ltr">{n.code}</span>
         <span className="flex-1 truncate text-xs text-slate-700">
           {n.level === 0 ? bl(STRUCTURE_LABELS[kind], lang) : n.name}
         </span>
@@ -641,7 +645,7 @@ function VirtualRow({
         <Avatar name={v.positionName} color={r.color} size={38} square />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-slate-800">{v.positionName}</div>
-          <div className="truncate font-mono text-[10px] text-gate-600" dir="ltr">{r.address}</div>
+          <div className="truncate font-mono text-[10px] text-gate-700" dir="ltr">{r.address}</div>
         </div>
         <Badge tone={tone}>{statusText}</Badge>
       </div>

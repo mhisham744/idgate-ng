@@ -61,7 +61,7 @@ export function ActorLine({
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-slate-800 leading-tight">{r.displayName}</div>
         {showAddress && r.address && (
-          <div className="truncate font-mono text-[11px] text-gate-600">
+          <div className="truncate font-mono text-[11px] text-gate-700">
             <bdi>{r.address}</bdi>
           </div>
         )}
