@@ -5,6 +5,7 @@ import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { StatusBar } from '@/components/StatusBar'
 
 import type { Post } from '@/types'
 import {
@@ -98,6 +99,9 @@ export function Home() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
+      {/* User-level activity bar (aggregates personal + all virtual accounts) */}
+      <StatusBar />
+
       {/* Composer */}
       <Card className="p-4 space-y-3">
         <Textarea

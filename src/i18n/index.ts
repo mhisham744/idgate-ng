@@ -73,10 +73,29 @@ export const STRINGS: Dict = {
   // messages
   newMessage: { en: 'New Message', ar: 'رسالة جديدة' },
   to: { en: 'To', ar: 'إلى' },
+  cc: { en: 'Cc', ar: 'نسخة' },
+  bcc: { en: 'Bcc', ar: 'نسخة مخفية' },
   subject: { en: 'Subject', ar: 'الموضوع' },
   body: { en: 'Message', ar: 'النص' },
   reply: { en: 'Reply', ar: 'رد' },
+  replyAll: { en: 'Reply all', ar: 'رد على الكل' },
   inbox: { en: 'Inbox', ar: 'الوارد' },
+  attach: { en: 'Attach', ar: 'إرفاق' },
+  attachments: { en: 'Attachments', ar: 'المرفقات' },
+  from: { en: 'From', ar: 'من' },
+  communications: { en: 'messages', ar: 'رسائل' },
+  searchRecipients: { en: 'Search people or groups…', ar: 'ابحث عن أشخاص أو مجموعات…' },
+  searchSubject: { en: 'Search by subject…', ar: 'ابحث بالموضوع…' },
+
+  // status bar / presence
+  calendar: { en: 'Calendar', ar: 'التقويم' },
+  status: { en: 'Status', ar: 'الحالة' },
+  unread: { en: 'Unread', ar: 'غير مقروء' },
+  presenceActive: { en: 'Active', ar: 'متاح' },
+  presenceBusy: { en: 'Busy', ar: 'مشغول' },
+  presenceAway: { en: 'Away', ar: 'بعيد' },
+  presenceClosed: { en: 'Closed', ar: 'مغلق' },
+  noDayItems: { en: 'Nothing on this day.', ar: 'لا شيء في هذا اليوم.' },
 
   // notifications
   createNotification: { en: 'Create Notification', ar: 'إنشاء تنبيه' },

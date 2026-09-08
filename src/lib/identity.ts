@@ -126,3 +126,14 @@ export function relativeTime(iso: string, lang: 'en' | 'ar'): string {
   if (hr < 24) return `${hr}h`
   return `${day}d`
 }
+
+/** Absolute date, e.g. "8 Sep 2026" (EN) / "٨ سبتمبر ٢٠٢٦" (AR). */
+export function formatDate(iso: string, lang: 'en' | 'ar'): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(d)
+}

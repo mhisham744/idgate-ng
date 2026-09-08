@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Check, X as XIcon, HelpCircle, CheckCheck, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
-import { actorKey, relativeTime } from '@/lib/identity'
+import { actorKey, formatDate, relativeTime } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { NOTE_KIND_LABELS } from '@/data/reference'
 import {
@@ -71,6 +71,7 @@ export function Notifications() {
   const respondNotification = useStore((s) => s.respondNotification)
   const voteNotification = useStore((s) => s.voteNotification)
   const createNotification = useStore((s) => s.createNotification)
+  const markNotificationRead = useStore((s) => s.markNotificationRead)
 
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -81,6 +82,18 @@ export function Notifications() {
       .filter((n) => n.to.some((r) => actorKey(r) === meKey))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [notifications, meKey])
+
+  // Viewing the list counts as opening: clear the unread flag for this account
+  // (feeds the Home status bar's Notification count; Pending is separate).
+  const unreadIds = mine
+    .filter((n) => !(n.readBy ?? []).includes(meKey))
+    .map((n) => n.id)
+    .join(',')
+  useEffect(() => {
+    if (!unreadIds) return
+    unreadIds.split(',').forEach((id) => markNotificationRead(id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadIds])
 
   const creatableKinds = useMemo(
     () => CREATABLE_KINDS.filter((c) => can(c.permission)),
@@ -199,7 +212,7 @@ function NoteCard({
         <span>{relativeTime(note.createdAt, lang)}</span>
         {note.targetDate && (
           <span className="font-medium text-slate-500">
-            {t('targetDate')}: <span dir="ltr" className="font-mono">{note.targetDate}</span>
+            {t('targetDate')}: <span dir="ltr">{formatDate(note.targetDate, lang)}</span>
           </span>
         )}
       </div>

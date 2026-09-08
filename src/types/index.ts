@@ -341,17 +341,32 @@ export interface Post {
   savedBy: string[]
 }
 
+/** A file attached to a message. `dataUrl` is an in-session preview blob only — it
+ *  is stripped before persisting (see the store's `partialize`), so metadata
+ *  survives a reload but the blob does not. */
+export interface AttachmentMeta {
+  id: string
+  name: string
+  size: number
+  type: string
+  dataUrl?: string
+}
+
 export interface Message {
   id: string
   from: ActorRef
   to: ActorRef[]
   cc?: ActorRef[]
+  bcc?: ActorRef[]
   subject: string
   body: string
   createdAt: string
   threadId: string
   readBy: string[]
   savedBy: string[]
+  attachments?: AttachmentMeta[]
+  /** actorKeys who soft-deleted (hid) this message from their own view. */
+  deletedBy?: string[]
 }
 
 export type NoteKind =
@@ -384,6 +399,8 @@ export interface Notification {
   status: NoteStatus
   /** Voting tally when kind === 'voting'. */
   votes?: { accept: number; reject: number }
+  /** actorKeys who have opened/read this notification (missing → unread). */
+  readBy?: string[]
   history: { at: string; by: ActorRef; action: string }[]
 }
 
@@ -432,6 +449,9 @@ export interface LinkRequest {
 export type ActiveAccount =
   | { kind: 'normal'; normalId: string }
   | { kind: 'virtual'; virtualId: string }
+
+/** User-level presence, set by the person (not per-account). */
+export type Presence = 'active' | 'busy' | 'away' | 'closed'
 
 export interface Session {
   /** The signed-in natural person. */

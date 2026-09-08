@@ -7,7 +7,7 @@ import { useTheme } from '@/theme'
 import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
-import type { ActiveAccount } from '@/types'
+import type { ActiveAccount, Presence } from '@/types'
 
 const TABS = [
   { to: '/home', key: 'home', icon: Home },
@@ -16,6 +16,41 @@ const TABS = [
   { to: '/tools', key: 'tools', icon: Wrench },
   { to: '/settings', key: 'settings', icon: Settings },
 ] as const
+
+/** Fixed tints (not remapped in dark mode) — presence reads correctly in both themes. */
+const PRESENCE_DOT: Record<Presence, string> = {
+  active: 'bg-emerald-500',
+  busy: 'bg-amber-500',
+  away: 'bg-slate-400',
+  closed: 'bg-rose-500',
+}
+
+/** Avatar with a user-level presence dot in the corner. */
+function PresenceAvatar({
+  name,
+  color,
+  size,
+  square,
+  presence,
+}: {
+  name: string
+  color?: string
+  size: number
+  square?: boolean
+  presence: Presence
+}) {
+  return (
+    <div className="relative shrink-0">
+      <Avatar name={name} color={color} size={size} square={square} />
+      <span
+        className={cx(
+          'absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full ring-2 ring-white',
+          PRESENCE_DOT[presence],
+        )}
+      />
+    </div>
+  )
+}
 
 const keyOf = (a: ActiveAccount | null) =>
   a ? (a.kind === 'normal' ? `n:${a.normalId}` : `v:${a.virtualId}`) : ''
@@ -60,6 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const active = useStore((s) => s.active)
   const me = useStore((s) => s.currentNormal())
+  const presence = useStore((s) => s.myPresence())
   const resolve = useResolveActor()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
@@ -98,7 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setSwitcherOpen(true)}
             className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-start transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           >
-            <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
+            <PresenceAvatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} presence={presence} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
@@ -156,7 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setSwitcherOpen(true)}
               className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-light/10 px-3 py-2 backdrop-blur transition hover:bg-light/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-light/70 focus-visible:ring-offset-0"
             >
-              <Avatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} />
+              <PresenceAvatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} presence={presence} />
               <div className="min-w-0 flex-1 text-start">
                 <div className="truncate text-sm font-semibold">{r.displayName}</div>
                 <div className="truncate font-mono text-[10px] text-light/70">

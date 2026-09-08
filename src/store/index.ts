@@ -50,10 +50,16 @@ interface State extends AppData {
   normalId: string | null
   active: ActiveAccount | null
   onboarded: boolean
+  /** User-level presence, keyed by normalId (persists across account switches). */
+  presenceByNormal: Record<string, import('@/types').Presence>
 
   // ── selectors ──────────────────────────────────────────────────────────────
   currentNormal: () => import('@/types').NormalCharacter | undefined
   virtualsFor: (normalId: string) => VirtualCharacter[]
+  /** All actorKeys the signed-in person acts through: personal + every owned virtual. */
+  myActorKeys: () => string[]
+  /** The signed-in person's presence (defaults to 'active'). */
+  myPresence: () => import('@/types').Presence
   entity: (id: string) => LegalEntity | undefined
   virtual: (id: string) => VirtualCharacter | undefined
   profilesForVirtual: (v: VirtualCharacter) => Profile[]
@@ -68,6 +74,7 @@ interface State extends AppData {
   logout: () => void
   setActive: (a: ActiveAccount) => void
   setOnboarded: (v: boolean) => void
+  setPresence: (p: import('@/types').Presence) => void
 
   // ── posts ─────────────────────────────────────────────────────────────────────
   addPost: (body: string, category: Post['category']) => void
@@ -76,7 +83,24 @@ interface State extends AppData {
   commentPost: (postId: string, body: string) => void
 
   // ── messages ────────────────────────────────────────────────────────────────
-  sendMessage: (to: ActorRef[], subject: string, body: string, threadId?: string) => void
+  sendMessage: (input: {
+    to: ActorRef[]
+    cc?: ActorRef[]
+    bcc?: ActorRef[]
+    subject: string
+    body: string
+    attachments?: import('@/types').AttachmentMeta[]
+    threadId?: string
+  }) => void
+  forwardMessage: (input: {
+    source: Message
+    to: ActorRef[]
+    cc?: ActorRef[]
+    bcc?: ActorRef[]
+    body?: string
+    attachments?: import('@/types').AttachmentMeta[]
+  }) => void
+  deleteMessage: (messageId: string) => void
   markRead: (messageId: string) => void
 
   // ── notifications ─────────────────────────────────────────────────────────────
@@ -89,6 +113,7 @@ interface State extends AppData {
   }) => void
   respondNotification: (id: string, status: NoteStatus, note?: string) => void
   voteNotification: (id: string, choice: 'accept' | 'reject') => void
+  markNotificationRead: (id: string) => void
 
   // ── vacancies ───────────────────────────────────────────────────────────────
   postVacancy: (v: Omit<Vacancy, 'id' | 'createdAt' | 'applicants' | 'postedByVirtualId'>) => void
@@ -127,6 +152,20 @@ interface State extends AppData {
 
 const seed = buildSeed()
 
+/** De-duplicate a list of actor refs by their stable key, preserving order. */
+function dedupeRefs(refs: ActorRef[]): ActorRef[] {
+  const seen = new Set<string>()
+  const out: ActorRef[] = []
+  for (const r of refs) {
+    const k = actorKey(r)
+    if (!seen.has(k)) {
+      seen.add(k)
+      out.push(r)
+    }
+  }
+  return out
+}
+
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
@@ -134,10 +173,20 @@ export const useStore = create<State>()(
       normalId: null,
       active: null,
       onboarded: false,
+      presenceByNormal: {},
 
       // ── selectors ────────────────────────────────────────────────────────────
       currentNormal: () => get().normals.find((n) => n.id === get().normalId),
       virtualsFor: (normalId) => get().virtuals.filter((v) => v.linkedNormalId === normalId),
+      myActorKeys: () => {
+        const { normalId } = get()
+        if (!normalId) return []
+        return [`n:${normalId}`, ...get().virtualsFor(normalId).map((v) => `v:${v.id}`)]
+      },
+      myPresence: () => {
+        const { normalId, presenceByNormal } = get()
+        return (normalId && presenceByNormal[normalId]) || 'active'
+      },
       entity: (id) => get().entities.find((e) => e.id === id),
       virtual: (id) => get().virtuals.find((v) => v.id === id),
       profilesForVirtual: (v) => get().profiles.filter((p) => v.profileIds.includes(p.id)),
@@ -252,6 +301,11 @@ export const useStore = create<State>()(
       logout: () => set({ normalId: null, active: null }),
       setActive: (active) => set({ active }),
       setOnboarded: (onboarded) => set({ onboarded }),
+      setPresence: (p) => {
+        const { normalId } = get()
+        if (!normalId) return
+        set((s) => ({ presenceByNormal: { ...s.presenceByNormal, [normalId]: p } }))
+      },
 
       // ── posts ──────────────────────────────────────────────────────────────────
       addPost: (body, category) => {
@@ -317,21 +371,61 @@ export const useStore = create<State>()(
       },
 
       // ── messages ─────────────────────────────────────────────────────────────
-      sendMessage: (to, subject, body, threadId) => {
+      sendMessage: ({ to, cc, bcc, subject, body, attachments, threadId }) => {
         const { active } = get()
         if (!active) return
+        const clean = (arr?: ActorRef[]) => (arr && arr.length ? dedupeRefs(arr) : undefined)
         const msg: Message = {
           id: uid('m'),
           threadId: threadId ?? uid('t'),
           from: active as ActorRef,
-          to,
+          to: dedupeRefs(to),
+          cc: clean(cc),
+          bcc: clean(bcc),
           subject,
           body,
           createdAt: new Date().toISOString(),
           readBy: [actorKey(active)],
           savedBy: [],
+          attachments: attachments && attachments.length ? attachments : undefined,
         }
         set((s) => ({ messages: [msg, ...s.messages] }))
+      },
+      forwardMessage: ({ source, to, cc, bcc, body, attachments }) => {
+        const { active } = get()
+        if (!active) return
+        const clean = (arr?: ActorRef[]) => (arr && arr.length ? dedupeRefs(arr) : undefined)
+        const subject = source.subject.startsWith('Fwd: ') ? source.subject : `Fwd: ${source.subject}`
+        const quoted = `\n\n——————\n${source.body}`
+        // Carry the original's attachments and append any the user adds while forwarding.
+        const merged = [...(source.attachments ?? []), ...(attachments ?? [])]
+        const msg: Message = {
+          id: uid('m'),
+          threadId: uid('t'),
+          from: active as ActorRef,
+          to: dedupeRefs(to),
+          cc: clean(cc),
+          bcc: clean(bcc),
+          subject,
+          body: (body?.trim() ? body.trim() : '') + quoted,
+          createdAt: new Date().toISOString(),
+          readBy: [actorKey(active)],
+          savedBy: [],
+          attachments: merged.length ? merged : undefined,
+        }
+        set((s) => ({ messages: [msg, ...s.messages] }))
+      },
+      deleteMessage: (messageId) => {
+        const { active } = get()
+        if (!active) return
+        const k = actorKey(active)
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === messageId && !(m.deletedBy ?? []).includes(k)
+              ? { ...m, deletedBy: [...(m.deletedBy ?? []), k] }
+              : m,
+          ),
+        }))
       },
       markRead: (messageId) => {
         const { active } = get()
@@ -397,6 +491,18 @@ export const useStore = create<State>()(
                   },
                   history: [...n.history, { at: new Date().toISOString(), by: active as ActorRef, action: `vote:${choice}` }],
                 }
+              : n,
+          ),
+        }))
+      },
+      markNotificationRead: (id) => {
+        const { active } = get()
+        if (!active) return
+        const k = actorKey(active)
+        set((s) => ({
+          notifications: s.notifications.map((n) =>
+            n.id === id && !(n.readBy ?? []).includes(k)
+              ? { ...n, readBy: [...(n.readBy ?? []), k] }
               : n,
           ),
         }))
@@ -557,6 +663,16 @@ export const useStore = create<State>()(
       name: 'idgate.app',
       version: 1,
       // Persist everything; on load, if data arrays are somehow empty, reseed.
+      // Strip attachment preview blobs (dataUrl) before writing so large files
+      // don't blow the localStorage quota — metadata (name/size/type) is kept.
+      partialize: (state) => ({
+        ...state,
+        messages: state.messages.map((m) =>
+          m.attachments
+            ? { ...m, attachments: m.attachments.map(({ dataUrl: _drop, ...meta }) => meta) }
+            : m,
+        ),
+      }),
     },
   ),
 )

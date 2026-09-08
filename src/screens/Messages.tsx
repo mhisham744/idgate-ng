@@ -1,9 +1,22 @@
-import { useMemo, useState } from 'react'
-import { Plus, Send as SendIcon, Users, User, X, UsersRound } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import {
+  Plus,
+  Send as SendIcon,
+  X,
+  Reply,
+  ReplyAll,
+  Forward as ForwardIcon,
+  Trash2,
+  Paperclip,
+  Search,
+  FileText,
+} from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
-import { actorKey, relativeTime } from '@/lib/identity'
+import { actorKey, relativeTime, uid } from '@/lib/identity'
 import { useResolveActor, ActorLine } from '@/components/identity'
+import { RecipientPicker } from '@/components/RecipientPicker'
+import type { PickerGroup } from '@/components/RecipientPicker'
 import {
   Badge,
   Button,
@@ -11,20 +24,41 @@ import {
   Field,
   Input,
   Textarea,
-  Select,
   EmptyState,
   Sheet,
   Row,
   cx,
 } from '@/ui/primitives'
-import type { ActorRef, ActiveAccount, Message } from '@/types'
+import type { ActorRef, ActiveAccount, AttachmentMeta, Message } from '@/types'
 
 // Small bilingual inline helper for labels without an i18n key.
 const L = (isRtl: boolean, en: string, ar: string) => (isRtl ? ar : en)
 
+type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward'
+type ComposeState = { mode: ComposeMode; source?: Message }
+
 /** ActiveAccount and ActorRef share the same shape — treat the active account as a ref. */
 function activeRef(a: ActiveAccount): ActorRef {
   return a
+}
+
+function dedupe(refs: ActorRef[]): ActorRef[] {
+  const seen = new Set<string>()
+  const out: ActorRef[] = []
+  refs.forEach((r) => {
+    const k = actorKey(r)
+    if (!seen.has(k)) {
+      seen.add(k)
+      out.push(r)
+    }
+  })
+  return out
+}
+
+function humanSize(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
 export function Messages() {
@@ -38,12 +72,13 @@ export function Messages() {
   const groups = useStore((s) => s.groups)
   const virtual = useStore((s) => s.virtual)
   const groupRecipients = useStore((s) => s.groupRecipients)
-  const sendMessage = useStore((s) => s.sendMessage)
   const markRead = useStore((s) => s.markRead)
+  const deleteMessage = useStore((s) => s.deleteMessage)
   const can = useStore((s) => s.can)
 
   const [openThread, setOpenThread] = useState<string | null>(null)
-  const [composeOpen, setComposeOpen] = useState(false)
+  const [compose, setCompose] = useState<ComposeState | null>(null)
+  const [query, setQuery] = useState('')
 
   const meKey = active ? actorKey(active) : ''
 
@@ -59,37 +94,46 @@ export function Messages() {
 
   // ── Group options: groups from the active virtual's entity (or all when personal) ─
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
-  const groupOptions = useMemo(
-    () => {
-      const src = activeVirtual ? groups.filter((g) => g.entityId === activeVirtual.entityId) : groups
-      return src.map((g) => ({
-        id: g.id,
-        name: g.name,
-        recipients: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey),
-      }))
-    },
-    [groups, activeVirtual, groupRecipients, meKey],
-  )
+  const pickerGroups = useMemo<PickerGroup[]>(() => {
+    const src = activeVirtual ? groups.filter((g) => g.entityId === activeVirtual.entityId) : groups
+    return src.map((g) => ({
+      id: g.id,
+      name: g.name,
+      count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
+    }))
+  }, [groups, activeVirtual, groupRecipients, meKey])
 
-  // ── Threads: latest message per threadId that involves me ────────────────────
+  const expandGroup = (id: string): ActorRef[] =>
+    groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+
+  // ── Threads: latest message per threadId that involves me, minus my soft-deletes ─
   const threads = useMemo(() => {
     const involves = (m: Message) =>
       actorKey(m.from) === meKey ||
       m.to.some((r) => actorKey(r) === meKey) ||
-      (m.cc ?? []).some((r) => actorKey(r) === meKey)
+      (m.cc ?? []).some((r) => actorKey(r) === meKey) ||
+      (m.bcc ?? []).some((r) => actorKey(r) === meKey)
+    const notDeleted = (m: Message) => !(m.deletedBy ?? []).includes(meKey)
+
     const byThread = new Map<string, Message[]>()
-    messages.filter(involves).forEach((m) => {
-      const arr = byThread.get(m.threadId) ?? []
-      arr.push(m)
-      byThread.set(m.threadId, arr)
-    })
-    const list = Array.from(byThread.entries()).map(([threadId, msgs]) => {
+    messages
+      .filter((m) => involves(m) && notDeleted(m))
+      .forEach((m) => {
+        const arr = byThread.get(m.threadId) ?? []
+        arr.push(m)
+        byThread.set(m.threadId, arr)
+      })
+    let list = Array.from(byThread.entries()).map(([threadId, msgs]) => {
       const sorted = [...msgs].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       const latest = sorted[sorted.length - 1]
       return { threadId, msgs: sorted, latest }
     })
+
+    const q = query.trim().toLowerCase()
+    if (q) list = list.filter((th) => th.msgs.some((m) => m.subject.toLowerCase().includes(q)))
+
     return list.sort((a, b) => b.latest.createdAt.localeCompare(a.latest.createdAt))
-  }, [messages, meKey])
+  }, [messages, meKey, query])
 
   if (!active) return null
   const meRef = activeRef(active)
@@ -110,17 +154,40 @@ export function Messages() {
     })
   }
 
+  const startCompose = (mode: ComposeMode, source?: Message) => {
+    setOpenThread(null)
+    setCompose({ mode, source })
+  }
+
   return (
     <div className="p-4 space-y-4 pb-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-800">{t('messages')}</h1>
-        <Button size="sm" onClick={() => setComposeOpen(true)}>
+        <Button size="sm" onClick={() => startCompose('new')}>
           <Plus size={16} /> {t('newMessage')}
         </Button>
       </div>
 
+      {/* Subject search */}
+      <div className="relative">
+        <Search size={16} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-slate-400" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('searchSubject')}
+          className="ps-9"
+        />
+      </div>
+
       {threads.length === 0 ? (
-        <EmptyState title={t('inbox')} subtitle={L(isRtl, 'No messages yet.', 'لا توجد رسائل بعد.')} />
+        <EmptyState
+          title={t('inbox')}
+          subtitle={
+            query.trim()
+              ? L(isRtl, 'No matching messages.', 'لا توجد رسائل مطابقة.')
+              : L(isRtl, 'No messages yet.', 'لا توجد رسائل بعد.')
+          }
+        />
       ) : (
         <Card className="divide-y divide-slate-100 overflow-hidden p-0">
           {threads.map((th) => {
@@ -130,11 +197,7 @@ export function Messages() {
               <Row
                 key={th.threadId}
                 onClick={() => openThreadDetail(th.threadId)}
-                leading={
-                  <div className="relative">
-                    <ActorLine actor={other} size={40} showAddress={false} />
-                  </div>
-                }
+                leading={<ActorLine actor={other} size={40} showAddress={false} />}
                 title={
                   <span className="flex items-center gap-2">
                     <span className="truncate">{th.latest.subject}</span>
@@ -143,9 +206,14 @@ export function Messages() {
                 }
                 subtitle={th.latest.body}
                 trailing={
-                  <span className="shrink-0 text-[11px] text-slate-400">
-                    {relativeSafe(th.latest.createdAt, lang)}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-[11px] text-slate-400">
+                      {relativeTime(th.latest.createdAt, lang)}
+                    </span>
+                    {th.msgs.length > 1 && (
+                      <Badge tone="slate">{th.msgs.length}</Badge>
+                    )}
+                  </div>
                 }
               />
             )
@@ -157,68 +225,46 @@ export function Messages() {
       <ThreadSheet
         thread={activeThread}
         meKey={meKey}
-        meRef={meRef}
         onClose={() => setOpenThread(null)}
+        onReply={() => activeThread && startCompose('reply', activeThread.latest)}
+        onReplyAll={() => activeThread && startCompose('replyAll', activeThread.latest)}
+        onForward={() => activeThread && startCompose('forward', activeThread.latest)}
+        onDelete={(id) => deleteMessage(id)}
         canReply={can('msg.reply')}
-        onReply={(body) => {
-          if (!activeThread) return
-          const latest = activeThread.latest
-          // Reply to everyone on the latest message except me.
-          const parties: ActorRef[] = [
-            latest.from,
-            ...latest.to,
-            ...(latest.cc ?? []),
-          ].filter((r) => actorKey(r) !== meKey)
-          const uniq = dedupe(parties)
-          const subject = latest.subject.startsWith('Re: ') ? latest.subject : `Re: ${latest.subject}`
-          sendMessage(uniq.length ? uniq : [latest.from], subject, body, latest.threadId)
-        }}
+        canReplyAll={can('msg.replyAll')}
+        canForward={can('msg.forward')}
+        canDelete={can('msg.delete')}
         resolveName={(r) => resolve(r).displayName}
         isRtl={isRtl}
         lang={lang}
         t={t}
       />
 
-      {/* Compose */}
-      <ComposeSheet
-        open={composeOpen}
-        onClose={() => setComposeOpen(false)}
-        options={recipientOptions}
-        groups={groupOptions}
-        canSend={can('msg.send')}
-        resolveLabel={(r) => {
-          const info = resolve(r)
-          return info.address ? `${info.displayName} — ${info.address}` : info.displayName
-        }}
-        resolveName={(r) => resolve(r).displayName}
-        keyOf={actorKey}
-        onSend={(to, subject, body) => {
-          sendMessage(to, subject, body)
-          setComposeOpen(false)
-        }}
-        isRtl={isRtl}
-        t={t}
-      />
+      {/* Compose / reply / forward */}
+      {compose && (
+        <ComposeEditor
+          key={`${compose.mode}:${compose.source?.id ?? 'new'}`}
+          mode={compose.mode}
+          source={compose.source}
+          meKey={meKey}
+          meRef={meRef}
+          options={recipientOptions}
+          groups={pickerGroups}
+          expandGroup={expandGroup}
+          canSend={can('msg.send')}
+          resolveName={(r) => resolve(r).displayName}
+          resolveLabel={(r) => {
+            const info = resolve(r)
+            return info.address ? `${info.displayName} — ${info.address}` : info.displayName
+          }}
+          onClose={() => setCompose(null)}
+          isRtl={isRtl}
+          lang={lang}
+          t={t}
+        />
+      )}
     </div>
   )
-}
-
-// ── helpers ────────────────────────────────────────────────────────────────────
-function dedupe(refs: ActorRef[]): ActorRef[] {
-  const seen = new Set<string>()
-  const out: ActorRef[] = []
-  refs.forEach((r) => {
-    const k = actorKey(r)
-    if (!seen.has(k)) {
-      seen.add(k)
-      out.push(r)
-    }
-  })
-  return out
-}
-
-function relativeSafe(iso: string, lang: 'en' | 'ar'): string {
-  return relativeTime(iso, lang)
 }
 
 // ── Thread detail sheet ─────────────────────────────────────────────────────────
@@ -226,71 +272,91 @@ function ThreadSheet({
   thread,
   meKey,
   onClose,
-  canReply,
   onReply,
+  onReplyAll,
+  onForward,
+  onDelete,
+  canReply,
+  canReplyAll,
+  canForward,
+  canDelete,
+  resolveName,
   isRtl,
   lang,
   t,
 }: {
   thread: { threadId: string; msgs: Message[]; latest: Message } | null
   meKey: string
-  meRef: ActorRef
   onClose: () => void
+  onReply: () => void
+  onReplyAll: () => void
+  onForward: () => void
+  onDelete: (messageId: string) => void
   canReply: boolean
-  onReply: (body: string) => void
+  canReplyAll: boolean
+  canForward: boolean
+  canDelete: boolean
   resolveName: (r: ActorRef) => string
   isRtl: boolean
   lang: 'en' | 'ar'
   t: (k: string) => string
 }) {
-  const [body, setBody] = useState('')
   if (!thread) return null
+  const latest = thread.latest
 
-  const submit = () => {
-    if (!body.trim()) return
-    onReply(body.trim())
-    setBody('')
-  }
+  const namesOf = (refs: ActorRef[] | undefined) =>
+    (refs ?? []).map((r) => resolveName(r)).join('، ')
 
   return (
     <Sheet
       open={!!thread}
-      onClose={() => {
-        setBody('')
-        onClose()
-      }}
-      title={thread.latest.subject}
+      onClose={onClose}
+      title={latest.subject}
       footer={
-        canReply ? (
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Textarea
-                rows={2}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder={t('reply')}
-              />
-            </div>
-            <Button onClick={submit} disabled={!body.trim()}>
-              <SendIcon size={16} /> {t('send')}
-            </Button>
-          </div>
-        ) : (
-          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-            {t('noPermission')}
-          </div>
-        )
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" disabled={!canReply} onClick={onReply}>
+            <Reply size={15} /> {t('reply')}
+          </Button>
+          <Button size="sm" variant="secondary" disabled={!canReplyAll} onClick={onReplyAll}>
+            <ReplyAll size={15} /> {t('replyAll')}
+          </Button>
+          <Button size="sm" variant="subtle" disabled={!canForward} onClick={onForward}>
+            <ForwardIcon size={15} /> {t('forward')}
+          </Button>
+        </div>
       }
     >
-      <div className="space-y-3 py-2">
+      {/* Header: from / to / cc + communication count */}
+      <div className="space-y-2 border-b border-slate-100 pb-3 pt-1">
+        <ActorLine actor={latest.from} size={36} />
+        <div className="space-y-0.5 text-[11px] text-slate-500">
+          <div>
+            <span className="font-semibold text-slate-600">{t('to')}: </span>
+            <bdi>{namesOf(latest.to)}</bdi>
+          </div>
+          {latest.cc && latest.cc.length > 0 && (
+            <div>
+              <span className="font-semibold text-slate-600">{t('cc')}: </span>
+              <bdi>{namesOf(latest.cc)}</bdi>
+            </div>
+          )}
+          <div className="flex items-center gap-1 pt-0.5 text-slate-400">
+            <span>
+              {thread.msgs.length} {t('communications')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 py-3">
         {thread.msgs.map((m) => {
           const mine = actorKey(m.from) === meKey
           return (
             <div key={m.id} className={mine ? 'flex justify-end' : 'flex justify-start'}>
-              <div className={mine ? 'max-w-[80%]' : 'max-w-[80%]'}>
+              <div className="group max-w-[82%]">
                 {!mine && (
                   <div className="mb-1">
-                    <ActorLine actor={m.from} size={28} showAddress={false} />
+                    <ActorLine actor={m.from} size={24} showAddress={false} />
                   </div>
                 )}
                 <div
@@ -300,10 +366,27 @@ function ThreadSheet({
                       : 'rounded-3xl rounded-es-md bg-slate-100 px-4 py-2.5 text-sm text-slate-800'
                   }
                 >
-                  {m.body}
+                  <p className="whitespace-pre-wrap">{m.body}</p>
+                  {m.attachments && m.attachments.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {m.attachments.map((a) => (
+                        <AttachmentChip key={a.id} att={a} onBubble={mine} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className={mine ? 'mt-1 text-end' : 'mt-1 text-start'}>
-                  <span className="text-[11px] text-slate-400">{relativeSafe(m.createdAt, lang)}</span>
+                <div className={cx('mt-1 flex items-center gap-2', mine ? 'justify-end' : 'justify-start')}>
+                  <span className="text-[11px] text-slate-400">{relativeTime(m.createdAt, lang)}</span>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(m.id)}
+                      className="rounded-full p-1 text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:opacity-100 group-hover:opacity-100"
+                      aria-label={t('delete')}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -314,81 +397,170 @@ function ThreadSheet({
   )
 }
 
-// ── Compose sheet ────────────────────────────────────────────────────────────────
-type GroupOption = { id: string; name: string; recipients: ActorRef[] }
+// ── Attachment chip (thumbnail for images, file card otherwise) ────────────────
+function AttachmentChip({ att, onBubble }: { att: AttachmentMeta; onBubble?: boolean }) {
+  if (att.dataUrl && att.type.startsWith('image/')) {
+    return (
+      <img
+        src={att.dataUrl}
+        alt={att.name}
+        className="h-16 w-16 rounded-xl object-cover ring-1 ring-black/5"
+      />
+    )
+  }
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-medium',
+        onBubble ? 'bg-white/15 text-light' : 'bg-white text-slate-600 ring-1 ring-slate-200',
+      )}
+    >
+      <FileText size={13} />
+      <span className="max-w-[10rem] truncate">{att.name}</span>
+      <span className={onBubble ? 'text-light/70' : 'text-slate-400'}>{humanSize(att.size)}</span>
+    </span>
+  )
+}
 
-function ComposeSheet({
-  open,
-  onClose,
+// ── Unified compose / reply / reply-all / forward editor ───────────────────────
+function ComposeEditor({
+  mode,
+  source,
+  meKey,
   options,
   groups,
+  expandGroup,
   canSend,
-  resolveLabel,
   resolveName,
-  keyOf,
-  onSend,
+  resolveLabel,
+  onClose,
   isRtl,
   t,
 }: {
-  open: boolean
-  onClose: () => void
+  mode: ComposeMode
+  source?: Message
+  meKey: string
+  meRef: ActorRef
   options: ActorRef[]
-  groups: GroupOption[]
+  groups: PickerGroup[]
+  expandGroup: (id: string) => ActorRef[]
   canSend: boolean
-  resolveLabel: (r: ActorRef) => string
   resolveName: (r: ActorRef) => string
-  keyOf: (r: ActorRef) => string
-  onSend: (to: ActorRef[], subject: string, body: string) => void
+  resolveLabel: (r: ActorRef) => string
+  onClose: () => void
   isRtl: boolean
+  lang: 'en' | 'ar'
   t: (k: string) => string
 }) {
-  const [mode, setMode] = useState<'people' | 'group'>('people')
-  const [selected, setSelected] = useState<ActorRef[]>([])
-  const [groupId, setGroupId] = useState('')
-  const [subject, setSubject] = useState('')
+  const sendMessage = useStore((s) => s.sendMessage)
+  const forwardMessage = useStore((s) => s.forwardMessage)
+
+  // Seed the To list + subject from the source message when replying.
+  const seedTo = useMemo<ActorRef[]>(() => {
+    if (!source) return []
+    if (mode === 'reply') {
+      const base = actorKey(source.from) !== meKey ? [source.from] : source.to
+      return dedupe(base).filter((r) => actorKey(r) !== meKey)
+    }
+    if (mode === 'replyAll') {
+      return dedupe([source.from, ...source.to, ...(source.cc ?? [])]).filter(
+        (r) => actorKey(r) !== meKey,
+      )
+    }
+    return []
+  }, [mode, source, meKey])
+
+  const seedSubject = useMemo(() => {
+    if (mode === 'new' || mode === 'forward') return ''
+    const s = source?.subject ?? ''
+    return s.startsWith('Re: ') ? s : `Re: ${s}`
+  }, [mode, source])
+
+  const [toRefs, setToRefs] = useState<ActorRef[]>(seedTo)
+  const [toGroups, setToGroups] = useState<string[]>([])
+  const [ccRefs, setCcRefs] = useState<ActorRef[]>([])
+  const [ccGroups, setCcGroups] = useState<string[]>([])
+  const [bccRefs, setBccRefs] = useState<ActorRef[]>([])
+  const [bccGroups, setBccGroups] = useState<string[]>([])
+  const [showCc, setShowCc] = useState(false)
+  const [showBcc, setShowBcc] = useState(false)
+  const [subject, setSubject] = useState(seedSubject)
   const [body, setBody] = useState('')
+  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const reset = () => {
-    setMode('people')
-    setSelected([])
-    setGroupId('')
-    setSubject('')
-    setBody('')
+  const isForward = mode === 'forward'
+
+  const resolveLevel = (refs: ActorRef[], gids: string[]): ActorRef[] =>
+    dedupe([...refs, ...gids.flatMap(expandGroup)]).filter((r) => actorKey(r) !== meKey)
+
+  const to = resolveLevel(toRefs, toGroups)
+  const cc = resolveLevel(ccRefs, ccGroups)
+  const bcc = resolveLevel(bccRefs, bccGroups)
+
+  const valid =
+    to.length > 0 && (isForward || (subject.trim().length > 0 && body.trim().length > 0))
+
+  const onFiles = (files: FileList | null) => {
+    if (!files) return
+    Array.from(files).forEach((f) => {
+      const id = uid('att')
+      const base: AttachmentMeta = { id, name: f.name, size: f.size, type: f.type }
+      setAttachments((prev) => [...prev, base])
+      if (f.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onload = () =>
+          setAttachments((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, dataUrl: reader.result as string } : a)),
+          )
+        reader.readAsDataURL(f)
+      }
+    })
   }
-
-  const selectedKeys = new Set(selected.map(keyOf))
-  const addable = options.filter((r) => !selectedKeys.has(keyOf(r)))
-  const addRecipient = (k: string) => {
-    const r = options.find((o) => keyOf(o) === k)
-    if (r) setSelected((prev) => [...prev, r])
-  }
-  const removeRecipient = (k: string) => setSelected((prev) => prev.filter((r) => keyOf(r) !== k))
-
-  const chosenGroup = groups.find((g) => g.id === groupId) ?? null
-  const recipients = mode === 'people' ? selected : chosenGroup?.recipients ?? []
-  const valid = recipients.length > 0 && subject.trim().length > 0 && body.trim().length > 0
 
   const send = () => {
     if (!valid) return
-    onSend(recipients, subject.trim(), body.trim())
-    reset()
+    if (isForward && source) {
+      forwardMessage({
+        source,
+        to,
+        cc: cc.length ? cc : undefined,
+        bcc: bcc.length ? bcc : undefined,
+        body: body.trim() || undefined,
+        attachments: attachments.length ? attachments : undefined,
+      })
+    } else {
+      sendMessage({
+        to,
+        cc,
+        bcc,
+        subject: subject.trim(),
+        body: body.trim(),
+        attachments,
+        threadId: mode === 'reply' || mode === 'replyAll' ? source?.threadId : undefined,
+      })
+    }
+    onClose()
   }
+
+  const title =
+    mode === 'reply'
+      ? t('reply')
+      : mode === 'replyAll'
+        ? t('replyAll')
+        : mode === 'forward'
+          ? t('forward')
+          : t('newMessage')
 
   return (
     <Sheet
-      open={open}
-      onClose={() => {
-        reset()
-        onClose()
-      }}
-      title={t('newMessage')}
+      open
+      onClose={onClose}
+      title={title}
       footer={
         canSend ? (
           <Button full disabled={!valid} onClick={send}>
-            <SendIcon size={16} />{' '}
-            {recipients.length > 1
-              ? `${t('send')} · ${recipients.length}`
-              : t('send')}
+            <SendIcon size={16} /> {to.length > 1 ? `${t('send')} · ${to.length}` : t('send')}
           </Button>
         ) : (
           <div className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
@@ -399,120 +571,152 @@ function ComposeSheet({
     >
       {canSend ? (
         <div className="space-y-4 py-2">
-          {/* mode toggle */}
-          <div className="inline-flex w-full rounded-2xl bg-slate-100 p-1">
-            <button
-              onClick={() => setMode('people')}
-              className={cx(
-                'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
-                mode === 'people' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
-              <User size={14} /> {L(isRtl, 'People', 'أشخاص')}
-            </button>
-            <button
-              onClick={() => setMode('group')}
-              className={cx(
-                'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
-                mode === 'group' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
-              <Users size={14} /> {L(isRtl, 'Group', 'مجموعة')}
-            </button>
+          <div>
+            <RecipientPicker
+              label={t('to')}
+              required
+              options={options}
+              groups={groups}
+              refs={toRefs}
+              groupIds={toGroups}
+              onChangeRefs={setToRefs}
+              onChangeGroupIds={setToGroups}
+              resolveName={resolveName}
+              resolveLabel={resolveLabel}
+              placeholder={t('searchRecipients')}
+              isRtl={isRtl}
+            />
+            {(!showCc || !showBcc) && (
+              <div className="mt-2 flex gap-3 ps-1">
+                {!showCc && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCc(true)}
+                    className="text-xs font-semibold text-gate-600 hover:underline"
+                  >
+                    + {t('cc')}
+                  </button>
+                )}
+                {!showBcc && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBcc(true)}
+                    className="text-xs font-semibold text-gate-600 hover:underline"
+                  >
+                    + {t('bcc')}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          {mode === 'people' ? (
-            <Field label={t('to')} required>
-              {selected.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-1.5">
-                  {selected.map((r) => (
-                    <span
-                      key={keyOf(r)}
-                      className="inline-flex items-center gap-1 rounded-full bg-gate-50 py-1 ps-2.5 pe-1 text-xs font-medium text-gate-700"
-                    >
-                      {resolveName(r)}
-                      <button
-                        onClick={() => removeRecipient(keyOf(r))}
-                        className="flex h-4 w-4 items-center justify-center rounded-full text-gate-400 transition hover:bg-gate-200 hover:text-gate-700"
-                        aria-label={L(isRtl, 'Remove', 'إزالة')}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <Select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) addRecipient(e.target.value)
-                }}
-                disabled={addable.length === 0}
-              >
-                <option value="">
-                  {addable.length === 0
-                    ? L(isRtl, 'No more recipients', 'لا مزيد من المستلمين')
-                    : selected.length === 0
-                      ? L(isRtl, 'Select recipient…', 'اختر المستلم…')
-                      : L(isRtl, 'Add another…', 'إضافة آخر…')}
-                </option>
-                {addable.map((r) => (
-                  <option key={keyOf(r)} value={keyOf(r)}>
-                    {resolveLabel(r)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : (
-            <Field label={L(isRtl, 'Group', 'المجموعة')} required>
-              {groups.length === 0 ? (
-                <p className="rounded-2xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
-                  {L(isRtl, 'No groups available.', 'لا توجد مجموعات متاحة.')}
-                </p>
-              ) : (
-                <>
-                  <Select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-                    <option value="">{L(isRtl, 'Select group…', 'اختر مجموعة…')}</option>
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name} · {g.recipients.length}
-                      </option>
-                    ))}
-                  </Select>
-                  {chosenGroup && (
-                    <div className="mt-2 rounded-2xl bg-teal-50/60 p-3">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-700">
-                        <UsersRound size={13} />
-                        {chosenGroup.recipients.length}{' '}
-                        {L(isRtl, 'recipients reached', 'مستلم')}
-                      </div>
-                      {chosenGroup.recipients.length === 0 ? (
-                        <p className="mt-1 text-[11px] text-amber-600">
-                          {L(isRtl, 'This group currently resolves to no active recipients.', 'لا تشمل هذه المجموعة حاليًا أي مستلمين نشطين.')}
-                        </p>
-                      ) : (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {chosenGroup.recipients.slice(0, 6).map((r) => (
-                            <Badge key={keyOf(r)} tone="teal">{resolveName(r)}</Badge>
-                          ))}
-                          {chosenGroup.recipients.length > 6 && (
-                            <Badge tone="slate">+{chosenGroup.recipients.length - 6}</Badge>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+          {showCc && (
+            <RecipientPicker
+              label={t('cc')}
+              options={options}
+              groups={groups}
+              refs={ccRefs}
+              groupIds={ccGroups}
+              onChangeRefs={setCcRefs}
+              onChangeGroupIds={setCcGroups}
+              resolveName={resolveName}
+              resolveLabel={resolveLabel}
+              placeholder={t('searchRecipients')}
+              isRtl={isRtl}
+            />
+          )}
+
+          {showBcc && (
+            <RecipientPicker
+              label={t('bcc')}
+              options={options}
+              groups={groups}
+              refs={bccRefs}
+              groupIds={bccGroups}
+              onChangeRefs={setBccRefs}
+              onChangeGroupIds={setBccGroups}
+              resolveName={resolveName}
+              resolveLabel={resolveLabel}
+              placeholder={t('searchRecipients')}
+              isRtl={isRtl}
+            />
+          )}
+
+          {!isForward && (
+            <Field label={t('subject')} required>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
             </Field>
           )}
 
-          <Field label={t('subject')} required>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <Field label={isForward ? L(isRtl, 'Add a note', 'أضف ملاحظة') : t('body')} required={!isForward}>
+            <Textarea rows={isForward ? 3 : 5} value={body} onChange={(e) => setBody(e.target.value)} />
           </Field>
-          <Field label={t('body')} required>
-            <Textarea rows={5} value={body} onChange={(e) => setBody(e.target.value)} />
-          </Field>
+
+          {/* Forwarded content preview */}
+          {isForward && source && (
+            <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">
+              <div className="mb-1 font-semibold text-slate-600">{t('forward')}</div>
+              <p className="line-clamp-3 whitespace-pre-wrap">{source.body}</p>
+            </div>
+          )}
+
+          {/* Attachments */}
+          <div>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                onFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
+            >
+              <Paperclip size={14} /> {t('attach')}
+            </button>
+
+            {(attachments.length > 0 || (isForward && source?.attachments?.length)) && (
+              <div className="mt-2 space-y-2">
+                {isForward && source?.attachments && source.attachments.length > 0 && (
+                  <p className="text-[11px] text-slate-400">
+                    {source.attachments.length} {t('attachments')} ·{' '}
+                    {L(isRtl, 'carried from original', 'منقولة من الأصل')}
+                  </p>
+                )}
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {attachments.map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 py-1.5 ps-2.5 pe-1 text-[11px] font-medium text-slate-600"
+                      >
+                        {a.dataUrl && a.type.startsWith('image/') ? (
+                          <img src={a.dataUrl} alt="" className="h-4 w-4 rounded object-cover" />
+                        ) : (
+                          <FileText size={12} />
+                        )}
+                        <span className="max-w-[9rem] truncate">{a.name}</span>
+                        <span className="text-slate-400">{humanSize(a.size)}</span>
+                        <button
+                          type="button"
+                          onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                          className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-300 hover:text-slate-700"
+                          aria-label={L(isRtl, 'Remove', 'إزالة')}
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="py-4">
