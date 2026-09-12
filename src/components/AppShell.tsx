@@ -6,6 +6,7 @@ import { useLang, useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
 import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { actorKey } from '@/lib/identity'
 import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
 import type { ActiveAccount, Presence } from '@/types'
 
@@ -104,10 +105,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const notifications = useStore((s) => s.notifications)
   const activeKey = keyOf(active)
   const unreadMsgs = messages.filter(
-    (m) => !m.readBy.includes(activeKey) && m.to.some((a) => keyOf(a) === activeKey),
+    (m) =>
+      keyOf(m.from) !== activeKey &&
+      !m.readBy.includes(activeKey) &&
+      !(m.deletedBy ?? []).includes(activeKey) &&
+      (m.to.some((a) => keyOf(a) === activeKey) ||
+        (m.cc ?? []).some((a) => keyOf(a) === activeKey) ||
+        (m.bcc ?? []).some((a) => keyOf(a) === activeKey)),
   ).length
   const pendingNotes = notifications.filter(
-    (n) => n.status === 'pending' && n.to.some((a) => keyOf(a) === activeKey),
+    (n) =>
+      n.needsResponse &&
+      !n.frozen &&
+      (n.recipients ?? []).some((rc) => actorKey(rc.ref) === activeKey && rc.status === 'pending'),
   ).length
   const badgeFor = (key: string) => (key === 'messages' ? unreadMsgs : key === 'notification' ? pendingNotes : 0)
 

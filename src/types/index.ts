@@ -383,7 +383,28 @@ export type NoteKind =
   | 'conference'
   | 'other'
 
-export type NoteStatus = 'pending' | 'accepted' | 'rejected' | 'clarify' | 'completed' | 'closed'
+export type NoteStatus = 'pending' | 'accepted' | 'rejected' | 'clarify' | 'closed'
+
+/** One entry in a note's PRIVATE sender↔recipient conversation. */
+export interface NoteThreadEntry {
+  id: string
+  at: string
+  by: ActorRef
+  /** `status` = a reaction change; `message` = a reply/clarification; `system` = envelope edit/freeze. */
+  type: 'message' | 'status' | 'system'
+  text?: string
+  status?: NoteStatus
+  attachments?: AttachmentMeta[]
+  /** actorKeys who have seen this entry (drives the unread dot). */
+  readBy?: string[]
+}
+
+/** One recipient of a note — their own reaction status and a private thread with the sender. */
+export interface NoteRecipient {
+  ref: ActorRef
+  status: NoteStatus
+  thread: NoteThreadEntry[]
+}
 
 export interface Notification {
   id: string
@@ -394,9 +415,19 @@ export interface Notification {
   body: string
   createdAt: string
   targetDate?: string
-  /** Whether this note type expects an accept/reject/clarify/complete/close reaction. */
+  /** Optional target time (HH:mm) and free-text venue. */
+  targetTime?: string
+  targetVenue?: string
+  /** Whether this note type expects an accept/reject/clarify/close reaction. */
   needsResponse: boolean
+  /** Legacy aggregate status — superseded by per-recipient status in `recipients`. */
   status: NoteStatus
+  /** Per-recipient reaction + private conversation (source of truth). */
+  recipients?: NoteRecipient[]
+  /** Files attached to the note itself (in-session blobs stripped on persist). */
+  attachments?: AttachmentMeta[]
+  /** Sender froze the note — no further reactions or messages by anyone. */
+  frozen?: boolean
   /** Voting tally when kind === 'voting'. */
   votes?: { accept: number; reject: number }
   /** actorKeys who have opened/read this notification (missing → unread). */

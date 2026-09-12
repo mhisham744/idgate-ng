@@ -110,10 +110,30 @@ interface State extends AppData {
     subject: string
     body: string
     targetDate?: string
+    targetTime?: string
+    targetVenue?: string
+    attachments?: import('@/types').AttachmentMeta[]
   }) => void
-  respondNotification: (id: string, status: NoteStatus, note?: string) => void
+  /** A recipient changes their own reaction (optionally with a clarification text). */
+  respondNotification: (id: string, recipientKey: string, status: NoteStatus, text?: string) => void
+  /** Post a message into one recipient's private thread (sender reply or recipient follow-up). */
+  postNoteMessage: (
+    id: string,
+    recipientKey: string,
+    text: string,
+    attachments?: import('@/types').AttachmentMeta[],
+  ) => void
+  /** Sender edits the note envelope; records a system entry in every thread. */
+  editNotification: (
+    id: string,
+    patch: { subject?: string; body?: string; targetDate?: string; targetTime?: string; targetVenue?: string },
+  ) => void
+  /** Sender freezes the note — locks all reactions/messages. */
+  freezeNotification: (id: string) => void
   voteNotification: (id: string, choice: 'accept' | 'reject') => void
   markNotificationRead: (id: string) => void
+  /** Mark all entries in one recipient's thread as read by the active account. */
+  markNoteThreadRead: (id: string, recipientKey: string) => void
 
   // ── vacancies ───────────────────────────────────────────────────────────────
   postVacancy: (v: Omit<Vacancy, 'id' | 'createdAt' | 'applicants' | 'postedByVirtualId'>) => void
@@ -439,42 +459,153 @@ export const useStore = create<State>()(
       },
 
       // ── notifications ──────────────────────────────────────────────────────────
-      createNotification: ({ kind, to, subject, body, targetDate }) => {
+      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, attachments }) => {
         const { active } = get()
         if (!active) return
         const RESPONSE = ['task', 'calendar', 'offer', 'voting', 'event', 'training', 'tender', 'meeting', 'conference']
+        const recipients = dedupeRefs(to).map((ref) => ({ ref, status: 'pending' as NoteStatus, thread: [] }))
         const note: Notification = {
           id: uid('nt'),
           kind,
           from: active as ActorRef,
-          to,
+          to: recipients.map((r) => r.ref),
           subject,
           body,
           createdAt: new Date().toISOString(),
           targetDate,
+          targetTime,
+          targetVenue,
+          attachments: attachments && attachments.length ? attachments : undefined,
           needsResponse: RESPONSE.includes(kind),
           status: 'pending',
+          recipients,
+          frozen: false,
           votes: kind === 'voting' ? { accept: 0, reject: 0 } : undefined,
+          readBy: [],
           history: [],
         }
         set((s) => ({ notifications: [note, ...s.notifications] }))
       },
-      respondNotification: (id, status, note) => {
+      respondNotification: (id, recipientKey, status, text) => {
         const { active } = get()
         if (!active) return
+        const at = new Date().toISOString()
         set((s) => ({
-          notifications: s.notifications.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen) return n
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (actorKey(rc.ref) !== recipientKey || rc.status === 'closed') return rc
+              // Authored AS the recipient — correct even when acted from a user-level list.
+              const entries = [
+                ...rc.thread,
+                {
+                  id: uid('nte'),
+                  at,
+                  by: rc.ref,
+                  type: 'status' as const,
                   status,
-                  history: [
-                    ...n.history,
-                    { at: new Date().toISOString(), by: active as ActorRef, action: note ? `${status}: ${note}` : status },
-                  ],
-                }
-              : n,
-          ),
+                  readBy: [actorKey(rc.ref)],
+                },
+                ...(text
+                  ? [
+                      {
+                        id: uid('nte'),
+                        at,
+                        by: rc.ref,
+                        type: 'message' as const,
+                        text,
+                        readBy: [actorKey(rc.ref)],
+                      },
+                    ]
+                  : []),
+              ]
+              return { ...rc, status, thread: entries }
+            })
+            return { ...n, recipients }
+          }),
+        }))
+      },
+      postNoteMessage: (id, recipientKey, text, attachments) => {
+        const { active } = get()
+        if (!active || !text.trim()) return
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen) return n
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (actorKey(rc.ref) !== recipientKey || rc.status === 'closed') return rc
+              return {
+                ...rc,
+                thread: [
+                  ...rc.thread,
+                  {
+                    id: uid('nte'),
+                    at,
+                    by: active as ActorRef,
+                    type: 'message' as const,
+                    text: text.trim(),
+                    attachments: attachments && attachments.length ? attachments : undefined,
+                    readBy: [actorKey(active)],
+                  },
+                ],
+              }
+            })
+            return { ...n, recipients }
+          }),
+        }))
+      },
+      editNotification: (id, patch) => {
+        const { active } = get()
+        if (!active) return
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen) return n
+            const sysEntry = {
+              id: uid('nte'),
+              at,
+              by: active as ActorRef,
+              type: 'system' as const,
+              text: 'edited',
+              readBy: [actorKey(active)],
+            }
+            const recipients = (n.recipients ?? []).map((rc) => ({
+              ...rc,
+              thread: [...rc.thread, sysEntry],
+            }))
+            return {
+              ...n,
+              subject: patch.subject ?? n.subject,
+              body: patch.body ?? n.body,
+              targetDate: patch.targetDate !== undefined ? patch.targetDate || undefined : n.targetDate,
+              targetTime: patch.targetTime !== undefined ? patch.targetTime || undefined : n.targetTime,
+              targetVenue: patch.targetVenue !== undefined ? patch.targetVenue || undefined : n.targetVenue,
+              recipients,
+            }
+          }),
+        }))
+      },
+      freezeNotification: (id) => {
+        const { active } = get()
+        if (!active) return
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen) return n
+            const sysEntry = {
+              id: uid('nte'),
+              at,
+              by: active as ActorRef,
+              type: 'system' as const,
+              text: 'frozen',
+              readBy: [actorKey(active)],
+            }
+            const recipients = (n.recipients ?? []).map((rc) => ({
+              ...rc,
+              thread: [...rc.thread, sysEntry],
+            }))
+            return { ...n, frozen: true, recipients }
+          }),
         }))
       },
       voteNotification: (id, choice) => {
@@ -505,6 +636,26 @@ export const useStore = create<State>()(
               ? { ...n, readBy: [...(n.readBy ?? []), k] }
               : n,
           ),
+        }))
+      },
+      markNoteThreadRead: (id, recipientKey) => {
+        const { active } = get()
+        if (!active) return
+        const k = actorKey(active)
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id) return n
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (actorKey(rc.ref) !== recipientKey) return rc
+              return {
+                ...rc,
+                thread: rc.thread.map((e) =>
+                  (e.readBy ?? []).includes(k) ? e : { ...e, readBy: [...(e.readBy ?? []), k] },
+                ),
+              }
+            })
+            return { ...n, recipients }
+          }),
         }))
       },
 
@@ -661,10 +812,29 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 1,
-      // Persist everything; on load, if data arrays are somehow empty, reseed.
-      // Strip attachment preview blobs (dataUrl) before writing so large files
-      // don't blow the localStorage quota — metadata (name/size/type) is kept.
+      version: 2,
+      // v2: notifications gained per-recipient status + private threads. Reshape any
+      // v1 note (single `status`, no `recipients`) into the new model and map the
+      // dropped 'completed' status onto 'closed'.
+      migrate: (persisted: any, from: number) => {
+        if (persisted && from < 2 && Array.isArray(persisted.notifications)) {
+          const valid = ['pending', 'accepted', 'rejected', 'clarify', 'closed']
+          const norm = (s: any): NoteStatus =>
+            s === 'completed' ? 'closed' : valid.includes(s) ? s : 'pending'
+          persisted.notifications = persisted.notifications.map((n: any) => {
+            if (n.recipients) return { ...n, status: norm(n.status) }
+            const recipients = (n.to ?? []).map((ref: any) => ({
+              ref,
+              status: norm(n.status),
+              thread: [],
+            }))
+            return { ...n, status: norm(n.status), recipients, frozen: n.frozen ?? false }
+          })
+        }
+        return persisted
+      },
+      // Persist everything; strip attachment preview blobs (dataUrl) before writing so
+      // large files don't blow the localStorage quota — metadata (name/size/type) is kept.
       partialize: (state) => ({
         ...state,
         messages: state.messages.map((m) =>
@@ -672,6 +842,18 @@ export const useStore = create<State>()(
             ? { ...m, attachments: m.attachments.map(({ dataUrl: _drop, ...meta }) => meta) }
             : m,
         ),
+        notifications: state.notifications.map((n) => ({
+          ...n,
+          attachments: n.attachments?.map(({ dataUrl: _d, ...meta }) => meta),
+          recipients: n.recipients?.map((rc) => ({
+            ...rc,
+            thread: rc.thread.map((e) =>
+              e.attachments
+                ? { ...e, attachments: e.attachments.map(({ dataUrl: _d2, ...meta }) => meta) }
+                : e,
+            ),
+          })),
+        })),
       }),
     },
   ),

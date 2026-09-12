@@ -79,7 +79,7 @@ export const NOTE_KIND_LABELS: Record<NoteKind, BL> = {
   voting: { en: 'Voting Note', ar: 'تصويت' },
   event: { en: 'Event', ar: 'حدث' },
   training: { en: 'Training / Course', ar: 'تدريب' },
-  tender: { en: 'Tender', ar: 'مناقصة' },
+  tender: { en: 'Tender / Purchase order', ar: 'مناقصة / أمر شراء' },
   complaint: { en: 'Complaint Note', ar: 'شكوى' },
   idgate: { en: 'IDGate Note', ar: 'ملاحظة' },
   meeting: { en: 'Meeting Request', ar: 'طلب اجتماع' },
