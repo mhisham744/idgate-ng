@@ -141,16 +141,21 @@ export function StatusBar() {
             {inbox.nonReactedNotes.map((n) => {
               const rc = myRecipientOf(n, keys)
               const rk = rc ? actorKey(rc.ref) : ''
+              const assessment = n.kind === 'valuation' || n.kind === 'voting' || n.kind === 'election'
               return (
                 <div key={n.id} className="rounded-2xl border border-slate-100 p-3">
                   <NoteRowHeader note={n} lang={lang} onOpen={goNote} />
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Button size="sm" variant="primary" onClick={() => respondNotification(n.id, rk, 'accepted')}>
-                      <Check size={14} /> {t('accept')}
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => respondNotification(n.id, rk, 'rejected')}>
-                      <XIcon size={14} /> {t('reject')}
-                    </Button>
+                    {!assessment && (
+                      <>
+                        <Button size="sm" variant="primary" onClick={() => respondNotification(n.id, rk, 'accepted')}>
+                          <Check size={14} /> {t('accept')}
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => respondNotification(n.id, rk, 'rejected')}>
+                          <XIcon size={14} /> {t('reject')}
+                        </Button>
+                      </>
+                    )}
                     <Button size="sm" variant="secondary" onClick={goNote}>
                       {t('open')}
                     </Button>

@@ -1,18 +1,25 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang, useI18n } from '@/i18n'
-import { ActorLine } from '@/components/identity'
-import { Button, Card, Chip, Row, SectionHeader, Modal } from '@/ui/primitives'
+import { ActorLine, useResolveActor } from '@/components/identity'
+import { actorKey } from '@/lib/identity'
+import { Button, Card, Chip, Field, Row, Select, SectionHeader, Sheet, Modal } from '@/ui/primitives'
+import type { ActorRef } from '@/types'
 import {
   User,
   Building2,
   Users,
+  UsersRound,
+  UserPlus,
+  ShieldCheck,
+  Link2,
   Info,
   ChevronRight,
   Languages,
   RotateCcw,
   LogOut,
+  Send,
 } from 'lucide-react'
 
 /** Settings menu — identity summary, navigation, language, danger zone, sign out. */
@@ -26,11 +33,37 @@ export function Settings() {
   const virtualsFor = useStore((s) => s.virtualsFor)
   const logout = useStore((s) => s.logout)
   const reset = useStore((s) => s.reset)
+  const active = useStore((s) => s.active)
+  const normals = useStore((s) => s.normals)
+  const virtuals = useStore((s) => s.virtuals)
+  const sendContactRequest = useStore((s) => s.sendContactRequest)
+  const resolve = useResolveActor()
 
   const me = currentNormal()
   const roles = normalId ? virtualsFor(normalId) : []
 
   const [confirmReset, setConfirmReset] = useState(false)
+  // Tools relocated from the Tools page: 'contact' is functional; the other two are illustrative.
+  const [sheet, setSheet] = useState<null | 'contact' | 'delegation' | 'link'>(null)
+  const [recipient, setRecipient] = useState('')
+  const [contactSent, setContactSent] = useState(false)
+
+  const meKey = active ? actorKey(active) : ''
+  const contactOptions = useMemo<{ key: string; ref: ActorRef }[]>(() => {
+    const opts: { key: string; ref: ActorRef }[] = [
+      ...normals.map((n) => ({ key: `n:${n.id}`, ref: { kind: 'normal', normalId: n.id } as ActorRef })),
+      ...virtuals
+        .filter((v) => v.status === 'active')
+        .map((v) => ({ key: `v:${v.id}`, ref: { kind: 'virtual', virtualId: v.id } as ActorRef })),
+    ]
+    return opts.filter((o) => o.key !== meKey)
+  }, [normals, virtuals, meKey])
+
+  const openSheet = (which: 'contact' | 'delegation' | 'link') => {
+    setRecipient('')
+    setContactSent(false)
+    setSheet(which)
+  }
 
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
@@ -72,6 +105,34 @@ export function Settings() {
           subtitle={L('Browse people & entities', 'تصفح الأشخاص والكيانات')}
           trailing={Chevron}
           onClick={() => nav('/directory')}
+        />
+        <Row
+          leading={<UsersRound size={20} className="text-gate-600" />}
+          title={t('groups')}
+          subtitle={L('Communicate with a node & below', 'التواصل مع مستوى وما دونه')}
+          trailing={Chevron}
+          onClick={() => nav('/settings/groups')}
+        />
+        <Row
+          leading={<UserPlus size={20} className="text-gate-600" />}
+          title={t('contactRequest')}
+          subtitle={L('Ask to connect with a person or entity', 'اطلب التواصل مع شخص أو جهة')}
+          trailing={Chevron}
+          onClick={() => openSheet('contact')}
+        />
+        <Row
+          leading={<ShieldCheck size={20} className="text-gate-600" />}
+          title={t('delegationDisplay')}
+          subtitle={L('Request to view delegated authorities', 'طلب عرض الصلاحيات المفوضة')}
+          trailing={Chevron}
+          onClick={() => openSheet('delegation')}
+        />
+        <Row
+          leading={<Link2 size={20} className="text-gate-600" />}
+          title={t('linkRequest')}
+          subtitle={L('Request to link a position to a person', 'طلب ربط منصب بشخص')}
+          trailing={Chevron}
+          onClick={() => openSheet('link')}
         />
         <Row
           leading={<Info size={20} className="text-gate-600" />}
@@ -148,6 +209,70 @@ export function Settings() {
           </div>
         </div>
       </Modal>
+
+      {/* Contact Request — functional */}
+      <Sheet
+        open={sheet === 'contact'}
+        onClose={() => setSheet(null)}
+        title={t('contactRequest')}
+        footer={
+          contactSent ? (
+            <Button full variant="secondary" onClick={() => setSheet(null)}>
+              {t('done')}
+            </Button>
+          ) : (
+            <Button
+              full
+              disabled={!recipient}
+              onClick={() => {
+                const ref = contactOptions.find((o) => o.key === recipient)?.ref
+                if (!ref) return
+                sendContactRequest(ref)
+                setContactSent(true)
+              }}
+            >
+              <Send size={16} className="me-1.5" />
+              {t('send')}
+            </Button>
+          )
+        }
+      >
+        {contactSent ? (
+          <p className="py-6 text-center text-sm text-slate-600">
+            {L('Contact request sent.', 'تم إرسال طلب التواصل.')}
+          </p>
+        ) : (
+          <Field label={t('to')} required>
+            <Select value={recipient} onChange={(e) => setRecipient(e.target.value)}>
+              <option value="">{L('Select a recipient', 'اختر مستلمًا')}</option>
+              {contactOptions.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {resolve(o.ref).displayName}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+      </Sheet>
+
+      {/* Delegation Display Request / Link Request — illustrative */}
+      <Sheet
+        open={sheet === 'delegation' || sheet === 'link'}
+        onClose={() => setSheet(null)}
+        title={sheet === 'link' ? t('linkRequest') : t('delegationDisplay')}
+        footer={
+          <Button full variant="secondary" onClick={() => setSheet(null)}>
+            {t('close')}
+          </Button>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          {L(
+            'This tool is part of the IDGate demo and is illustrative only.',
+            'هذه الأداة جزء من العرض التوضيحي لـ IDGate وهي للتوضيح فقط.',
+          )}
+        </p>
+      </Sheet>
     </div>
   )
 }

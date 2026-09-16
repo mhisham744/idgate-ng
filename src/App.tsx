@@ -31,6 +31,7 @@ function Shell() {
         <Route path="/tools/idgate" element={<IDGateCode />} />
         <Route path="/tools/vacancies" element={<Vacancies />} />
         <Route path="/tools/groups" element={<GroupsScreen />} />
+        <Route path="/settings/groups" element={<GroupsScreen />} />
         <Route path="/directory" element={<Directory />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/personal" element={<PersonalMasterData />} />

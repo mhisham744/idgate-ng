@@ -112,10 +112,16 @@ interface State extends AppData {
     targetDate?: string
     targetTime?: string
     targetVenue?: string
+    evalType?: import('@/types').Notification['evalType']
+    ballot?: string[]
     attachments?: import('@/types').AttachmentMeta[]
   }) => void
   /** A recipient changes their own reaction (optionally with a clarification text). */
   respondNotification: (id: string, recipientKey: string, status: NoteStatus, text?: string) => void
+  /** A valuation recipient sets their rating. */
+  rateNotification: (id: string, recipientKey: string, rating: import('@/types').RatingKey) => void
+  /** A voting/election recipient sets one ballot item's choice. */
+  setBallotChoice: (id: string, recipientKey: string, index: number, choice: 'agree' | 'disagree') => void
   /** Post a message into one recipient's private thread (sender reply or recipient follow-up). */
   postNoteMessage: (
     id: string,
@@ -459,11 +465,17 @@ export const useStore = create<State>()(
       },
 
       // ── notifications ──────────────────────────────────────────────────────────
-      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, attachments }) => {
+      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, evalType, ballot, attachments }) => {
         const { active } = get()
         if (!active) return
-        const RESPONSE = ['task', 'calendar', 'offer', 'voting', 'event', 'training', 'tender', 'meeting', 'conference']
-        const recipients = dedupeRefs(to).map((ref) => ({ ref, status: 'pending' as NoteStatus, thread: [] }))
+        const RESPONSE = ['task', 'calendar', 'offer', 'voting', 'event', 'training', 'tender', 'meeting', 'conference', 'valuation', 'election']
+        const cleanBallot = ballot?.map((b) => b.trim()).filter(Boolean)
+        const recipients = dedupeRefs(to).map((ref) => ({
+          ref,
+          status: 'pending' as NoteStatus,
+          thread: [],
+          ...(cleanBallot && cleanBallot.length ? { ballotChoices: cleanBallot.map(() => null) } : {}),
+        }))
         const note: Notification = {
           id: uid('nt'),
           kind,
@@ -475,6 +487,8 @@ export const useStore = create<State>()(
           targetDate,
           targetTime,
           targetVenue,
+          evalType,
+          ballot: cleanBallot && cleanBallot.length ? cleanBallot : undefined,
           attachments: attachments && attachments.length ? attachments : undefined,
           needsResponse: RESPONSE.includes(kind),
           status: 'pending',
@@ -520,6 +534,37 @@ export const useStore = create<State>()(
                   : []),
               ]
               return { ...rc, status, thread: entries }
+            })
+            return { ...n, recipients }
+          }),
+        }))
+      },
+      rateNotification: (id, recipientKey, rating) => {
+        const { active } = get()
+        if (!active) return
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen) return n
+            const recipients = (n.recipients ?? []).map((rc) =>
+              actorKey(rc.ref) !== recipientKey || rc.status === 'closed' ? rc : { ...rc, rating },
+            )
+            return { ...n, recipients }
+          }),
+        }))
+      },
+      setBallotChoice: (id, recipientKey, index, choice) => {
+        const { active } = get()
+        if (!active) return
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen) return n
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (actorKey(rc.ref) !== recipientKey || rc.status === 'closed') return rc
+              const len = n.ballot?.length ?? 0
+              const base = rc.ballotChoices ?? Array.from({ length: len }, () => null)
+              const next = base.slice()
+              next[index] = choice
+              return { ...rc, ballotChoices: next }
             })
             return { ...n, recipients }
           }),

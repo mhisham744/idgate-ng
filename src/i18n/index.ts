@@ -143,6 +143,23 @@ export const STRINGS: Dict = {
   groups: { en: 'Groups', ar: 'المجموعات' },
   createGroup: { en: 'Create Group', ar: 'إنشاء مجموعة' },
 
+  // tools — assessment & moved/demo tools
+  valuation: { en: 'Valuation', ar: 'تقييم' },
+  voting: { en: 'Voting', ar: 'تصويت' },
+  election: { en: 'Election', ar: 'انتخاب' },
+  supportingTools: { en: 'Supporting tools', ar: 'أدوات مساندة' },
+  demoNote: {
+    en: 'Still under development and displayed as a demo for illustrative only.',
+    ar: 'لا يزال قيد التطوير ويُعرض كنموذج توضيحي فقط.',
+  },
+  ratingScale: { en: 'Rating scale', ar: 'مقياس التقييم' },
+  agree: { en: 'Agree', ar: 'موافق' },
+  disagree: { en: 'Disagree', ar: 'غير موافق' },
+  addSubject: { en: 'Add subject', ar: 'إضافة موضوع' },
+  results: { en: 'Results', ar: 'النتائج' },
+  contactRequest: { en: 'Contact Request', ar: 'طلب تواصل' },
+  delegationDisplay: { en: 'Delegation Display Request', ar: 'طلب عرض صلاحيات' },
+
   // settings / master data
   masterData: { en: 'Master Data', ar: 'البيانات الأساسية' },
   personalMasterData: { en: 'Personal Account', ar: 'الحساب الشخصي' },

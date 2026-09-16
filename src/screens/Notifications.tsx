@@ -16,7 +16,8 @@ import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey, formatDate, relativeTime, uid } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
-import { NOTE_KIND_LABELS } from '@/data/reference'
+import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS } from '@/data/reference'
+import type { EvalType } from '@/data/reference'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
 import {
@@ -40,10 +41,16 @@ import type {
   NoteStatus,
   NoteThreadEntry,
   Notification,
+  RatingKey,
   TransactionKey,
 } from '@/types'
 
 const L = (isRtl: boolean, en: string, ar: string) => (isRtl ? ar : en)
+
+/** Assessment note kinds (valuation/voting/election) — reaction is a rating or a ballot, not accept/reject. */
+const ASSESSMENT_KINDS: NoteKind[] = ['valuation', 'voting', 'election']
+const isAssessment = (k: NoteKind) => ASSESSMENT_KINDS.includes(k)
+const isBallotKind = (k: NoteKind) => k === 'voting' || k === 'election'
 
 function activeRef(a: ActiveAccount): ActorRef {
   return a
@@ -358,6 +365,8 @@ function NoteThreadSheet({
   const freezeNotification = useStore((s) => s.freezeNotification)
   const editNotification = useStore((s) => s.editNotification)
   const markNoteThreadRead = useStore((s) => s.markNoteThreadRead)
+  const rateNotification = useStore((s) => s.rateNotification)
+  const setBallotChoice = useStore((s) => s.setBallotChoice)
 
   const [editing, setEditing] = useState(false)
 
@@ -390,7 +399,17 @@ function NoteThreadSheet({
             )}
           </div>
           <ActorLine actor={note.from} size={32} />
-          <p className="whitespace-pre-wrap text-sm text-slate-700">{note.body}</p>
+          {note.body && <p className="whitespace-pre-wrap text-sm text-slate-700">{note.body}</p>}
+          {isAssessment(note.kind) && note.evalType && (
+            <Badge tone="violet">{bl(EVAL_TYPE_LABELS[note.evalType as EvalType], lang)}</Badge>
+          )}
+          {note.ballot && note.ballot.length > 0 && (
+            <ol className="ms-4 list-decimal space-y-0.5 text-sm text-slate-700">
+              {note.ballot.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ol>
+          )}
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
             {note.targetDate && (
               <span>
@@ -435,33 +454,55 @@ function NoteThreadSheet({
         {/* Sender: one private section per recipient */}
         {isSender ? (
           <div className="space-y-3">
-            {(note.recipients ?? []).map((rc) => (
-              <RecipientSection
-                key={actorKey(rc.ref)}
-                note={note}
-                rc={rc}
-                meKey={meKey}
-                frozen={!!note.frozen}
-                onReply={(text) => postNoteMessage(note.id, actorKey(rc.ref), text)}
-                resolveName={resolveName}
-                isRtl={isRtl}
-                lang={lang}
-                t={t}
-              />
-            ))}
+            {isAssessment(note.kind) && (
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('results')}</span>
+            )}
+            {(note.recipients ?? []).map((rc) =>
+              isAssessment(note.kind) ? (
+                <AssessmentSenderSection key={actorKey(rc.ref)} note={note} rc={rc} isRtl={isRtl} lang={lang} t={t} />
+              ) : (
+                <RecipientSection
+                  key={actorKey(rc.ref)}
+                  note={note}
+                  rc={rc}
+                  meKey={meKey}
+                  frozen={!!note.frozen}
+                  onReply={(text) => postNoteMessage(note.id, actorKey(rc.ref), text)}
+                  resolveName={resolveName}
+                  isRtl={isRtl}
+                  lang={lang}
+                  t={t}
+                />
+              ),
+            )}
           </div>
         ) : myRec ? (
-          <RecipientView
-            note={note}
-            rc={myRec}
-            meKey={meKey}
-            frozen={!!note.frozen}
-            onRespond={(status, text) => respondNotification(note.id, meKey, status, text)}
-            onMessage={(text) => postNoteMessage(note.id, meKey, text)}
-            isRtl={isRtl}
-            lang={lang}
-            t={t}
-          />
+          isAssessment(note.kind) ? (
+            <AssessmentReaction
+              note={note}
+              rc={myRec}
+              meKey={meKey}
+              frozen={!!note.frozen}
+              onRate={(rating) => rateNotification(note.id, meKey, rating)}
+              onChoice={(i, choice) => setBallotChoice(note.id, meKey, i, choice)}
+              onClose={() => respondNotification(note.id, meKey, 'closed')}
+              isRtl={isRtl}
+              lang={lang}
+              t={t}
+            />
+          ) : (
+            <RecipientView
+              note={note}
+              rc={myRec}
+              meKey={meKey}
+              frozen={!!note.frozen}
+              onRespond={(status, text) => respondNotification(note.id, meKey, status, text)}
+              onMessage={(text) => postNoteMessage(note.id, meKey, text)}
+              isRtl={isRtl}
+              lang={lang}
+              t={t}
+            />
+          )
         ) : null}
       </div>
     </Sheet>
@@ -591,6 +632,159 @@ function RecipientView({
           )}
 
           <Composer placeholder={t('replyToClarification')} onSend={onMessage} isRtl={isRtl} />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Assessment (valuation / voting / election) ──────────────────────────────────
+// Shared result display: a valuation rating, or a per-subject agree/disagree list.
+function AssessmentResult({
+  note,
+  rc,
+  isRtl,
+  lang,
+  t,
+}: {
+  note: Notification
+  rc: NoteRecipient
+  isRtl: boolean
+  lang: 'en' | 'ar'
+  t: (k: string) => string
+}) {
+  if (isBallotKind(note.kind)) {
+    return (
+      <div className="space-y-1">
+        {(note.ballot ?? []).map((item, i) => {
+          const choice = rc.ballotChoices?.[i] ?? null
+          return (
+            <div key={i} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 flex-1 text-slate-700">
+                {i + 1}. {item}
+              </span>
+              {choice ? (
+                <Badge tone={choice === 'agree' ? 'green' : 'red'}>{t(choice)}</Badge>
+              ) : (
+                <Badge tone="amber">{statusLabel('pending', isRtl)}</Badge>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+  // valuation
+  return rc.rating ? (
+    <Badge tone="gate">{bl(RATING_LABELS[rc.rating], lang)}</Badge>
+  ) : (
+    <Badge tone="amber">{statusLabel('pending', isRtl)}</Badge>
+  )
+}
+
+// Sender-side: one recipient's assessment result.
+function AssessmentSenderSection({
+  note,
+  rc,
+  isRtl,
+  lang,
+  t,
+}: {
+  note: Notification
+  rc: NoteRecipient
+  isRtl: boolean
+  lang: 'en' | 'ar'
+  t: (k: string) => string
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border border-slate-100 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <ActorLine actor={rc.ref} size={28} />
+        <Badge tone={STATUS_TONE[rc.status]}>{statusLabel(rc.status, isRtl)}</Badge>
+      </div>
+      <AssessmentResult note={note} rc={rc} isRtl={isRtl} lang={lang} t={t} />
+    </div>
+  )
+}
+
+// Recipient-side: rating scale (valuation) or agree/disagree ballot (voting/election) + Close.
+function AssessmentReaction({
+  note,
+  rc,
+  frozen,
+  onRate,
+  onChoice,
+  onClose,
+  isRtl,
+  lang,
+  t,
+}: {
+  note: Notification
+  rc: NoteRecipient
+  meKey: string
+  frozen: boolean
+  onRate: (rating: RatingKey) => void
+  onChoice: (index: number, choice: 'agree' | 'disagree') => void
+  onClose: () => void
+  isRtl: boolean
+  lang: 'en' | 'ar'
+  t: (k: string) => string
+}) {
+  const locked = frozen || rc.status === 'closed'
+  const ballot = note.ballot ?? []
+  const allChosen = isBallotKind(note.kind) && ballot.every((_, i) => (rc.ballotChoices?.[i] ?? null) != null)
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('conversation')}</span>
+        <Badge tone={STATUS_TONE[rc.status]}>{statusLabel(rc.status, isRtl)}</Badge>
+      </div>
+
+      {locked ? (
+        <>
+          <AssessmentResult note={note} rc={rc} isRtl={isRtl} lang={lang} t={t} />
+          <LockedNote frozen={frozen} isRtl={isRtl} t={t} />
+        </>
+      ) : isBallotKind(note.kind) ? (
+        <>
+          {ballot.map((item, i) => {
+            const choice = rc.ballotChoices?.[i] ?? null
+            return (
+              <div key={i} className="space-y-2 rounded-2xl border border-slate-100 p-3">
+                <div className="text-sm font-medium text-slate-800">
+                  {i + 1}. {item}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant={choice === 'agree' ? 'primary' : 'secondary'} onClick={() => onChoice(i, 'agree')}>
+                    <Check size={14} /> {t('agree')}
+                  </Button>
+                  <Button size="sm" variant={choice === 'disagree' ? 'danger' : 'secondary'} onClick={() => onChoice(i, 'disagree')}>
+                    <XIcon size={14} /> {t('disagree')}
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+          <Button size="sm" disabled={!allChosen} onClick={onClose}>
+            <CheckCheck size={14} /> {t('close')}
+          </Button>
+        </>
+      ) : (
+        <>
+          <Field label={t('ratingScale')} required>
+            <Select value={rc.rating ?? ''} onChange={(e) => onRate(e.target.value as RatingKey)}>
+              <option value="">{L(isRtl, 'Select…', 'اختر…')}</option>
+              {RATING_ORDER.map((k) => (
+                <option key={k} value={k}>
+                  {bl(RATING_LABELS[k], lang)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button size="sm" disabled={!rc.rating} onClick={onClose}>
+            <CheckCheck size={14} /> {t('close')}
+          </Button>
         </>
       )}
     </div>

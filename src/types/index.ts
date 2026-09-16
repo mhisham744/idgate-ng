@@ -114,7 +114,13 @@ export type TransactionKey =
   | 'tool.advertising'
   | 'tool.publishing'
   | 'tool.valuation'
+  | 'tool.voting'
+  | 'tool.election'
   | 'tool.location'
+  | 'tool.camera'
+  | 'tool.videos'
+  | 'tool.calculator'
+  | 'tool.converter'
   // Master-data admin transactions (used by profiles)
   | 'admin.createVirtualAccount'
   | 'admin.changeVirtualAccount'
@@ -381,9 +387,24 @@ export type NoteKind =
   | 'idgate'
   | 'meeting'
   | 'conference'
+  | 'valuation'
+  | 'election'
   | 'other'
 
 export type NoteStatus = 'pending' | 'accepted' | 'rejected' | 'clarify' | 'closed'
+
+/** Rating scale used by a Valuation note's recipient reaction (worst → best). */
+export type RatingKey =
+  | 'nill'
+  | 'low'
+  | 'belowAverage'
+  | 'average'
+  | 'aboveAverage'
+  | 'good'
+  | 'veryGood'
+  | 'perfect'
+  | 'excellent'
+  | 'outstanding'
 
 /** One entry in a note's PRIVATE sender↔recipient conversation. */
 export interface NoteThreadEntry {
@@ -404,6 +425,10 @@ export interface NoteRecipient {
   ref: ActorRef
   status: NoteStatus
   thread: NoteThreadEntry[]
+  /** Valuation result — the rating this recipient chose before closing. */
+  rating?: RatingKey
+  /** Voting/Election result — one 'agree'/'disagree' (or null = undecided) per note.ballot item. */
+  ballotChoices?: ('agree' | 'disagree' | null)[]
 }
 
 export interface Notification {
@@ -418,6 +443,10 @@ export interface Notification {
   /** Optional target time (HH:mm) and free-text venue. */
   targetTime?: string
   targetVenue?: string
+  /** Assessment subtype for valuation/voting/election notes (the "Type" field). */
+  evalType?: 'subject' | 'event' | 'performance' | 'person' | 'organization'
+  /** Voting/Election ballot: the subjects / persons / organizations being decided on. */
+  ballot?: string[]
   /** Whether this note type expects an accept/reject/clarify/close reaction. */
   needsResponse: boolean
   /** Legacy aggregate status — superseded by per-recipient status in `recipients`. */

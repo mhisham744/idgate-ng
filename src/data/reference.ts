@@ -4,6 +4,7 @@ import type {
   NoteKind,
   OrgLevel,
   OrgType,
+  RatingKey,
   StructureKind,
   TransactionKey,
   AppArea,
@@ -76,7 +77,7 @@ export const NOTE_KIND_LABELS: Record<NoteKind, BL> = {
   task: { en: 'Task Note', ar: 'مهمة' },
   calendar: { en: 'Calendar Note', ar: 'موعد' },
   offer: { en: 'Offer Note', ar: 'عرض' },
-  voting: { en: 'Voting Note', ar: 'تصويت' },
+  voting: { en: 'Voting', ar: 'تصويت' },
   event: { en: 'Event', ar: 'حدث' },
   training: { en: 'Training / Course', ar: 'تدريب' },
   tender: { en: 'Tender / Purchase order', ar: 'مناقصة / أمر شراء' },
@@ -84,8 +85,72 @@ export const NOTE_KIND_LABELS: Record<NoteKind, BL> = {
   idgate: { en: 'IDGate Note', ar: 'ملاحظة' },
   meeting: { en: 'Meeting Request', ar: 'طلب اجتماع' },
   conference: { en: 'Conference Call', ar: 'مكالمة جماعية' },
+  valuation: { en: 'Valuation', ar: 'تقييم' },
+  election: { en: 'Election', ar: 'انتخاب' },
   other: { en: 'Other Note', ar: 'أخرى' },
 }
+
+/** "Still under development…" note shown on postponed/demo-only tools. */
+export const DEMO_NOTE: BL = {
+  en: 'Still under development and displayed as a demo for illustrative only.',
+  ar: 'لا يزال قيد التطوير ويُعرض كنموذج توضيحي فقط.',
+}
+
+/** Rating scale for a Valuation note's recipient reaction (worst → best). */
+export const RATING_LABELS: Record<RatingKey, BL> = {
+  nill: { en: 'Nill', ar: 'لا شيء' },
+  low: { en: 'Low', ar: 'منخفض' },
+  belowAverage: { en: 'Below average', ar: 'أقل من المتوسط' },
+  average: { en: 'Average', ar: 'متوسط' },
+  aboveAverage: { en: 'Above average', ar: 'أعلى من المتوسط' },
+  good: { en: 'Good', ar: 'جيد' },
+  veryGood: { en: 'Very good', ar: 'جيد جدًا' },
+  perfect: { en: 'Perfect', ar: 'ممتاز' },
+  excellent: { en: 'Excellent', ar: 'رائع' },
+  outstanding: { en: 'Outstanding', ar: 'متميز' },
+}
+
+/** Order of the rating scale for dropdowns. */
+export const RATING_ORDER: RatingKey[] = [
+  'nill',
+  'low',
+  'belowAverage',
+  'average',
+  'aboveAverage',
+  'good',
+  'veryGood',
+  'perfect',
+  'excellent',
+  'outstanding',
+]
+
+/** "Type" field options for assessment tools. */
+export type EvalType = 'subject' | 'event' | 'performance' | 'person' | 'organization'
+
+export const EVAL_TYPE_LABELS: Record<EvalType, BL> = {
+  subject: { en: 'Subject', ar: 'موضوع' },
+  event: { en: 'Event', ar: 'حدث' },
+  performance: { en: 'Performance', ar: 'أداء' },
+  person: { en: 'Person', ar: 'شخص' },
+  organization: { en: 'Organization', ar: 'منظمة' },
+}
+
+/** Assessment tools (valuation/voting/election) and the Type options each offers. */
+export const ASSESSMENT_TYPE_OPTIONS: Partial<Record<TransactionKey, EvalType[]>> = {
+  'tool.valuation': ['subject', 'event', 'performance'],
+  'tool.voting': ['subject', 'event', 'performance'],
+  'tool.election': ['person', 'organization'],
+}
+
+/** Maps an assessment tool key to the note kind it creates. */
+export const ASSESSMENT_TOOL_KIND: Partial<Record<TransactionKey, NoteKind>> = {
+  'tool.valuation': 'valuation',
+  'tool.voting': 'voting',
+  'tool.election': 'election',
+}
+
+/** Fully-interactive tools (open a compose sheet); every other tools row is demo-only. */
+export const INTERACTIVE_TOOLS: TransactionKey[] = ['tool.valuation', 'tool.voting', 'tool.election']
 
 /** Notification kinds that require an accept/reject/clarify/complete/close cycle. */
 export const RESPONSE_NOTE_KINDS: NoteKind[] = [
@@ -98,6 +163,8 @@ export const RESPONSE_NOTE_KINDS: NoteKind[] = [
   'tender',
   'meeting',
   'conference',
+  'valuation',
+  'election',
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,23 +204,28 @@ export const TRANSACTIONS: TxDef[] = [
   { key: 'note.training', area: 'notification', label: NOTE_KIND_LABELS.training, personalCanCreate: false },
   { key: 'note.tender', area: 'notification', label: NOTE_KIND_LABELS.tender, personalCanCreate: false },
   { key: 'note.other', area: 'notification', label: NOTE_KIND_LABELS.other, personalCanCreate: false },
-  // Tools
-  { key: 'tool.idgateCode', area: 'tools', label: { en: 'IDGate Code', ar: 'كود IDGate' }, personalCanCreate: false, note: { en: 'QR badge — membership / employee code to enter a company, club, course or compound.', ar: 'كود QR كبطاقة عضوية/موظف للدخول.' } },
-  { key: 'tool.idgatePass', area: 'tools', label: { en: 'IDGate Pass', ar: 'تصريح IDGate' }, personalCanCreate: false },
-  { key: 'tool.idgateNote', area: 'tools', label: NOTE_KIND_LABELS.idgate, personalCanCreate: false, note: { en: 'One-way note, no reply needed.', ar: 'ملاحظة لا تحتاج رد.' } },
-  { key: 'tool.complaint', area: 'tools', label: NOTE_KIND_LABELS.complaint, personalCanCreate: false },
-  { key: 'tool.meeting', area: 'tools', label: NOTE_KIND_LABELS.meeting, personalCanCreate: true },
-  { key: 'tool.conference', area: 'tools', label: NOTE_KIND_LABELS.conference, personalCanCreate: true },
-  { key: 'tool.contactRequest', area: 'tools', label: { en: 'Contact Request', ar: 'طلب تواصل' }, personalCanCreate: true },
-  { key: 'tool.delegationDisplay', area: 'tools', label: { en: 'Delegation Display Request', ar: 'طلب عرض صلاحيات' }, personalCanCreate: true },
-  { key: 'tool.linkRequest', area: 'tools', label: { en: 'Link Request', ar: 'طلب ربط' }, personalCanCreate: true },
-  { key: 'tool.createVacancy', area: 'tools', label: { en: 'Create Vacancy', ar: 'نشر وظيفة' }, personalCanCreate: false },
-  { key: 'tool.displayVacancy', area: 'tools', label: { en: 'Find Vacancies', ar: 'البحث عن وظائف' }, personalCanCreate: true },
-  { key: 'tool.talentAcquisition', area: 'tools', label: { en: 'Talent Acquisition', ar: 'استقطاب المواهب' }, personalCanCreate: false },
-  { key: 'tool.advertising', area: 'tools', label: { en: 'Advertising', ar: 'إعلان' }, personalCanCreate: false },
-  { key: 'tool.publishing', area: 'tools', label: { en: 'Publishing Note', ar: 'نشر خبر' }, personalCanCreate: false },
-  { key: 'tool.valuation', area: 'tools', label: { en: 'Valuation', ar: 'تقييم' }, personalCanCreate: false },
-  { key: 'tool.location', area: 'tools', label: { en: 'Location', ar: 'الموقع' }, personalCanCreate: true },
+  // Tools — IDGate Code is now the embedded box at the top of the Tools page (not a list row).
+  // Contact Request / Delegation Display / Link Request moved to Settings.
+  // Interactive assessment tools:
+  { key: 'tool.valuation', area: 'tools', label: NOTE_KIND_LABELS.valuation, personalCanCreate: true, note: { en: 'Rate a subject, event or performance — the recipient picks a rating and closes.', ar: 'قيّم موضوعًا أو حدثًا أو أداءً — يختار المستلم تقييمًا ثم يغلق.' } },
+  { key: 'tool.voting', area: 'tools', label: NOTE_KIND_LABELS.voting, personalCanCreate: true, note: { en: 'Agree/disagree ballot over one or more subjects.', ar: 'تصويت بالموافقة/الرفض على موضوع أو أكثر.' } },
+  { key: 'tool.election', area: 'tools', label: NOTE_KIND_LABELS.election, personalCanCreate: true, note: { en: 'Agree/disagree ballot over one or more persons or organizations.', ar: 'تصويت بالموافقة/الرفض على أشخاص أو منظمات.' } },
+  // Postponed / demo-only tools:
+  { key: 'tool.idgatePass', area: 'tools', label: { en: 'IDGate Pass', ar: 'تصريح IDGate' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.idgateNote', area: 'tools', label: NOTE_KIND_LABELS.idgate, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.complaint', area: 'tools', label: NOTE_KIND_LABELS.complaint, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.meeting', area: 'tools', label: NOTE_KIND_LABELS.meeting, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.conference', area: 'tools', label: NOTE_KIND_LABELS.conference, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.createVacancy', area: 'tools', label: { en: 'Create Vacancy', ar: 'نشر وظيفة' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.displayVacancy', area: 'tools', label: { en: 'Find Vacancy', ar: 'البحث عن وظائف' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.talentAcquisition', area: 'tools', label: { en: 'Talent Acquisition', ar: 'استقطاب المواهب' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.advertising', area: 'tools', label: { en: 'Advertising', ar: 'إعلان' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.publishing', area: 'tools', label: { en: 'Publishing Note', ar: 'نشر خبر' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.location', area: 'tools', label: { en: 'Location', ar: 'الموقع' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.camera', area: 'tools', label: { en: 'Camera', ar: 'الكاميرا' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.videos', area: 'tools', label: { en: 'Videos', ar: 'الفيديوهات' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.calculator', area: 'tools', label: { en: 'Calculator', ar: 'الآلة الحاسبة' }, personalCanCreate: false, note: DEMO_NOTE },
+  { key: 'tool.converter', area: 'tools', label: { en: 'Converter', ar: 'المحوّل' }, personalCanCreate: false, note: DEMO_NOTE },
 ]
 
 /** All transaction keys that a Profile editor can grant. Admin + feature transactions. */

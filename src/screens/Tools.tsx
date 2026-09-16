@@ -1,138 +1,100 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  QrCode,
-  Briefcase,
-  Users,
-  Contact,
-  ChevronRight,
-  Send,
-  Info,
-} from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronRight, Send, Info, Plus, X as XIcon } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey } from '@/lib/identity'
 import { useResolveActor } from '@/components/identity'
+import { RecipientPicker } from '@/components/RecipientPicker'
+import type { PickerGroup } from '@/components/RecipientPicker'
 import {
   Button,
   Card,
-  Badge,
   Field,
   Input,
-  Textarea,
   Select,
   Row,
   Sheet,
   SectionHeader,
   cx,
 } from '@/ui/primitives'
-import { TRANSACTIONS } from '@/data/reference'
-import type { ActorRef, NoteKind, TransactionKey } from '@/types'
-
-/** Which tool keys map to a createNotification kind. */
-const NOTE_TOOL: Partial<Record<TransactionKey, NoteKind>> = {
-  'tool.meeting': 'meeting',
-  'tool.conference': 'conference',
-  'tool.idgateNote': 'idgate',
-  'tool.complaint': 'complaint',
-}
+import { IDGateCodeCard } from '@/screens/IDGateCode'
+import {
+  TRANSACTIONS,
+  INTERACTIVE_TOOLS,
+  ASSESSMENT_TOOL_KIND,
+  ASSESSMENT_TYPE_OPTIONS,
+  EVAL_TYPE_LABELS,
+} from '@/data/reference'
+import type { EvalType } from '@/data/reference'
+import type { ActorRef, TransactionKey } from '@/types'
 
 export function Tools() {
-  const navigate = useNavigate()
   const { lang, t, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
+  const resolve = useResolveActor()
 
   const active = useStore((s) => s.active)
   const can = useStore((s) => s.can)
   const normals = useStore((s) => s.normals)
   const virtuals = useStore((s) => s.virtuals)
-  const sendContactRequest = useStore((s) => s.sendContactRequest)
-  const createNotification = useStore((s) => s.createNotification)
-  const resolve = useResolveActor()
+  const groups = useStore((s) => s.groups)
+  const virtual = useStore((s) => s.virtual)
+  const groupRecipients = useStore((s) => s.groupRecipients)
 
-  const [sheetKey, setSheetKey] = useState<TransactionKey | null>(null)
-  const [recipient, setRecipient] = useState('')
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
+  const [assessKey, setAssessKey] = useState<TransactionKey | null>(null)
+  const [demoKey, setDemoKey] = useState<TransactionKey | null>(null)
 
-  // Candidate recipients: all persons + all virtuals, excluding the active account.
-  const options: { key: string; ref: ActorRef }[] = [
-    ...normals.map((n) => ({ key: actorKey({ kind: 'normal', normalId: n.id }), ref: { kind: 'normal', normalId: n.id } as ActorRef })),
-    ...virtuals.map((v) => ({ key: actorKey({ kind: 'virtual', virtualId: v.id }), ref: { kind: 'virtual', virtualId: v.id } as ActorRef })),
-  ].filter((o) => !active || o.key !== actorKey(active))
-
-  const launchers = [
-    { icon: QrCode, title: t('idgateCode'), subtitle: L('Your QR identity badge', 'بطاقة هويتك عبر رمز QR'), to: '/tools/idgate' },
-    { icon: Briefcase, title: t('vacancies'), subtitle: L('Find or post positions', 'ابحث أو انشر وظائف'), to: '/tools/vacancies' },
-    { icon: Users, title: t('groups'), subtitle: L('Communicate with a node & below', 'التواصل مع مستوى وما دونه'), to: '/tools/groups' },
-    { icon: Contact, title: t('directory'), subtitle: L('People & entities', 'الأشخاص والجهات'), to: '/directory' },
-  ]
+  const meKey = active ? actorKey(active) : ''
 
   const toolTx = TRANSACTIONS.filter((tx) => tx.area === 'tools')
 
+  // Recipient options + groups (mirrors the Notifications create sheet).
+  const recipientOptions = useMemo<ActorRef[]>(() => {
+    const opts: ActorRef[] = []
+    normals.forEach((n) => opts.push({ kind: 'normal', normalId: n.id }))
+    virtuals.filter((v) => v.status === 'active').forEach((v) => opts.push({ kind: 'virtual', virtualId: v.id }))
+    return opts.filter((r) => actorKey(r) !== meKey)
+  }, [normals, virtuals, meKey])
+
+  const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
+  const pickerGroups = useMemo<PickerGroup[]>(() => {
+    const src = activeVirtual ? groups.filter((g) => g.entityId === activeVirtual.entityId) : groups
+    return src.map((g) => ({
+      id: g.id,
+      name: g.name,
+      count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
+    }))
+  }, [groups, activeVirtual, groupRecipients, meKey])
+
+  const expandGroup = (id: string): ActorRef[] =>
+    groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+
   function openTool(key: TransactionKey) {
-    if (key === 'tool.createVacancy' || key === 'tool.displayVacancy') {
-      navigate('/tools/vacancies')
-      return
-    }
-    setRecipient('')
-    setSubject('')
-    setBody('')
-    setSheetKey(key)
+    if (INTERACTIVE_TOOLS.includes(key)) setAssessKey(key)
+    else setDemoKey(key)
   }
 
-  function closeSheet() {
-    setSheetKey(null)
-  }
-
-  const activeDef = sheetKey ? toolTx.find((d) => d.key === sheetKey) : undefined
-  const noteKind = sheetKey ? NOTE_TOOL[sheetKey] : undefined
-  const isContact = sheetKey === 'tool.contactRequest'
-  const isComposable = isContact || !!noteKind
-
-  function submit() {
-    if (!sheetKey) return
-    const ref = options.find((o) => o.key === recipient)?.ref
-    if (isContact) {
-      if (!ref) return
-      sendContactRequest(ref)
-    } else if (noteKind) {
-      createNotification({ kind: noteKind, to: ref ? [ref] : [], subject, body })
-    }
-    closeSheet()
-  }
+  const demoDef = demoKey ? toolTx.find((d) => d.key === demoKey) : undefined
 
   return (
     <div className="p-4 space-y-6 pb-8">
       <SectionHeader title={t('tools')} />
 
-      <div className="grid grid-cols-2 gap-3">
-        {launchers.map((l) => {
-          const Icon = l.icon
-          return (
-            <Card key={l.to} onClick={() => navigate(l.to)} className="p-4 flex flex-col gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gate-50 text-gate-600">
-                <Icon size={22} />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-slate-800">{l.title}</div>
-                <div className="text-xs text-slate-500">{l.subtitle}</div>
-              </div>
-            </Card>
-          )
-        })}
-      </div>
+      {/* IDGate Code — embedded box at the top of the page */}
+      <IDGateCodeCard />
 
       <div className="space-y-2">
-        <SectionHeader title={L('Supporting tools', 'أدوات مساندة')} />
+        <SectionHeader title={t('supportingTools')} />
         <Card className="divide-y divide-slate-100 overflow-hidden">
           {toolTx.map((def) => {
             const allowed = can(def.key)
+            const interactive = INTERACTIVE_TOOLS.includes(def.key)
+            const clickable = interactive ? allowed : true
             return (
               <Row
                 key={def.key}
-                onClick={allowed ? () => openTool(def.key) : undefined}
-                className={cx(!allowed && 'opacity-60')}
+                onClick={clickable ? () => openTool(def.key) : undefined}
+                className={cx(!clickable && 'opacity-60')}
                 leading={
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
                     <Info size={16} />
@@ -141,11 +103,7 @@ export function Tools() {
                 title={bl(def.label, lang)}
                 subtitle={def.note ? bl(def.note, lang) : undefined}
                 trailing={
-                  allowed ? (
-                    <ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />
-                  ) : (
-                    <Badge tone="amber">{t('canReceiveOnly')}</Badge>
-                  )
+                  <ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />
                 }
               />
             )
@@ -153,77 +111,226 @@ export function Tools() {
         </Card>
       </div>
 
+      {/* Demo-only info sheet */}
       <Sheet
-        open={!!sheetKey}
-        onClose={closeSheet}
-        title={activeDef ? bl(activeDef.label, lang) : undefined}
+        open={!!demoKey}
+        onClose={() => setDemoKey(null)}
+        title={demoDef ? bl(demoDef.label, lang) : undefined}
         footer={
-          isComposable ? (
-            <Button
-              full
-              onClick={submit}
-              disabled={isContact ? !recipient : !subject.trim()}
-            >
-              <Send size={16} className="me-1.5" />
-              {isContact ? t('send') : t('send')}
-            </Button>
-          ) : (
-            <Button full variant="secondary" onClick={closeSheet}>
-              {t('close')}
-            </Button>
-          )
+          <Button full variant="secondary" onClick={() => setDemoKey(null)}>
+            {t('close')}
+          </Button>
         }
       >
-        {activeDef?.note && (
-          <p className="mb-4 text-sm text-slate-600">{bl(activeDef.note, lang)}</p>
-        )}
+        <p className="text-sm text-slate-600">{t('demoNote')}</p>
+      </Sheet>
 
-        {isContact && (
-          <Field label={t('to')} required>
-            <Select value={recipient} onChange={(e) => setRecipient(e.target.value)}>
-              <option value="">{L('Select a recipient', 'اختر مستلمًا')}</option>
-              {options.map((o) => {
-                const r = resolve(o.ref)
-                return (
-                  <option key={o.key} value={o.key}>
-                    {r.displayName}
-                  </option>
-                )
-              })}
-            </Select>
+      {/* Interactive assessment compose sheet */}
+      <AssessmentComposeSheet
+        toolKey={assessKey}
+        onClose={() => setAssessKey(null)}
+        options={recipientOptions}
+        groups={pickerGroups}
+        expandGroup={expandGroup}
+        resolveName={(r) => resolve(r).displayName}
+        resolveLabel={(r) => {
+          const info = resolve(r)
+          return info.address ? `${info.displayName} — ${info.address}` : info.displayName
+        }}
+        isRtl={isRtl}
+        lang={lang}
+        t={t}
+        L={L}
+      />
+    </div>
+  )
+}
+
+// ── Valuation / Voting / Election compose sheet ────────────────────────────────
+function AssessmentComposeSheet({
+  toolKey,
+  onClose,
+  options,
+  groups,
+  expandGroup,
+  resolveName,
+  resolveLabel,
+  isRtl,
+  lang,
+  t,
+  L,
+}: {
+  toolKey: TransactionKey | null
+  onClose: () => void
+  options: ActorRef[]
+  groups: PickerGroup[]
+  expandGroup: (id: string) => ActorRef[]
+  resolveName: (r: ActorRef) => string
+  resolveLabel: (r: ActorRef) => string
+  isRtl: boolean
+  lang: 'en' | 'ar'
+  t: (k: string) => string
+  L: (en: string, ar: string) => string
+}) {
+  const createNotification = useStore((s) => s.createNotification)
+
+  const [evalType, setEvalType] = useState<EvalType | ''>('')
+  const [toRefs, setToRefs] = useState<ActorRef[]>([])
+  const [toGroups, setToGroups] = useState<string[]>([])
+  const [subject, setSubject] = useState('')
+  const [ballot, setBallot] = useState<string[]>([''])
+  const [targetDate, setTargetDate] = useState('')
+  const [targetTime, setTargetTime] = useState('')
+
+  const kind = toolKey ? ASSESSMENT_TOOL_KIND[toolKey] : undefined
+  const typeOptions = toolKey ? ASSESSMENT_TYPE_OPTIONS[toolKey] ?? [] : []
+  const isBallot = kind === 'voting' || kind === 'election'
+  const ballotLabel = kind === 'election' ? EVAL_TYPE_LABELS[evalType || 'person'] : undefined
+
+  const reset = () => {
+    setEvalType('')
+    setToRefs([])
+    setToGroups([])
+    setSubject('')
+    setBallot([''])
+    setTargetDate('')
+    setTargetTime('')
+  }
+
+  const to = useMemo(() => {
+    const seen = new Set<string>()
+    const out: ActorRef[] = []
+    for (const r of [...toRefs, ...toGroups.flatMap(expandGroup)]) {
+      const k = actorKey(r)
+      if (!seen.has(k)) {
+        seen.add(k)
+        out.push(r)
+      }
+    }
+    return out
+  }, [toRefs, toGroups, expandGroup])
+
+  const cleanBallot = ballot.map((b) => b.trim()).filter(Boolean)
+  const valid =
+    !!evalType &&
+    to.length > 0 &&
+    (isBallot ? cleanBallot.length > 0 : subject.trim().length > 0) &&
+    targetDate.length > 0 &&
+    targetTime.length > 0
+
+  const close = () => {
+    reset()
+    onClose()
+  }
+
+  const title = toolKey ? t(kind === 'valuation' ? 'valuation' : kind === 'voting' ? 'voting' : 'election') : undefined
+
+  return (
+    <Sheet
+      open={!!toolKey}
+      onClose={close}
+      title={title}
+      footer={
+        <Button
+          full
+          disabled={!valid}
+          onClick={() => {
+            if (!kind || !evalType) return
+            const envelope = isBallot
+              ? cleanBallot.length === 1
+                ? cleanBallot[0]
+                : `${cleanBallot[0]} (+${cleanBallot.length - 1})`
+              : subject.trim()
+            createNotification({
+              kind,
+              to,
+              subject: envelope,
+              body: '',
+              evalType,
+              ballot: isBallot ? cleanBallot : undefined,
+              targetDate: targetDate || undefined,
+              targetTime: targetTime || undefined,
+            })
+            close()
+          }}
+        >
+          <Send size={16} className="me-1.5" />
+          {t('send')}
+        </Button>
+      }
+    >
+      <div className="space-y-4 py-2">
+        <Field label={t('type')} required>
+          <Select value={evalType} onChange={(e) => setEvalType(e.target.value as EvalType)}>
+            <option value="">{L('Select type…', 'اختر النوع…')}</option>
+            {typeOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {bl(EVAL_TYPE_LABELS[opt], lang)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <RecipientPicker
+          label={t('to')}
+          required
+          options={options}
+          groups={groups}
+          refs={toRefs}
+          groupIds={toGroups}
+          onChangeRefs={setToRefs}
+          onChangeGroupIds={setToGroups}
+          resolveName={resolveName}
+          resolveLabel={resolveLabel}
+          placeholder={t('searchRecipients')}
+          isRtl={isRtl}
+        />
+
+        {isBallot ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-700">
+                {ballotLabel ? bl(ballotLabel, lang) : t('subject')}
+              </span>
+              <span className="text-rose-500">*</span>
+            </div>
+            {ballot.map((line, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={line}
+                  onChange={(e) => setBallot((prev) => prev.map((x, idx) => (idx === i ? e.target.value : x)))}
+                  className="flex-1"
+                />
+                {ballot.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setBallot((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-rose-500"
+                    aria-label={L('Remove', 'إزالة')}
+                  >
+                    <XIcon size={15} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <Button size="sm" variant="secondary" onClick={() => setBallot((prev) => [...prev, ''])}>
+              <Plus size={14} className="me-1" />
+              {t('addSubject')}
+            </Button>
+          </div>
+        ) : (
+          <Field label={t('subject')} required>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
           </Field>
         )}
 
-        {noteKind && (
-          <div className="space-y-3">
-            <Field label={t('to')} hint={L('Optional recipient', 'مستلم اختياري')}>
-              <Select value={recipient} onChange={(e) => setRecipient(e.target.value)}>
-                <option value="">{L('No specific recipient', 'بدون مستلم محدد')}</option>
-                {options.map((o) => {
-                  const r = resolve(o.ref)
-                  return (
-                    <option key={o.key} value={o.key}>
-                      {r.displayName}
-                    </option>
-                  )
-                })}
-              </Select>
-            </Field>
-            <Field label={t('subject')} required>
-              <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </Field>
-            <Field label={t('body')}>
-              <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
-            </Field>
-          </div>
-        )}
-
-        {!isComposable && (
-          <p className="text-sm text-slate-500">
-            {L('This tool is part of the IDGate demo and is illustrative only.', 'هذه الأداة جزء من العرض التوضيحي لـ IDGate وهي للتوضيح فقط.')}
-          </p>
-        )}
-      </Sheet>
-    </div>
+        <Field label={t('targetDate')} required>
+          <Input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+        </Field>
+        <Field label={t('targetTime')} required>
+          <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
+        </Field>
+      </div>
+    </Sheet>
   )
 }
