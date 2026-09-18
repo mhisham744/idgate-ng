@@ -33,6 +33,7 @@ import type { Profile, StructureKind, StructureNode, VirtualCharacter } from '@/
 import { useResolveActor } from '@/components/identity'
 import { personalAddress } from '@/lib/identity'
 import { OrgChart } from '@/components/OrgChart'
+import { StructureEditor } from '@/components/StructureEditor'
 import { GroupFormSheet } from '@/components/GroupForm'
 import {
   Avatar,
@@ -188,15 +189,13 @@ export function EntityManage() {
           {structView === 'list' ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 [&>*]:self-start">
               {STRUCTURE_KINDS.map((kind) => (
-                <StructureCard
+                <StructureEditor
                   key={kind}
                   L={L}
                   lang={lang}
                   kind={kind}
                   entityId={id}
                   nodes={entStructures.filter((n) => n.kind === kind)}
-                  addStructureNode={addStructureNode}
-                  removeStructureNode={removeStructureNode}
                 />
               ))}
             </div>
@@ -300,7 +299,9 @@ export function EntityManage() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-slate-800">{g.name}</div>
                     <div className="truncate text-xs text-slate-500">
-                      {g.positionName ? `${L('Position', 'الوظيفة')}: ${g.positionName}` : L('Custom criteria', 'معايير مخصصة')}
+                      {g.positionNames && g.positionNames.length
+                        ? `${L('Positions', 'الوظائف')}: ${g.positionNames.join(', ')}`
+                        : L('Custom criteria', 'معايير مخصصة')}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -433,104 +434,6 @@ export function EntityManage() {
 }
 
 // ── Structure card with add/remove ──────────────────────────────────────────────
-function StructureCard({
-  L,
-  lang,
-  kind,
-  entityId,
-  nodes,
-  addStructureNode,
-  removeStructureNode,
-}: {
-  L: (en: string, ar: string) => string
-  lang: 'en' | 'ar'
-  kind: StructureKind
-  entityId: string
-  nodes: StructureNode[]
-  addStructureNode: (n: Omit<StructureNode, 'id'>) => string
-  removeStructureNode: (id: string) => void
-}) {
-  const [addParent, setAddParent] = useState<string | null>(null)
-  const [text, setText] = useState('')
-
-  const roots = nodes.filter((n) => n.parentId === null || n.level === 0)
-  const childrenOf = (pid: string) => nodes.filter((n) => n.parentId === pid)
-
-  const ensureRoot = (): string => {
-    const r = nodes.find((n) => n.level === 0)
-    if (r) return r.id
-    return addStructureNode({ entityId, kind, code: STRUCTURE_ROOT_CODE[kind], name: kind, level: 0, parentId: null })
-  }
-
-  // Unique, node-distinguishing code: next value above the highest in this structure.
-  const nextCode = () => nodes.reduce((m, n) => Math.max(m, n.code), STRUCTURE_ROOT_CODE[kind]) + 1
-
-  const submitAdd = (parentId: string | null, level: number) => {
-    if (!text.trim()) return
-    const pid = parentId ?? ensureRoot()
-    addStructureNode({
-      entityId,
-      kind,
-      code: nextCode(),
-      name: text.trim(),
-      level,
-      parentId: pid,
-    })
-    setText('')
-    setAddParent(null)
-  }
-
-  const renderNode = (n: StructureNode) => (
-    <div key={n.id}>
-      <div className="flex items-center gap-2 py-1" style={{ paddingInlineStart: n.level * 14 }}>
-        <span className="font-mono text-[10px] text-gate-700" dir="ltr">{n.code}</span>
-        <span className="flex-1 truncate text-xs text-slate-700">
-          {n.level === 0 ? bl(STRUCTURE_LABELS[kind], lang) : n.name}
-        </span>
-        {n.level > 0 && (
-          <>
-            <button onClick={() => setAddParent(addParent === n.id ? null : n.id)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">
-              <Plus size={13} />
-            </button>
-            <button onClick={() => removeStructureNode(n.id)} className="rounded-full p-1 text-rose-400 hover:bg-rose-50">
-              <Trash2 size={13} />
-            </button>
-          </>
-        )}
-      </div>
-      {addParent === n.id && (
-        <div className="flex items-center gap-2 py-1" style={{ paddingInlineStart: (n.level + 1) * 14 }}>
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={L('Child node…', 'عقدة فرعية…')} />
-          <Button size="sm" variant="secondary" onClick={() => submitAdd(n.id, n.level + 1)}>
-            <Plus size={14} />
-          </Button>
-        </div>
-      )}
-      {childrenOf(n.id).map(renderNode)}
-    </div>
-  )
-
-  return (
-    <Card className="p-4 space-y-1.5">
-      <div className="flex items-center gap-2">
-        <Layers size={16} className="text-gate-600" />
-        <h3 className="flex-1 text-sm font-bold text-slate-800">{bl(STRUCTURE_LABELS[kind], lang)}</h3>
-      </div>
-      {roots.length === 0 && nodes.length === 0 ? (
-        <p className="text-[11px] text-slate-400">{L('No nodes yet.', 'لا توجد عقد بعد.')}</p>
-      ) : (
-        roots.map(renderNode)
-      )}
-      <div className="flex items-center gap-2 pt-1">
-        <Input value={addParent === null ? text : ''} onChange={(e) => { setAddParent(null); setText(e.target.value) }} placeholder={L('Add level-1 node…', 'إضافة عقدة مستوى ١…')} />
-        <Button size="sm" variant="secondary" onClick={() => submitAdd(null, 1)}>
-          <Plus size={14} />
-        </Button>
-      </div>
-    </Card>
-  )
-}
-
 function PositionsTab({
   L,
   entityId,

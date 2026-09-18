@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type {
   ActiveAccount,
   ActorRef,
+  CommunicationArea,
   ContactRequest,
   DelegationItem,
   EntityStatus,
@@ -64,6 +65,10 @@ interface State extends AppData {
   virtual: (id: string) => VirtualCharacter | undefined
   profilesForVirtual: (v: VirtualCharacter) => Profile[]
   can: (key: TransactionKey, ability?: Ability) => boolean
+  /** The communication area an actor belongs to (via its entity); undefined for personal accounts. */
+  areaOf: (ref: ActorRef) => string | undefined
+  /** Whether two actors may communicate: personal accounts are universal; two virtuals need a shared area. */
+  canCommunicate: (a: ActorRef, b: ActorRef) => boolean
   /** Resolve a group's membership criteria + explicit members into concrete recipients. */
   groupRecipients: (groupId: string) => ActorRef[]
 
@@ -71,6 +76,8 @@ interface State extends AppData {
   signIn: (normalId: string) => void
   /** Create a freshly-proofed personal account (KYC) and sign in as it. Returns the new id. */
   registerNormal: (input: NewNormalInput) => string
+  /** Persist edits to a natural person's master data. */
+  updateNormal: (id: string, patch: Partial<import('@/types').NormalCharacter>) => void
   logout: () => void
   setActive: (a: ActiveAccount) => void
   setOnboarded: (v: boolean) => void
@@ -156,12 +163,18 @@ interface State extends AppData {
   updateGroup: (id: string, patch: Partial<Group>) => void
   removeGroup: (id: string) => void
 
+  // ── communication areas ──────────────────────────────────────────────────────
+  addCommunicationArea: (name: string) => string
+  removeCommunicationArea: (id: string) => void
+
   // ── master data: entities & structures ─────────────────────────────────────────
   registerEntity: (e: Omit<LegalEntity, 'id' | 'status'> & { status?: EntityStatus }) => string
   updateEntity: (id: string, patch: Partial<LegalEntity>) => void
   activateEntity: (id: string) => void
   addStructureNode: (n: Omit<StructureNode, 'id'>) => string
   removeStructureNode: (id: string) => void
+  /** Rename a structure node in place. */
+  renameStructureNode: (id: string, name: string) => void
   addProfile: (p: Omit<Profile, 'id'>) => string
   updateProfile: (id: string, patch: Partial<Profile>) => void
   addDelegation: (d: Omit<DelegationItem, 'id'>) => void
@@ -232,10 +245,23 @@ export const useStore = create<State>()(
         const profs = get().profilesForVirtual(v)
         return mergedPermission(profs, key)[ability]
       },
+      areaOf: (ref) => {
+        if (ref.kind !== 'virtual') return undefined
+        const v = get().virtual(ref.virtualId)
+        if (!v) return undefined
+        return get().entity(v.entityId)?.communicationAreaId
+      },
+      canCommunicate: (a, b) => {
+        // Personal (natural-person) accounts are universally reachable.
+        if (a.kind === 'normal' || b.kind === 'normal') return true
+        const aArea = get().areaOf(a)
+        const bArea = get().areaOf(b)
+        // Two virtuals must share a defined area. If either has no area, don't restrict (demo-friendly).
+        if (!aArea || !bArea) return true
+        return aArea === bArea
+      },
       groupRecipients: (groupId) => {
         const s = get()
-        const g = s.groups.find((x) => x.id === groupId)
-        if (!g) return []
 
         // Set of node ids that a criterion "covers": the node itself + all descendants
         // (a group message reaches that node level and every level below it).
@@ -254,14 +280,6 @@ export const useStore = create<State>()(
           }
           return out
         }
-        const cov = {
-          corporate: g.corporateNodeId ? coverage(g.corporateNodeId) : null,
-          relation: g.relationNodeId ? coverage(g.relationNodeId) : null,
-          organization: g.organizationNodeId ? coverage(g.organizationNodeId) : null,
-          geographical: g.geographicalNodeId ? coverage(g.geographicalNodeId) : null,
-        }
-        const hasCriteria =
-          !!g.positionName || !!cov.corporate || !!cov.relation || !!cov.organization || !!cov.geographical
 
         const keys = new Set<string>()
         const out: ActorRef[] = []
@@ -273,23 +291,49 @@ export const useStore = create<State>()(
           }
         }
 
-        // criteria-matched active virtuals in the same entity
-        if (hasCriteria) {
-          for (const v of s.virtuals) {
-            if (v.entityId !== g.entityId || v.status !== 'active') continue
-            if (g.positionName && v.positionName !== g.positionName) continue
-            if (cov.corporate && !(v.structure.corporate && cov.corporate.has(v.structure.corporate))) continue
-            if (cov.relation && !(v.structure.relation && cov.relation.has(v.structure.relation))) continue
-            if (cov.organization && !(v.structure.organization && cov.organization.has(v.structure.organization))) continue
-            if (cov.geographical && !(v.structure.geographical && cov.geographical.has(v.structure.geographical))) continue
-            push({ kind: 'virtual', virtualId: v.id })
+        // Resolve one group, recursing into member groups (cycle-guarded).
+        const visited = new Set<string>()
+        const walk = (gid: string) => {
+          if (visited.has(gid)) return
+          visited.add(gid)
+          const g = s.groups.find((x) => x.id === gid)
+          if (!g) return
+
+          const posNames = g.positionNames ?? (g.positionName ? [g.positionName] : [])
+          const cov = {
+            corporate: g.corporateNodeId ? coverage(g.corporateNodeId) : null,
+            relation: g.relationNodeId ? coverage(g.relationNodeId) : null,
+            organization: g.organizationNodeId ? coverage(g.organizationNodeId) : null,
+            geographical: g.geographicalNodeId ? coverage(g.geographicalNodeId) : null,
           }
+          const hasCriteria =
+            posNames.length > 0 || !!cov.corporate || !!cov.relation || !!cov.organization || !!cov.geographical
+
+          // criteria-matched active virtuals in the same entity
+          if (hasCriteria) {
+            for (const v of s.virtuals) {
+              if (v.entityId !== g.entityId || v.status !== 'active') continue
+              if (posNames.length && !posNames.includes(v.positionName)) continue
+              if (cov.corporate && !(v.structure.corporate && cov.corporate.has(v.structure.corporate))) continue
+              if (cov.relation && !(v.structure.relation && cov.relation.has(v.structure.relation))) continue
+              if (cov.organization && !(v.structure.organization && cov.organization.has(v.structure.organization))) continue
+              if (cov.geographical && !(v.structure.geographical && cov.geographical.has(v.structure.geographical))) continue
+              push({ kind: 'virtual', virtualId: v.id })
+            }
+          }
+
+          // explicit members (always included)
+          for (const id of g.explicitMemberIds ?? []) {
+            if (s.virtuals.some((v) => v.id === id)) push({ kind: 'virtual', virtualId: id })
+          }
+          for (const nid of g.explicitNormalIds ?? []) {
+            if (s.normals.some((n) => n.id === nid)) push({ kind: 'normal', normalId: nid })
+          }
+          // nested member groups
+          for (const mg of g.memberGroupIds ?? []) walk(mg)
         }
 
-        // explicit members (always included, even if blocked criteria wouldn't match)
-        for (const id of g.explicitMemberIds ?? []) {
-          if (s.virtuals.some((v) => v.id === id)) push({ kind: 'virtual', virtualId: id })
-        }
+        walk(groupId)
         return out
       },
 
@@ -324,6 +368,8 @@ export const useStore = create<State>()(
         }))
         return id
       },
+      updateNormal: (id, patch) =>
+        set((s) => ({ normals: s.normals.map((n) => (n.id === id ? { ...n, ...patch } : n)) })),
       logout: () => set({ normalId: null, active: null }),
       setActive: (active) => set({ active }),
       setOnboarded: (onboarded) => set({ onboarded }),
@@ -773,6 +819,15 @@ export const useStore = create<State>()(
         set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) })),
       removeGroup: (id) => set((s) => ({ groups: s.groups.filter((g) => g.id !== id) })),
 
+      // ── communication areas ─────────────────────────────────────────────────────
+      addCommunicationArea: (name) => {
+        const id = uid('ca')
+        set((s) => ({ communicationAreas: [...s.communicationAreas, { id, name: name.trim() }] }))
+        return id
+      },
+      removeCommunicationArea: (id) =>
+        set((s) => ({ communicationAreas: s.communicationAreas.filter((a) => a.id !== id) })),
+
       // ── master data ─────────────────────────────────────────────────────────────
       registerEntity: (e) => {
         const id = uid('e')
@@ -805,6 +860,8 @@ export const useStore = create<State>()(
           }
           return { structures: s.structures.filter((n) => !toRemove.has(n.id)) }
         }),
+      renameStructureNode: (id, name) =>
+        set((s) => ({ structures: s.structures.map((n) => (n.id === id ? { ...n, name } : n)) })),
       addProfile: (p) => {
         const id = uid('p')
         set((s) => ({ profiles: [...s.profiles, { ...p, id }] }))
@@ -835,13 +892,15 @@ export const useStore = create<State>()(
       linkVirtual: (virtualId, normalId) =>
         set((s) => ({
           virtuals: s.virtuals.map((v) =>
-            v.id === virtualId ? { ...v, linkedNormalId: normalId, status: 'active' } : v,
+            v.id === virtualId
+              ? { ...v, linkedNormalId: normalId, status: 'active', connectedAt: new Date().toISOString(), disconnectedAt: undefined }
+              : v,
           ),
         })),
       unlinkVirtual: (virtualId) =>
         set((s) => ({
           virtuals: s.virtuals.map((v) =>
-            v.id === virtualId ? { ...v, linkedNormalId: null, status: 'unlinked' } : v,
+            v.id === virtualId ? { ...v, linkedNormalId: null, status: 'unlinked', disconnectedAt: new Date().toISOString() } : v,
           ),
         })),
       blockVirtual: (virtualId, blocked) =>
@@ -857,10 +916,9 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 2,
-      // v2: notifications gained per-recipient status + private threads. Reshape any
-      // v1 note (single `status`, no `recipients`) into the new model and map the
-      // dropped 'completed' status onto 'closed'.
+      version: 3,
+      // v2: notifications gained per-recipient status + private threads.
+      // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
       migrate: (persisted: any, from: number) => {
         if (persisted && from < 2 && Array.isArray(persisted.notifications)) {
           const valid = ['pending', 'accepted', 'rejected', 'clarify', 'closed']
@@ -876,12 +934,25 @@ export const useStore = create<State>()(
             return { ...n, status: norm(n.status), recipients, frozen: n.frozen ?? false }
           })
         }
+        if (persisted && from < 3) {
+          if (!Array.isArray(persisted.communicationAreas)) persisted.communicationAreas = []
+          if (Array.isArray(persisted.groups)) {
+            persisted.groups = persisted.groups.map((g: any) =>
+              g.positionNames ? g : { ...g, positionNames: g.positionName ? [g.positionName] : [] },
+            )
+          }
+        }
         return persisted
       },
       // Persist everything; strip attachment preview blobs (dataUrl) before writing so
       // large files don't blow the localStorage quota — metadata (name/size/type) is kept.
       partialize: (state) => ({
         ...state,
+        normals: state.normals.map((n) =>
+          n.career?.cv?.dataUrl
+            ? { ...n, career: { ...n.career, cv: (({ dataUrl: _d, ...meta }) => meta)(n.career.cv) } }
+            : n,
+        ),
         messages: state.messages.map((m) =>
           m.attachments
             ? { ...m, attachments: m.attachments.map(({ dataUrl: _drop, ...meta }) => meta) }

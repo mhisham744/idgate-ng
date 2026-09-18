@@ -40,6 +40,7 @@ export function Tools() {
   const groups = useStore((s) => s.groups)
   const virtual = useStore((s) => s.virtual)
   const groupRecipients = useStore((s) => s.groupRecipients)
+  const canCommunicate = useStore((s) => s.canCommunicate)
 
   const [assessKey, setAssessKey] = useState<TransactionKey | null>(null)
   const [demoKey, setDemoKey] = useState<TransactionKey | null>(null)
@@ -53,8 +54,8 @@ export function Tools() {
     const opts: ActorRef[] = []
     normals.forEach((n) => opts.push({ kind: 'normal', normalId: n.id }))
     virtuals.filter((v) => v.status === 'active').forEach((v) => opts.push({ kind: 'virtual', virtualId: v.id }))
-    return opts.filter((r) => actorKey(r) !== meKey)
-  }, [normals, virtuals, meKey])
+    return opts.filter((r) => actorKey(r) !== meKey && (!active || canCommunicate(active, r)))
+  }, [normals, virtuals, meKey, active, canCommunicate])
 
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
   const pickerGroups = useMemo<PickerGroup[]>(() => {

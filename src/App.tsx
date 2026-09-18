@@ -14,6 +14,8 @@ import { Vacancies } from '@/screens/Vacancies'
 import { GroupsScreen } from '@/screens/Groups'
 import { Settings } from '@/screens/Settings'
 import { PersonalMasterData } from '@/screens/PersonalMasterData'
+import { CommunicationAreas } from '@/screens/CommunicationAreas'
+import { LinkPosition } from '@/screens/LinkPosition'
 import { MyEntities } from '@/screens/MyEntities'
 import { EntityWizard } from '@/screens/EntityWizard'
 import { EntityManage } from '@/screens/EntityManage'
@@ -35,6 +37,8 @@ function Shell() {
         <Route path="/directory" element={<Directory />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/personal" element={<PersonalMasterData />} />
+        <Route path="/settings/communication-areas" element={<CommunicationAreas />} />
+        <Route path="/settings/link-position" element={<LinkPosition />} />
         <Route path="/settings/entities" element={<MyEntities />} />
         <Route path="/settings/entities/new" element={<EntityWizard />} />
         <Route path="/settings/entity/:id" element={<EntityManage />} />

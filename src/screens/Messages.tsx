@@ -72,6 +72,7 @@ export function Messages() {
   const groups = useStore((s) => s.groups)
   const virtual = useStore((s) => s.virtual)
   const groupRecipients = useStore((s) => s.groupRecipients)
+  const canCommunicate = useStore((s) => s.canCommunicate)
   const markRead = useStore((s) => s.markRead)
   const deleteMessage = useStore((s) => s.deleteMessage)
   const can = useStore((s) => s.can)
@@ -89,8 +90,8 @@ export function Messages() {
     virtuals
       .filter((v) => v.status === 'active')
       .forEach((v) => opts.push({ kind: 'virtual', virtualId: v.id }))
-    return opts.filter((r) => actorKey(r) !== meKey)
-  }, [normals, virtuals, meKey])
+    return opts.filter((r) => actorKey(r) !== meKey && (!active || canCommunicate(active, r)))
+  }, [normals, virtuals, meKey, active, canCommunicate])
 
   // ── Group options: groups from the active virtual's entity (or all when personal) ─
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined

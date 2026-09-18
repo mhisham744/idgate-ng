@@ -14,6 +14,7 @@ import {
   UserPlus,
   ShieldCheck,
   Link2,
+  Network,
   Info,
   ChevronRight,
   Languages,
@@ -37,14 +38,15 @@ export function Settings() {
   const normals = useStore((s) => s.normals)
   const virtuals = useStore((s) => s.virtuals)
   const sendContactRequest = useStore((s) => s.sendContactRequest)
+  const canCommunicate = useStore((s) => s.canCommunicate)
   const resolve = useResolveActor()
 
   const me = currentNormal()
   const roles = normalId ? virtualsFor(normalId) : []
 
   const [confirmReset, setConfirmReset] = useState(false)
-  // Tools relocated from the Tools page: 'contact' is functional; the other two are illustrative.
-  const [sheet, setSheet] = useState<null | 'contact' | 'delegation' | 'link'>(null)
+  // Contact Request relocated from the Tools page; Delegation Display stays illustrative.
+  const [sheet, setSheet] = useState<null | 'contact' | 'delegation'>(null)
   const [recipient, setRecipient] = useState('')
   const [contactSent, setContactSent] = useState(false)
 
@@ -56,10 +58,10 @@ export function Settings() {
         .filter((v) => v.status === 'active')
         .map((v) => ({ key: `v:${v.id}`, ref: { kind: 'virtual', virtualId: v.id } as ActorRef })),
     ]
-    return opts.filter((o) => o.key !== meKey)
-  }, [normals, virtuals, meKey])
+    return opts.filter((o) => o.key !== meKey && (!active || canCommunicate(active, o.ref)))
+  }, [normals, virtuals, meKey, active, canCommunicate])
 
-  const openSheet = (which: 'contact' | 'delegation' | 'link') => {
+  const openSheet = (which: 'contact' | 'delegation') => {
     setRecipient('')
     setContactSent(false)
     setSheet(which)
@@ -93,6 +95,13 @@ export function Settings() {
           onClick={() => nav('/settings/personal')}
         />
         <Row
+          leading={<Network size={20} className="text-gate-600" />}
+          title={L('Communication Area', 'منطقة التواصل')}
+          subtitle={L('Areas that let organizations interoperate', 'مناطق تتيح تواصل المؤسسات')}
+          trailing={Chevron}
+          onClick={() => nav('/settings/communication-areas')}
+        />
+        <Row
           leading={<Building2 size={20} className="text-gate-600" />}
           title={t('myEntities')}
           subtitle={L('Legal entities you administer', 'الكيانات القانونية التي تديرها')}
@@ -100,11 +109,11 @@ export function Settings() {
           onClick={() => nav('/settings/entities')}
         />
         <Row
-          leading={<Users size={20} className="text-gate-600" />}
-          title={t('directory')}
-          subtitle={L('Browse people & entities', 'تصفح الأشخاص والكيانات')}
+          leading={<Link2 size={20} className="text-gate-600" />}
+          title={L('Link a Position to a Person', 'ربط منصب بشخص')}
+          subtitle={L('Assign a position to its host', 'تعيين منصب لمضيفه')}
           trailing={Chevron}
-          onClick={() => nav('/directory')}
+          onClick={() => nav('/settings/link-position')}
         />
         <Row
           leading={<UsersRound size={20} className="text-gate-600" />}
@@ -112,6 +121,13 @@ export function Settings() {
           subtitle={L('Communicate with a node & below', 'التواصل مع مستوى وما دونه')}
           trailing={Chevron}
           onClick={() => nav('/settings/groups')}
+        />
+        <Row
+          leading={<Users size={20} className="text-gate-600" />}
+          title={t('directory')}
+          subtitle={L('Browse people & entities', 'تصفح الأشخاص والكيانات')}
+          trailing={Chevron}
+          onClick={() => nav('/directory')}
         />
         <Row
           leading={<UserPlus size={20} className="text-gate-600" />}
@@ -126,13 +142,6 @@ export function Settings() {
           subtitle={L('Request to view delegated authorities', 'طلب عرض الصلاحيات المفوضة')}
           trailing={Chevron}
           onClick={() => openSheet('delegation')}
-        />
-        <Row
-          leading={<Link2 size={20} className="text-gate-600" />}
-          title={t('linkRequest')}
-          subtitle={L('Request to link a position to a person', 'طلب ربط منصب بشخص')}
-          trailing={Chevron}
-          onClick={() => openSheet('link')}
         />
         <Row
           leading={<Info size={20} className="text-gate-600" />}
@@ -255,11 +264,11 @@ export function Settings() {
         )}
       </Sheet>
 
-      {/* Delegation Display Request / Link Request — illustrative */}
+      {/* Delegation Display Request — illustrative */}
       <Sheet
-        open={sheet === 'delegation' || sheet === 'link'}
+        open={sheet === 'delegation'}
         onClose={() => setSheet(null)}
-        title={sheet === 'link' ? t('linkRequest') : t('delegationDisplay')}
+        title={t('delegationDisplay')}
         footer={
           <Button full variant="secondary" onClick={() => setSheet(null)}>
             {t('close')}

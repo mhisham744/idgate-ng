@@ -1,4 +1,5 @@
 import type {
+  CommunicationArea,
   ContactRequest,
   DelegationItem,
   Group,
@@ -20,6 +21,7 @@ import { colorFor } from '@/lib/identity'
 
 export interface AppData {
   normals: NormalCharacter[]
+  communicationAreas: CommunicationArea[]
   entities: LegalEntity[]
   structures: StructureNode[]
   profiles: Profile[]
@@ -204,6 +206,7 @@ export function buildSeed(): AppData {
       linkedNormalId: opts.linkedNormalId ?? null,
       status: opts.linkedNormalId ? 'active' : 'unlinked',
       createdAt: opts.createdAt ?? ago(60 * 24 * 30),
+      connectedAt: opts.linkedNormalId ? (opts.connectedAt ?? opts.createdAt ?? ago(60 * 24 * 25)) : undefined,
       positionCode: opts.positionCode,
       additionalCodes: opts.additionalCodes,
     }
@@ -221,6 +224,7 @@ export function buildSeed(): AppData {
   const nestle: LegalEntity = {
     id: 'e_nestle',
     communicationCode: 'AABBCC123456789',
+    communicationAreaId: 'ca_corp',
     entityCode: 'ABC123456789',
     formalName: 'Nestle Egypt for Food Industries',
     commercialName: 'Nestle Egypt',
@@ -296,6 +300,7 @@ export function buildSeed(): AppData {
   const gezira: LegalEntity = {
     id: 'e_gezira',
     communicationCode: 'AABBCC223456789', entityCode: 'ABC223456789',
+    communicationAreaId: 'ca_corp',
     formalName: 'Gezira Sporting Club', commercialName: 'Gezira Sporting Club', searchName: 'Gezira',
     orgLevel: 'Individual', orgType: 'Clb', legalEntityType: 'JSC', mainIndustry: 'Sports',
     countryOfRegistration: 'Egypt', cityOfRegistration: 'Cairo', operationCountry: 'Egypt',
@@ -356,6 +361,7 @@ export function buildSeed(): AppData {
   const moe: LegalEntity = {
     id: 'e_moe',
     communicationCode: 'AABBCC323456789', entityCode: 'ABC987654321',
+    communicationAreaId: 'ca_gov',
     formalName: 'Egyptian Ministry of Electricity and Renewable Energy',
     commercialName: 'Ministry of Electricity', searchName: 'Ministry of Electricity',
     orgLevel: 'Individual', orgType: 'Gov', legalEntityType: 'JSC', mainIndustry: 'Energy',
@@ -417,6 +423,7 @@ export function buildSeed(): AppData {
   const univ: LegalEntity = {
     id: 'e_univ',
     communicationCode: 'AABBCC423456789', entityCode: 'ABC423456789',
+    communicationAreaId: 'ca_corp',
     formalName: 'Cairo University', commercialName: 'Cairo University', searchName: 'Cairo University',
     orgLevel: 'Individual', orgType: 'Uni', legalEntityType: 'JSC', mainIndustry: 'Education',
     countryOfRegistration: 'Egypt', cityOfRegistration: 'Giza', operationCountry: 'Egypt',
@@ -471,6 +478,7 @@ export function buildSeed(): AppData {
   const traffic: LegalEntity = {
     id: 'e_traffic',
     communicationCode: 'AABBCC523456789', entityCode: 'ABC523456789',
+    communicationAreaId: 'ca_gov',
     formalName: 'Egyptian Ministry of Interior — Traffic Authority',
     commercialName: 'Traffic Authority', searchName: 'Traffic Authority',
     orgLevel: 'Individual', orgType: 'Gov', legalEntityType: 'JSC', mainIndustry: 'Governmental',
@@ -511,13 +519,18 @@ export function buildSeed(): AppData {
 
   const entities = [nestle, gezira, moe, univ, traffic]
 
+  const communicationAreas: CommunicationArea[] = [
+    { id: 'ca_corp', name: 'Corporate & Education Network' },
+    { id: 'ca_gov', name: 'Egypt Government Network' },
+  ]
+
   // ── Groups (built from structures) ──────────────────────────────────────────
   const gN = (e: string, kind: StructureKind, name: string) => nodeId(structures, e, kind, name)
   const nestleCEO = virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'CEO')!
   const geziraSub = virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Subscriptions Head')!
   const moeBoard = virtuals.find((v) => v.entityId === 'e_moe' && v.positionName === 'Board Member')!
   groups.push(
-    { id: 'g_nestle_board_gulf', entityId: 'e_nestle', ownerVirtualId: nestleCEO.id, name: 'Board Members — Gulf', positionName: 'Independent Board Member', corporateNodeId: gN('e_nestle', 'corporate', 'Gulf'), relationNodeId: gN('e_nestle', 'relation', 'Board of Directors') },
+    { id: 'g_nestle_board_gulf', entityId: 'e_nestle', ownerVirtualId: nestleCEO.id, name: 'Board Members — Gulf', positionNames: ['Independent Board Member'], corporateNodeId: gN('e_nestle', 'corporate', 'Gulf'), relationNodeId: gN('e_nestle', 'relation', 'Board of Directors') },
     { id: 'g_nestle_egypt_staff', entityId: 'e_nestle', ownerVirtualId: nestleCEO.id, name: 'Staff — Legal Entity Egypt working in Egypt', corporateNodeId: gN('e_nestle', 'corporate', 'Legal Entity Egypt'), relationNodeId: gN('e_nestle', 'relation', 'Employees'), geographicalNodeId: gN('e_nestle', 'geographical', 'Egypt') },
     { id: 'g_gezira_foreign', entityId: 'e_gezira', ownerVirtualId: geziraSub.id, name: 'Foreign members — Head Office', relationNodeId: gN('e_gezira', 'relation', 'Foreign') },
     { id: 'g_moe_prepaid', entityId: 'e_moe', ownerVirtualId: moeBoard.id, name: 'Prepaid subscribers — 6 October', relationNodeId: gN('e_moe', 'relation', 'Prepaid'), geographicalNodeId: gN('e_moe', 'geographical', '6 October') },
@@ -565,7 +578,7 @@ export function buildSeed(): AppData {
   ]
 
   return {
-    normals, entities, structures, profiles, delegations, positions, virtuals, groups,
+    normals, communicationAreas, entities, structures, profiles, delegations, positions, virtuals, groups,
     posts, messages, notifications, vacancies, contactRequests, linkRequests: [],
   }
 }

@@ -119,6 +119,7 @@ export function Notifications() {
   const virtual = useStore((s) => s.virtual)
   const groupRecipients = useStore((s) => s.groupRecipients)
   const can = useStore((s) => s.can)
+  const canCommunicate = useStore((s) => s.canCommunicate)
   const createNotification = useStore((s) => s.createNotification)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -149,8 +150,8 @@ export function Notifications() {
     virtuals
       .filter((v) => v.status === 'active')
       .forEach((v) => opts.push({ kind: 'virtual', virtualId: v.id }))
-    return opts.filter((r) => actorKey(r) !== meKey)
-  }, [normals, virtuals, meKey])
+    return opts.filter((r) => actorKey(r) !== meKey && (!active || canCommunicate(active, r)))
+  }, [normals, virtuals, meKey, active, canCommunicate])
 
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
   const pickerGroups = useMemo<PickerGroup[]>(() => {

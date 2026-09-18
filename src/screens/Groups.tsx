@@ -91,13 +91,15 @@ export function GroupsScreen() {
 
   function criteriaBadges(g: Group) {
     const items: string[] = []
-    if (g.positionName) items.push(g.positionName)
+    for (const p of g.positionNames ?? (g.positionName ? [g.positionName] : [])) items.push(p)
     for (const { field } of KIND_FIELDS) {
       const nm = nodeName(g[field])
       if (nm) items.push(nm)
     }
-    if (g.explicitMemberIds && g.explicitMemberIds.length) {
-      items.push(L(`${g.explicitMemberIds.length} members`, `${g.explicitMemberIds.length} أعضاء`))
+    const memberCount =
+      (g.explicitMemberIds?.length ?? 0) + (g.explicitNormalIds?.length ?? 0) + (g.memberGroupIds?.length ?? 0)
+    if (memberCount) {
+      items.push(L(`${memberCount} members`, `${memberCount} أعضاء`))
     }
     return items
   }

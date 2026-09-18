@@ -35,6 +35,7 @@ import type {
   TransactionKey,
 } from '@/types'
 import { colorFor, unlinkedAddress, virtualAddress } from '@/lib/identity'
+import { StructureEditor } from '@/components/StructureEditor'
 import { Badge, Button, Card, Field, Input, Select, SectionHeader } from '@/ui/primitives'
 
 type Country = LegalEntity['countryOfRegistration']
@@ -49,7 +50,7 @@ const COUNTRIES: Country[] = ['Egypt', 'USA', 'France', 'Germany', 'India']
 const FULL: PermissionSet = { create: true, change: true, display: true, delete: true }
 const DISPLAY_ONLY: PermissionSet = { create: false, change: false, display: true, delete: false }
 
-const TOTAL_STEPS = 9
+const TOTAL_STEPS = 7
 
 export function EntityWizard() {
   const navigate = useNavigate()
@@ -63,10 +64,9 @@ export function EntityWizard() {
   const addDelegation = useStore((s) => s.addDelegation)
   const addPosition = useStore((s) => s.addPosition)
   const addVirtual = useStore((s) => s.addVirtual)
-  const createLinkRequest = useStore((s) => s.createLinkRequest)
-  const linkVirtual = useStore((s) => s.linkVirtual)
-  const addGroup = useStore((s) => s.addGroup)
   const activateEntity = useStore((s) => s.activateEntity)
+  const communicationAreas = useStore((s) => s.communicationAreas)
+  const addCommunicationArea = useStore((s) => s.addCommunicationArea)
 
   // reactive lists
   const structures = useStore((s) => s.structures)
@@ -75,31 +75,32 @@ export function EntityWizard() {
   const virtuals = useStore((s) => s.virtuals)
   const delegations = useStore((s) => s.delegations)
   const entities = useStore((s) => s.entities)
-  const normals = useStore((s) => s.normals)
 
   const [step, setStep] = useState(1)
   const [entityId, setEntityId] = useState<string | null>(null)
-  const [rootIds, setRootIds] = useState<Partial<Record<StructureKind, string>>>({})
 
   // step 1 / 2 draft form
   const [communicationCode] = useState(() => 'CA-' + Math.random().toString(36).slice(2, 8).toUpperCase())
+  const [entityCode] = useState(() => 'ENT-' + Math.random().toString(36).slice(2, 8).toUpperCase())
+  const [areaId, setAreaId] = useState('')
   const [formalName, setFormalName] = useState('')
   const [commercialName, setCommercialName] = useState('')
   const [searchName, setSearchName] = useState('')
   const [domain, setDomain] = useState('')
-  const [orgLevel, setOrgLevel] = useState<OrgLevel>('Individual')
-  const [orgType, setOrgType] = useState<OrgType>('Com')
-  const [legalType, setLegalType] = useState<LegalEntityType>('JSC')
-  const [industry, setIndustry] = useState<Industry>('Manufacturing')
-  const [country, setCountry] = useState<Country>('Egypt')
+  const [orgLevel, setOrgLevel] = useState<OrgLevel | ''>('')
+  const [orgType, setOrgType] = useState<OrgType | ''>('')
+  const [legalType, setLegalType] = useState<LegalEntityType | ''>('')
+  const [industry, setIndustry] = useState<Industry | ''>('')
+  const [country, setCountry] = useState<Country | ''>('')
 
   const ent = entityId ? entities.find((e) => e.id === entityId) : undefined
 
   // derived scoped lists
-  const myStructures = useMemo(
-    () => (entityId ? structures.filter((n) => n.entityId === entityId && n.level > 0) : []),
+  const allMyStructures = useMemo(
+    () => (entityId ? structures.filter((n) => n.entityId === entityId) : []),
     [structures, entityId],
   )
+  const myStructures = allMyStructures.filter((n) => n.level > 0)
   const myProfiles = entityId ? profiles.filter((p) => p.entityId === entityId) : []
   const myPositions = entityId ? positions.filter((p) => p.entityId === entityId) : []
   const myVirtuals = entityId ? virtuals.filter((v) => v.entityId === entityId) : []
@@ -111,15 +112,16 @@ export function EntityWizard() {
     const cName = commercialName.trim() || L('New Organization', 'مؤسسة جديدة')
     const id = registerEntity({
       communicationCode,
-      entityCode: 'ENT-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      communicationAreaId: areaId || undefined,
+      entityCode,
       formalName: formalName.trim() || cName,
       commercialName: cName,
       searchName: searchName.trim() || cName,
-      orgLevel,
-      orgType,
-      legalEntityType: legalType,
-      mainIndustry: industry,
-      countryOfRegistration: country,
+      orgLevel: (orgLevel || 'Individual') as OrgLevel,
+      orgType: (orgType || 'Com') as OrgType,
+      legalEntityType: (legalType || 'JSC') as LegalEntityType,
+      mainIndustry: (industry || 'Manufacturing') as Industry,
+      countryOfRegistration: (country || 'Egypt') as Country,
       domain: (domain.trim() || cName.replace(/\s+/g, '')).slice(0, 20),
       status: 'draft',
       documents: {},
@@ -131,33 +133,15 @@ export function EntityWizard() {
     return id
   }
 
-  function ensureRoot(kind: StructureKind, id: string): string {
-    const existing = rootIds[kind]
-    if (existing) return existing
-    const rid = addStructureNode({
-      entityId: id,
-      kind,
-      code: STRUCTURE_ROOT_CODE[kind],
-      name: kind,
-      level: 0,
-      parentId: null,
-    })
-    setRootIds((r) => ({ ...r, [kind]: rid }))
-    return rid
-  }
-
-  function addLevel1(kind: StructureKind, name: string) {
-    if (!entityId || !name.trim()) return
-    const rid = ensureRoot(kind, entityId)
-    addStructureNode({
-      entityId,
-      kind,
-      code: STRUCTURE_ROOT_CODE[kind] + 1,
-      name: name.trim(),
-      level: 1,
-      parentId: rid,
-    })
-  }
+  const step2Valid =
+    !!commercialName.trim() &&
+    !!searchName.trim() &&
+    !!areaId &&
+    !!orgLevel &&
+    !!orgType &&
+    !!legalType &&
+    !!industry &&
+    !!country
 
   function goNext() {
     if (step === 2) ensureEntity()
@@ -187,56 +171,78 @@ export function EntityWizard() {
       </div>
 
       {step === 1 && (
-        <Step1 code={communicationCode} L={L} />
+        <Step1
+          L={L}
+          areas={communicationAreas}
+          areaId={areaId}
+          setAreaId={setAreaId}
+          addArea={addCommunicationArea}
+        />
       )}
 
       {step === 2 && (
         <Card className="p-4 space-y-3">
           <SectionHeader title={L('Corporate Master Data', 'البيانات الأساسية للمؤسسة')} />
+          <Field label={L('Communication Area', 'منطقة التواصل')} required>
+            <Select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+              <option value="">{L('Select area…', 'اختر المنطقة…')}</option>
+              {communicationAreas.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={L('Entity code', 'كود المؤسسة')} hint={L('auto-generated', 'يُنشأ تلقائيًا')}>
+            <Input value={entityCode} readOnly dir="ltr" className="font-mono" />
+          </Field>
           <Field label={L('Formal name', 'الاسم الرسمي')} required>
             <Input value={formalName} onChange={(e) => setFormalName(e.target.value)} placeholder="Acme Holding S.A.E." />
           </Field>
           <Field label={L('Commercial name', 'الاسم التجاري')} required>
             <Input value={commercialName} onChange={(e) => setCommercialName(e.target.value)} placeholder="Acme" />
           </Field>
-          <Field label={L('Search name', 'اسم البحث')}>
+          <Field label={L('Search name', 'اسم البحث')} required>
             <Input value={searchName} onChange={(e) => setSearchName(e.target.value)} placeholder="acme" />
           </Field>
           <Field label={L('Domain', 'النطاق')} hint={L('used in the address', 'يظهر في العنوان')}>
             <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Acme" dir="ltr" className="font-mono" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={L('Org. level', 'مستوى المؤسسة')}>
+            <Field label={L('Org. level', 'مستوى المؤسسة')} required>
               <Select value={orgLevel} onChange={(e) => setOrgLevel(e.target.value as OrgLevel)}>
+                <option value="">—</option>
                 {ORG_LEVELS.map((k) => (
                   <option key={k} value={k}>{bl(ORG_LEVEL_LABELS[k], lang)}</option>
                 ))}
               </Select>
             </Field>
-            <Field label={L('Org. type', 'نوع المؤسسة')}>
+            <Field label={L('Org. type', 'نوع المؤسسة')} required>
               <Select value={orgType} onChange={(e) => setOrgType(e.target.value as OrgType)}>
+                <option value="">—</option>
                 {ORG_TYPES.map((k) => (
                   <option key={k} value={k}>{bl(ORG_TYPE_LABELS[k], lang)}</option>
                 ))}
               </Select>
             </Field>
-            <Field label={L('Legal type', 'الكيان القانوني')}>
+            <Field label={L('Legal type', 'الكيان القانوني')} required>
               <Select value={legalType} onChange={(e) => setLegalType(e.target.value as LegalEntityType)}>
+                <option value="">—</option>
                 {LEGAL_TYPES.map((k) => (
                   <option key={k} value={k}>{bl(LEGAL_TYPE_LABELS[k], lang)}</option>
                 ))}
               </Select>
             </Field>
-            <Field label={L('Main industry', 'النشاط الرئيسي')}>
+            <Field label={L('Main industry', 'النشاط الرئيسي')} required>
               <Select value={industry} onChange={(e) => setIndustry(e.target.value as Industry)}>
+                <option value="">—</option>
                 {INDUSTRIES.map((k) => (
                   <option key={k} value={k}>{bl(INDUSTRY_LABELS[k], lang)}</option>
                 ))}
               </Select>
             </Field>
           </div>
-          <Field label={L('Country of registration', 'بلد التسجيل')}>
+          <Field label={L('Country of registration', 'بلد التسجيل')} required>
             <Select value={country} onChange={(e) => setCountry(e.target.value as Country)}>
+              <option value="">—</option>
               {COUNTRIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
@@ -251,13 +257,7 @@ export function EntityWizard() {
       )}
 
       {step === 3 && (
-        <Step3
-          L={L}
-          lang={lang}
-          entityId={entityId}
-          myStructures={myStructures}
-          onAdd={addLevel1}
-        />
+        <Step3 L={L} lang={lang} entityId={entityId} myStructures={allMyStructures} />
       )}
 
       {step === 4 && (
@@ -295,30 +295,6 @@ export function EntityWizard() {
       )}
 
       {step === 7 && (
-        <Step7
-          L={L}
-          lang={lang}
-          entityId={entityId}
-          entity={ent}
-          virtuals={myVirtuals}
-          normals={normals}
-          createLinkRequest={createLinkRequest}
-          linkVirtual={linkVirtual}
-        />
-      )}
-
-      {step === 8 && (
-        <Step8
-          L={L}
-          lang={lang}
-          entityId={entityId}
-          virtuals={myVirtuals}
-          positions={myPositions}
-          addGroup={addGroup}
-        />
-      )}
-
-      {step === 9 && (
         <Card className="p-4 space-y-3">
           <div className="flex items-center gap-2 text-slate-800">
             <CheckCircle2 size={20} className="text-emerald-600" />
@@ -354,7 +330,7 @@ export function EntityWizard() {
           <ArrowLeft size={16} className="rtl:rotate-180" /> {t('back')}
         </Button>
         {step < TOTAL_STEPS && (
-          <Button onClick={goNext} className="flex-1" disabled={step === 2 && !commercialName.trim()}>
+          <Button onClick={goNext} className="flex-1" disabled={(step === 1 && !areaId) || (step === 2 && !step2Valid)}>
             {t('next')} <ArrowRight size={16} className="rtl:rotate-180" />
           </Button>
         )}
@@ -364,7 +340,20 @@ export function EntityWizard() {
 }
 
 // ── Step 1 ────────────────────────────────────────────────────────────────────
-function Step1({ code, L }: { code: string; L: (en: string, ar: string) => string }) {
+function Step1({
+  L,
+  areas,
+  areaId,
+  setAreaId,
+  addArea,
+}: {
+  L: (en: string, ar: string) => string
+  areas: import('@/types').CommunicationArea[]
+  areaId: string
+  setAreaId: (id: string) => void
+  addArea: (name: string) => string
+}) {
+  const [newName, setNewName] = useState('')
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
@@ -373,13 +362,35 @@ function Step1({ code, L }: { code: string; L: (en: string, ar: string) => strin
       </div>
       <p className="text-xs leading-relaxed text-slate-500">
         {L(
-          'Every organization is issued a root Communication Code. It anchors all its virtual identities, structures and messages inside IDGate.',
-          'تحصل كل مؤسسة على كود تواصل جذري يربط جميع هوياتها الافتراضية وهياكلها ورسائلها داخل IDGate.',
+          'Organizations that share a Communication Area can communicate with one another. Pick an existing area, or create one.',
+          'المؤسسات التي تشترك في منطقة تواصل واحدة يمكنها التواصل معًا. اختر منطقة قائمة أو أنشئ واحدة.',
         )}
       </p>
-      <Field label={L('Communication code', 'كود التواصل')}>
-        <Input value={code} readOnly dir="ltr" className="font-mono" />
+      <Field label={L('Communication Area', 'منطقة التواصل')} required>
+        <Select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+          <option value="">{L('Select area…', 'اختر المنطقة…')}</option>
+          {areas.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </Select>
       </Field>
+      <div className="flex items-end gap-2 border-t border-slate-100 pt-3">
+        <Field label={L('Create a new area', 'إنشاء منطقة جديدة')} hint={L('optional', 'اختياري')}>
+          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={L('e.g. Global Group', 'مثال: المجموعة العالمية')} />
+        </Field>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!newName.trim()}
+          onClick={() => {
+            const id = addArea(newName.trim())
+            setAreaId(id)
+            setNewName('')
+          }}
+        >
+          <Plus size={14} />
+        </Button>
+      </div>
     </Card>
   )
 }
@@ -390,73 +401,25 @@ function Step3({
   lang,
   entityId,
   myStructures,
-  onAdd,
 }: {
   L: (en: string, ar: string) => string
   lang: 'en' | 'ar'
   entityId: string | null
   myStructures: import('@/types').StructureNode[]
-  onAdd: (kind: StructureKind, name: string) => void
 }) {
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
-  const SUGGESTIONS: Record<StructureKind, string[]> = {
-    corporate: ['Head Office', 'Egypt Branch'],
-    relation: ['Permanent', 'Annual'],
-    organization: ['Operations', 'Finance'],
-    geographical: ['Cairo', 'Alexandria'],
-  }
   if (!entityId) return <NeedDraft L={L} />
   return (
     <div className="space-y-3">
-      {STRUCTURE_KINDS.map((kind) => {
-        const nodes = myStructures.filter((n) => n.kind === kind)
-        return (
-          <Card key={kind} className="p-4 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <Layers size={16} className="text-gate-600" />
-              <h3 className="text-sm font-bold text-slate-800">{bl(STRUCTURE_LABELS[kind], lang)}</h3>
-            </div>
-            {nodes.length > 0 && (
-              <div className="space-y-1">
-                {nodes.map((n) => (
-                  <div key={n.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-                    <span className="font-mono text-[10px] text-gate-700" dir="ltr">{n.code}</span>
-                    <span className="truncate">{n.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {SUGGESTIONS[kind].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => onAdd(kind, s)}
-                  className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
-                >
-                  + {s}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                value={drafts[kind] ?? ''}
-                onChange={(e) => setDrafts((d) => ({ ...d, [kind]: e.target.value }))}
-                placeholder={L('New node…', 'عقدة جديدة…')}
-              />
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  onAdd(kind, drafts[kind] ?? '')
-                  setDrafts((d) => ({ ...d, [kind]: '' }))
-                }}
-              >
-                <Plus size={14} />
-              </Button>
-            </div>
-          </Card>
-        )
-      })}
+      {STRUCTURE_KINDS.map((kind) => (
+        <StructureEditor
+          key={kind}
+          L={L}
+          lang={lang}
+          kind={kind}
+          entityId={entityId}
+          nodes={myStructures.filter((n) => n.kind === kind)}
+        />
+      ))}
     </div>
   )
 }
@@ -592,9 +555,12 @@ function Step5({
         </Button>
       </div>
       {positions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="space-y-1.5">
           {positions.map((p) => (
-            <Badge key={p.id} tone="slate">{p.name}</Badge>
+            <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+              <Briefcase size={14} className="text-gate-600" />
+              <span className="text-sm font-medium text-slate-700">{p.name}</span>
+            </div>
           ))}
         </div>
       )}
@@ -670,7 +636,7 @@ function Step6({
               ))}
             </Select>
           </Field>
-          <Field label={L('Profile', 'البروفايل')}>
+          <Field label={L('Profile', 'البروفايل')} required>
             <Select value={profId} onChange={(e) => setProfId(e.target.value)}>
               <option value="">—</option>
               {profiles.map((p) => (
@@ -678,6 +644,9 @@ function Step6({
               ))}
             </Select>
           </Field>
+          {profiles.length === 0 && (
+            <p className="text-xs text-amber-600">{L('Create an authorization profile in step 4 first.', 'أنشئ بروفايل صلاحيات في الخطوة ٤ أولًا.')}</p>
+          )}
           {STRUCTURE_KINDS.map((kind) => {
             const opts = structures.filter((n) => n.kind === kind)
             if (opts.length === 0) return null
@@ -692,7 +661,7 @@ function Step6({
               </Field>
             )
           })}
-          <Button full variant="secondary" disabled={!posId} onClick={create}>
+          <Button full variant="secondary" disabled={!posId || !profId} onClick={create}>
             <Plus size={14} /> {L('Create virtual account', 'إنشاء حساب افتراضي')}
           </Button>
         </>
@@ -706,159 +675,6 @@ function Step6({
               <div className="font-mono text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
             </div>
           ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-// ── Step 7 ────────────────────────────────────────────────────────────────────
-function Step7({
-  L,
-  lang,
-  entityId,
-  entity,
-  virtuals,
-  normals,
-  createLinkRequest,
-  linkVirtual,
-}: {
-  L: (en: string, ar: string) => string
-  lang: 'en' | 'ar'
-  entityId: string | null
-  entity: LegalEntity | undefined
-  virtuals: import('@/types').VirtualCharacter[]
-  normals: import('@/types').NormalCharacter[]
-  createLinkRequest: (entityId: string, virtualId: string, targetNormalId: string) => void
-  linkVirtual: (virtualId: string, normalId: string) => void
-}) {
-  const [vId, setVId] = useState('')
-  const [nId, setNId] = useState('')
-  const [msg, setMsg] = useState('')
-  if (!entityId || !entity) return <NeedDraft L={L} />
-
-  return (
-    <Card className="p-4 space-y-3">
-      <div className="flex items-center gap-2 text-slate-800">
-        <Link2 size={18} className="text-gate-600" />
-        <h3 className="text-sm font-bold">{L('Link a Position to a Person', 'ربط الوظيفة بشخص')}</h3>
-      </div>
-      <p className="text-xs text-slate-500">
-        {L(
-          'A position stays dormant until a natural person accepts the link and becomes its host.',
-          'تبقى الوظيفة خاملة حتى يقبل شخص طبيعي الربط ويصبح مضيفها.',
-        )}
-      </p>
-      <Field label={L('Virtual account', 'الحساب الافتراضي')} required>
-        <Select value={vId} onChange={(e) => setVId(e.target.value)}>
-          <option value="">—</option>
-          {virtuals.map((v) => (
-            <option key={v.id} value={v.id}>{v.positionName}</option>
-          ))}
-        </Select>
-      </Field>
-      <Field label={L('Person', 'الشخص')} required>
-        <Select value={nId} onChange={(e) => setNId(e.target.value)}>
-          <option value="">—</option>
-          {normals.map((n) => (
-            <option key={n.id} value={n.id}>{n.fullName}</option>
-          ))}
-        </Select>
-      </Field>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="flex-1"
-          disabled={!vId || !nId}
-          onClick={() => {
-            createLinkRequest(entityId, vId, nId)
-            setMsg(L('Link request sent — awaiting acceptance.', 'تم إرسال طلب الربط — بانتظار القبول.'))
-          }}
-        >
-          {L('Send link request', 'إرسال طلب ربط')}
-        </Button>
-        <Button
-          size="sm"
-          className="flex-1"
-          disabled={!vId || !nId}
-          onClick={() => {
-            linkVirtual(vId, nId)
-            const v = virtuals.find((x) => x.id === vId)
-            const host = normals.find((x) => x.id === nId)
-            setMsg(v ? virtualAddress({ ...v, linkedNormalId: nId }, entity, host) : '')
-          }}
-        >
-          {L('Link now (demo)', 'ربط فوري (تجربة)')}
-        </Button>
-      </div>
-      {msg && (
-        <div className="rounded-2xl bg-emerald-50 px-3 py-2 font-mono text-[11px] text-emerald-700" dir="ltr">
-          {msg}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-// ── Step 8 ────────────────────────────────────────────────────────────────────
-function Step8({
-  L,
-  lang,
-  entityId,
-  virtuals,
-  positions,
-  addGroup,
-}: {
-  L: (en: string, ar: string) => string
-  lang: 'en' | 'ar'
-  entityId: string | null
-  virtuals: import('@/types').VirtualCharacter[]
-  positions: import('@/types').Position[]
-  addGroup: (g: Omit<import('@/types').Group, 'id'>) => void
-}) {
-  const [name, setName] = useState('')
-  const [posName, setPosName] = useState('')
-  const [done, setDone] = useState(false)
-  if (!entityId) return <NeedDraft L={L} />
-  return (
-    <Card className="p-4 space-y-3">
-      <div className="flex items-center gap-2 text-slate-800">
-        <UsersRound size={18} className="text-gate-600" />
-        <h3 className="text-sm font-bold">{L('Communication Group', 'مجموعة تواصل')}</h3>
-      </div>
-      <Field label={L('Group name', 'اسم المجموعة')} required>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={L('All CEOs', 'كل المدراء')} />
-      </Field>
-      <Field label={L('Position criteria', 'معيار الوظيفة')}>
-        <Select value={posName} onChange={(e) => setPosName(e.target.value)}>
-          <option value="">{L('Any', 'الكل')}</option>
-          {positions.map((p) => (
-            <option key={p.id} value={p.name}>{p.name}</option>
-          ))}
-        </Select>
-      </Field>
-      <Button
-        full
-        variant="secondary"
-        disabled={!name.trim()}
-        onClick={() => {
-          addGroup({
-            entityId,
-            ownerVirtualId: virtuals[0]?.id ?? '',
-            name: name.trim(),
-            positionName: posName || undefined,
-          })
-          setName('')
-          setPosName('')
-          setDone(true)
-        }}
-      >
-        <Plus size={14} /> {L('Create group', 'إنشاء مجموعة')}
-      </Button>
-      {done && (
-        <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-          {L('Group created.', 'تم إنشاء المجموعة.')}
         </div>
       )}
     </Card>

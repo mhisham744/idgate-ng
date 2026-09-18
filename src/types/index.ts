@@ -59,6 +59,12 @@ export type PrivacyLevel = 'public' | 'contacts' | 'closed'
 /** The four communication structures every legal entity builds. Default root codes per workbook. */
 export type StructureKind = 'corporate' | 'relation' | 'organization' | 'geographical'
 
+/** A named Communication Area. Organizations sharing one can communicate with each other. */
+export interface CommunicationArea {
+  id: string
+  name: string
+}
+
 export const STRUCTURE_ROOT_CODE: Record<StructureKind, number> = {
   corporate: 1000,
   relation: 2000,
@@ -186,7 +192,7 @@ export interface NormalCharacter {
     whatsApp?: string
   }
   education?: { school?: string; university?: string; postgraduate?: string; phd?: string }
-  career?: { title?: string; profession?: string; field?: string; industry?: string; history?: string }
+  career?: { title?: string; profession?: string; field?: string; industry?: string; history?: string; cv?: AttachmentMeta }
   vacancyNotification?: boolean
   privacy: {
     personalInfo: PrivacyLevel
@@ -206,6 +212,8 @@ export type EntityStatus = 'draft' | 'pending' | 'active' | 'rejected'
 export interface LegalEntity {
   id: string
   communicationCode: string // Communication Area root (e.g. AABBCC123456789)
+  /** Shared Communication Area — organizations in the same area can communicate. */
+  communicationAreaId?: string
   entityCode: string
   formalName: string
   commercialName: string
@@ -306,6 +314,10 @@ export interface VirtualCharacter {
   linkedNormalId: string | null
   status: 'unlinked' | 'active' | 'blocked'
   createdAt: string
+  /** When the current host was linked (set by linkVirtual). */
+  connectedAt?: string
+  /** When the last host was unlinked (set by unlinkVirtual). */
+  disconnectedAt?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,12 +330,17 @@ export interface Group {
   ownerVirtualId: string
   name: string
   // selection criteria — any combination
+  /** Position criteria (mandatory in the UI: at least one). A virtual matches if its position is any of these. */
+  positionNames?: string[]
+  /** @deprecated legacy single-position field, migrated into positionNames. */
   positionName?: string
   corporateNodeId?: string
   relationNodeId?: string
   organizationNodeId?: string
   geographicalNodeId?: string
   explicitMemberIds?: string[] // individual virtual-character ids
+  explicitNormalIds?: string[] // individual natural-person ids
+  memberGroupIds?: string[] // other groups included as members (resolved recursively)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
