@@ -112,7 +112,7 @@ export function LinkPosition() {
             </Button>
           </div>
           {msg && (
-            <div className="rounded-2xl bg-emerald-50 px-3 py-2 font-mono text-[11px] text-emerald-700" dir="ltr">
+            <div className="rounded-2xl bg-emerald-50 px-3 py-2 font-address text-[11px] text-emerald-700" dir="ltr">
               {msg}
             </div>
           )}

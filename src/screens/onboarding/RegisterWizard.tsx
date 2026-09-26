@@ -12,14 +12,25 @@ import {
 import { useStore } from '@/store'
 import type { NewNormalInput } from '@/store'
 import { useLang } from '@/i18n'
-import type { Country } from '@/types'
+import type { Country, Language } from '@/types'
 import { colorFor } from '@/lib/identity'
-import { Avatar, Button, Card, Field, Input, Select, cx } from '@/ui/primitives'
+import { Avatar, Button, Card, Field, Input, Select, Textarea, cx } from '@/ui/primitives'
 import { VerificationBadge } from '@/components/VerificationBadge'
 import { CaptureField, DemoHint, OtpBoxes, Stepper, Working } from './parts'
 
 const COUNTRIES: Country[] = ['Egypt', 'USA', 'France', 'Germany', 'India']
+const LANGUAGES: Language[] = ['Arabic', 'English', 'French']
 const randomOtp = () => String(Math.floor(100000 + Math.random() * 900000))
+/** Whole years between a 'YYYY-MM-DD' birth date and today (parsed as local parts). */
+const ageFrom = (dob: string): number | null => {
+  const [y, m, d] = (dob || '').split('-').map(Number)
+  if (!y || !m || !d) return null
+  const now = new Date()
+  let a = now.getFullYear() - y
+  const mm = now.getMonth() + 1 - m
+  if (mm < 0 || (mm === 0 && now.getDate() < d)) a -= 1
+  return a
+}
 // Mask everything but the last two digits. Strip formatting first so grouped
 // numbers ("+20 100 123 4567") don't leak a digit before each space.
 const maskMobile = (m: string) => {
@@ -33,10 +44,24 @@ interface Claim {
   gender: 'Male' | 'Female'
   dateOfBirth: string
   nationality: Country
+  residenceCountry: Country
   city: string
   nationalId: string
   mobile: string
   email: string
+  landline: string
+  linkedIn: string
+  facebook: string
+  whatsApp: string
+  motherTongue: Language
+  school: string
+  university: string
+  postgraduate: string
+  phd: string
+  title: string
+  profession: string
+  industry: string
+  history: string
 }
 
 const EMPTY: Claim = {
@@ -45,10 +70,24 @@ const EMPTY: Claim = {
   gender: 'Male',
   dateOfBirth: '',
   nationality: 'Egypt',
+  residenceCountry: 'Egypt',
   city: '',
   nationalId: '',
   mobile: '',
   email: '',
+  landline: '',
+  linkedIn: '',
+  facebook: '',
+  whatsApp: '',
+  motherTongue: 'Arabic',
+  school: '',
+  university: '',
+  postgraduate: '',
+  phd: '',
+  title: '',
+  profession: '',
+  industry: '',
+  history: '',
 }
 
 export function RegisterWizard({ onBack }: { onBack: () => void }) {
@@ -97,8 +136,18 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
   const [registry, setRegistry] = useState<'idle' | 'running' | 'done'>('idle')
 
   const nidValid = /^\d{14}$/.test(form.nationalId.trim())
+  const age = ageFrom(form.dateOfBirth)
+  const nidRequired = age != null && age > 17
+  const nidOk = nidRequired ? nidValid : !form.nationalId.trim() || nidValid
+  const duplicate = useStore((s) => s.findDuplicateNormal)(form.mobile, form.nationalId, form.nationality)
   const claimValid =
-    form.firstName.trim() && form.surname.trim() && form.city.trim() && form.mobile.trim() && nidValid
+    form.firstName.trim() &&
+    form.surname.trim() &&
+    form.city.trim() &&
+    form.mobile.trim() &&
+    form.dateOfBirth.trim() &&
+    nidOk &&
+    !duplicate
   const emailOk = !form.email.trim() || emailState === 'verified'
 
   const canNext =
@@ -152,10 +201,28 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
       gender: form.gender,
       dateOfBirth: form.dateOfBirth || undefined,
       nationality: form.nationality,
+      residenceCountry: form.residenceCountry,
       city: form.city,
       nationalId: form.nationalId,
       mobile: form.mobile,
       email: form.email || undefined,
+      landline: form.landline || undefined,
+      linkedIn: form.linkedIn || undefined,
+      facebook: form.facebook || undefined,
+      whatsApp: form.whatsApp || undefined,
+      motherTongue: form.motherTongue,
+      education: {
+        school: form.school || undefined,
+        university: form.university || undefined,
+        postgraduate: form.postgraduate || undefined,
+        phd: form.phd || undefined,
+      },
+      career: {
+        title: form.title || undefined,
+        profession: form.profession || undefined,
+        industry: form.industry || undefined,
+        history: form.history || undefined,
+      },
       verification: {
         level: 'verified',
         contact: true,
@@ -198,7 +265,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
             <div className="truncate text-sm font-semibold text-slate-800">
               {form.firstName} {form.surname}
             </div>
-            <div className="truncate font-mono text-[11px] text-gate-700" dir="ltr">
+            <div className="truncate font-address text-[11px] text-gate-700" dir="ltr">
               {form.firstName}.{form.surname}
             </div>
           </div>
@@ -257,7 +324,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
                 <option value="Female">{L('Female', 'أنثى')}</option>
               </Select>
             </Field>
-            <Field label={L('Date of birth', 'تاريخ الميلاد')}>
+            <Field label={L('Date of birth', 'تاريخ الميلاد')} required>
               <Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
             </Field>
           </div>
@@ -269,11 +336,22 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
                 ))}
               </Select>
             </Field>
-            <Field label={L('City', 'المدينة')} required>
-              <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+            <Field label={L('Residence country', 'بلد الإقامة')}>
+              <Select value={form.residenceCountry} onChange={(e) => set('residenceCountry', e.target.value as Country)}>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
             </Field>
           </div>
-          <Field label={L('National ID', 'الرقم القومي')} required hint={L('14 digits', '14 رقمًا')}>
+          <Field label={L('City', 'المدينة')} required>
+            <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+          </Field>
+          <Field
+            label={L('National ID', 'الرقم القومي')}
+            required={nidRequired}
+            hint={nidRequired ? L('14 digits — required over 17', '14 رقمًا — إلزامي فوق 17') : L('14 digits', '14 رقمًا')}
+          >
             <Input
               inputMode="numeric"
               dir="ltr"
@@ -283,12 +361,86 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
               className={cx(form.nationalId && !nidValid && 'border-rose-300 focus:border-rose-400 focus:ring-rose-100')}
             />
           </Field>
+
           <div className="grid grid-cols-2 gap-3">
             <Field label={L('Mobile', 'الجوال')} required>
               <Input inputMode="tel" dir="ltr" value={form.mobile} onChange={(e) => set('mobile', e.target.value)} placeholder="+20 1__ ___ ____" />
             </Field>
             <Field label={L('Email', 'البريد الإلكتروني')} hint={t('optional')}>
               <Input type="email" dir="ltr" value={form.email} onChange={(e) => set('email', e.target.value)} />
+            </Field>
+          </div>
+
+          {duplicate && (
+            <div className="rounded-2xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
+              {L(
+                `An account already exists for this mobile or National ID + nationality (${duplicate.fullName}).`,
+                `يوجد حساب بالفعل بهذا الجوال أو الرقم القومي + الجنسية (${duplicate.fullName}).`,
+              )}
+            </div>
+          )}
+
+          {/* Contacts (extra) */}
+          <div className="rounded-2xl bg-slate-50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-500">{L('Contacts', 'جهات الاتصال')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={L('Landline', 'الهاتف الأرضي')} hint={t('optional')}>
+                <Input dir="ltr" value={form.landline} onChange={(e) => set('landline', e.target.value)} />
+              </Field>
+              <Field label="LinkedIn" hint={t('optional')}>
+                <Input dir="ltr" value={form.linkedIn} onChange={(e) => set('linkedIn', e.target.value)} />
+              </Field>
+              <Field label="Facebook" hint={t('optional')}>
+                <Input dir="ltr" value={form.facebook} onChange={(e) => set('facebook', e.target.value)} />
+              </Field>
+              <Field label="WhatsApp" hint={t('optional')}>
+                <Input dir="ltr" value={form.whatsApp} onChange={(e) => set('whatsApp', e.target.value)} />
+              </Field>
+            </div>
+            <Field label={L('Mother tongue', 'اللغة الأم')}>
+              <Select value={form.motherTongue} onChange={(e) => set('motherTongue', e.target.value as Language)}>
+                {LANGUAGES.map((l) => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          {/* Education */}
+          <div className="rounded-2xl bg-slate-50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-500">{L('Education', 'التعليم')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={L('School', 'المدرسة')} hint={t('optional')}>
+                <Input value={form.school} onChange={(e) => set('school', e.target.value)} />
+              </Field>
+              <Field label={L('University', 'الجامعة')} hint={t('optional')}>
+                <Input value={form.university} onChange={(e) => set('university', e.target.value)} />
+              </Field>
+              <Field label={L('Postgraduate', 'الدراسات العليا')} hint={t('optional')}>
+                <Input value={form.postgraduate} onChange={(e) => set('postgraduate', e.target.value)} />
+              </Field>
+              <Field label={L('PhD', 'الدكتوراه')} hint={t('optional')}>
+                <Input value={form.phd} onChange={(e) => set('phd', e.target.value)} />
+              </Field>
+            </div>
+          </div>
+
+          {/* Career */}
+          <div className="rounded-2xl bg-slate-50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-500">{L('Career', 'المسار المهني')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={L('Title', 'المسمى الوظيفي')} hint={t('optional')}>
+                <Input value={form.title} onChange={(e) => set('title', e.target.value)} />
+              </Field>
+              <Field label={L('Profession', 'المهنة')} hint={t('optional')}>
+                <Input value={form.profession} onChange={(e) => set('profession', e.target.value)} />
+              </Field>
+            </div>
+            <Field label={L('Industry', 'المجال')} hint={t('optional')}>
+              <Input value={form.industry} onChange={(e) => set('industry', e.target.value)} />
+            </Field>
+            <Field label={L('History', 'السيرة المهنية')} hint={t('optional')}>
+              <Textarea rows={2} value={form.history} onChange={(e) => set('history', e.target.value)} />
             </Field>
           </div>
         </div>

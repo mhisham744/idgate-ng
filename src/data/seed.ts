@@ -50,38 +50,40 @@ function buildStructure(entityId: string, kind: StructureKind): {
 } {
   const nodes: StructureNode[] = []
   let counter = 0
-  const code = STRUCTURE_ROOT_CODE[kind]
+  const rootCode = String(STRUCTURE_ROOT_CODE[kind])
   const root: StructureNode = {
     id: `${entityId}.${kind}.root`,
     entityId,
     kind,
-    code,
+    code: rootCode,
     name: kind,
     level: 0,
     parentId: null,
   }
   nodes.push(root)
 
-  function walk(spec: TreeSpec, parentId: string, level: number) {
+  // Hierarchical code: parent code + 3-digit segment (100,101,…) per child position.
+  function walk(spec: TreeSpec, parentId: string, parentCode: string, level: number) {
     if (Array.isArray(spec)) {
-      for (const name of spec) {
+      spec.forEach((name, i) => {
         counter += 1
-        nodes.push({ id: `${entityId}.${kind}.${counter}`, entityId, kind, code, name, level, parentId })
-      }
+        nodes.push({ id: `${entityId}.${kind}.${counter}`, entityId, kind, code: parentCode + String(100 + i), name, level, parentId })
+      })
       return
     }
-    for (const [name, children] of Object.entries(spec)) {
+    Object.entries(spec).forEach(([name, children], i) => {
       counter += 1
       const id = `${entityId}.${kind}.${counter}`
+      const code = parentCode + String(100 + i)
       nodes.push({ id, entityId, kind, code, name, level, parentId })
-      walk(children, id, level + 1)
-    }
+      walk(children, id, code, level + 1)
+    })
   }
 
   return {
     root,
     nodes,
-    push: (spec: TreeSpec) => walk(spec, root.id, 1),
+    push: (spec: TreeSpec) => walk(spec, root.id, rootCode, 1),
   }
 }
 
@@ -137,6 +139,7 @@ export function buildSeed(): AppData {
       gender: 'Male', dateOfBirth: '1985-04-12',
       nationalities: ['Egypt'], residenceCountry: 'Egypt', city: 'Cairo', address1: 'Zamalek, Cairo',
       nationalId: '28504120100913', passports: ['A1234567'],
+      internalCode: '20-CAI-000001',
       verification: { level: 'authority', contact: true, document: true, liveness: true, registry: true, verifiedAt: '2021-03-02T09:00:00Z' },
       motherTongue: 'Arabic',
       languages: [{ language: 'English', level: 'Fluent' }, { language: 'French', level: 'Average' }],
@@ -152,6 +155,7 @@ export function buildSeed(): AppData {
       gender: 'Male', dateOfBirth: '1990-09-03',
       nationalities: ['Egypt'], residenceCountry: 'Egypt', city: 'Giza', address1: 'Dokki, Giza',
       nationalId: '29009030101234',
+      internalCode: '20-GIZ-000002',
       verification: { level: 'verified', contact: true, document: true, liveness: true, registry: true, verifiedAt: '2022-07-18T14:30:00Z' },
       motherTongue: 'Arabic',
       languages: [{ language: 'English', level: 'Fluent' }],
@@ -167,6 +171,7 @@ export function buildSeed(): AppData {
       gender: 'Female', dateOfBirth: '1996-01-22',
       nationalities: ['Egypt'], residenceCountry: 'Egypt', city: 'Cairo',
       nationalId: '29601220102345',
+      internalCode: '20-CAI-000003',
       verification: { level: 'verified', contact: true, document: true, liveness: true, registry: true, verifiedAt: '2023-11-05T10:15:00Z' },
       motherTongue: 'Arabic',
       languages: [{ language: 'English', level: 'Fluent' }, { language: 'German', level: 'Basic' }],

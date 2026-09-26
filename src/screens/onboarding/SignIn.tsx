@@ -105,7 +105,7 @@ export function SignIn({ onBack }: { onBack: () => void }) {
                     <span className="truncate font-semibold text-slate-900">{n.fullName}</span>
                     <VerificationBadge level={levelOf(n.verification)} variant="icon" />
                   </div>
-                  <div className="truncate text-start font-mono text-[11px] text-gate-700">
+                  <div className="truncate text-start font-address text-[11px] text-gate-700">
                     <bdi>{personalAddress(n)}</bdi>
                   </div>
                   <div className="mt-0.5 text-xs text-slate-500">
@@ -136,7 +136,7 @@ export function SignIn({ onBack }: { onBack: () => void }) {
           <Avatar name={chosen.fullName} color={chosen.avatarColor} size={40} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-slate-800">{chosen.fullName}</div>
-            <div className="truncate font-mono text-[11px] text-gate-700" dir="ltr">{personalAddress(chosen)}</div>
+            <div className="truncate font-address text-[11px] text-gate-700" dir="ltr">{personalAddress(chosen)}</div>
           </div>
           <VerificationBadge level={levelOf(chosen?.verification)} />
         </div>

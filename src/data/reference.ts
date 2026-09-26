@@ -1,4 +1,5 @@
 import type {
+  Country,
   Industry,
   LegalEntityType,
   NoteKind,
@@ -14,6 +15,39 @@ import type {
 export interface BL {
   en: string
   ar: string
+}
+
+// ── Internal-code building blocks (country dial code + city code + sequence) ────
+/** International dial codes per country — first part of a personal internal code. */
+export const COUNTRY_DIAL: Record<Country, string> = {
+  Egypt: '20',
+  USA: '1',
+  France: '33',
+  Germany: '49',
+  India: '91',
+}
+
+/** Known city codes; unknown cities fall back to the first three letters uppercased. */
+export const CITY_CODE: Record<string, string> = {
+  Cairo: 'CAI',
+  Giza: 'GIZ',
+  Alexandria: 'ALX',
+  'New Jersey': 'NJ',
+  'New York': 'NYC',
+  Geneva: 'GVA',
+  Paris: 'PAR',
+  Berlin: 'BER',
+  Mumbai: 'BOM',
+}
+
+export function cityCode(city: string): string {
+  const key = (city || '').trim()
+  return CITY_CODE[key] ?? (key ? key.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'XXX' : 'XXX')
+}
+
+/** Build a personal internal code: `<dial>-<city>-<6-digit sequence>` (e.g. 20-CAI-000123). */
+export function makeInternalCode(country: Country, city: string, seq: number): string {
+  return `${COUNTRY_DIAL[country] ?? '0'}-${cityCode(city)}-${String(seq).padStart(6, '0')}`
 }
 
 export const ORG_TYPE_LABELS: Record<OrgType, BL> = {

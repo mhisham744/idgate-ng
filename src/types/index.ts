@@ -63,13 +63,15 @@ export type StructureKind = 'corporate' | 'relation' | 'organization' | 'geograp
 export interface CommunicationArea {
   id: string
   name: string
+  /** The person who created this area (scopes who can see it). */
+  createdByNormalId?: string
 }
 
 export const STRUCTURE_ROOT_CODE: Record<StructureKind, number> = {
-  corporate: 1000,
-  relation: 2000,
-  organization: 3000,
-  geographical: 4000,
+  corporate: 10,
+  relation: 20,
+  organization: 30,
+  geographical: 40,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,6 +179,8 @@ export interface NormalCharacter {
   city: string
   address1?: string
   nationalId?: string
+  /** System-generated internal code (country dial + city code + sequence), used for search/linking. */
+  internalCode?: string
   passports?: string[]
   drivingLicense?: string
   /** Identity-proofing outcome for this personal account (KYC). */
@@ -248,7 +252,7 @@ export interface StructureNode {
   id: string
   entityId: string
   kind: StructureKind
-  code: number
+  code: string
   name: string
   level: number // 0 = root, 1 = level1, ...
   parentId: string | null
@@ -271,6 +275,8 @@ export interface DelegationItem {
   entityId: string
   subject: string
   limit: string
+  /** Numeric limit amount (the delegation object value). */
+  limitAmount?: number
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

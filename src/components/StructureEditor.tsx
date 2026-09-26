@@ -18,12 +18,14 @@ export function StructureEditor({
   kind,
   entityId,
   nodes,
+  canDelete = true,
 }: {
   L: (en: string, ar: string) => string
   lang: 'en' | 'ar'
   kind: StructureKind
   entityId: string
   nodes: StructureNode[]
+  canDelete?: boolean
 }) {
   const addStructureNode = useStore((s) => s.addStructureNode)
   const removeStructureNode = useStore((s) => s.removeStructureNode)
@@ -34,22 +36,27 @@ export function StructureEditor({
   const [editId, setEditId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
 
+  const rootCodeStr = String(STRUCTURE_ROOT_CODE[kind])
   const roots = nodes.filter((n) => n.parentId === null || n.level === 0)
   const childrenOf = (pid: string) => nodes.filter((n) => n.parentId === pid)
 
   const ensureRoot = (): string => {
     const r = nodes.find((n) => n.level === 0)
     if (r) return r.id
-    return addStructureNode({ entityId, kind, code: STRUCTURE_ROOT_CODE[kind], name: kind, level: 0, parentId: null })
+    return addStructureNode({ entityId, kind, code: rootCodeStr, name: kind, level: 0, parentId: null })
   }
 
-  // Unique, node-distinguishing code: next value above the highest in this structure.
-  const nextCode = () => nodes.reduce((m, n) => Math.max(m, n.code), STRUCTURE_ROOT_CODE[kind]) + 1
-
+  // Hierarchical code: parent code + a 3-digit segment starting at 100 per sibling
+  // (root 10 -> level-1 10100/10101 -> level-2 10100100/10100101 ...).
   const submitAdd = (parentId: string | null, level: number) => {
     if (!text.trim()) return
     const pid = parentId ?? ensureRoot()
-    addStructureNode({ entityId, kind, code: nextCode(), name: text.trim(), level, parentId: pid })
+    const parent = nodes.find((n) => n.id === pid)
+    const parentCode = parent ? parent.code : rootCodeStr // a freshly-ensured root isn't in `nodes` yet
+    // Next 3-digit segment = max existing sibling segment + 1 (never reuses a deleted sibling's code).
+    const segs = childrenOf(pid).map((c) => Number(c.code.slice(parentCode.length))).filter((n) => Number.isFinite(n))
+    const seg = String((segs.length ? Math.max(...segs) : 99) + 1)
+    addStructureNode({ entityId, kind, code: parentCode + seg, name: text.trim(), level, parentId: pid })
     setText('')
     setAddParent(null)
   }
@@ -87,9 +94,11 @@ export function StructureEditor({
                 <button onClick={() => { setEditId(n.id); setEditText(n.name) }} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label={L('Rename', 'إعادة تسمية')}>
                   <Pencil size={12} />
                 </button>
-                <button onClick={() => removeStructureNode(n.id)} className="rounded-full p-1 text-rose-400 hover:bg-rose-50" aria-label={L('Delete', 'حذف')}>
-                  <Trash2 size={13} />
-                </button>
+                {canDelete && (
+                  <button onClick={() => removeStructureNode(n.id)} className="rounded-full p-1 text-rose-400 hover:bg-rose-50" aria-label={L('Delete', 'حذف')}>
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </>
             )}
           </>

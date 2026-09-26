@@ -46,6 +46,8 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'Cairo', 'system-ui', 'sans-serif'],
+        // Readable sans for identity addresses (replaces the monospace/Consolas look).
+        address: ['Calibri', 'Carlito', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         phone: '0 40px 80px -20px rgba(21,31,66,0.45), 0 0 0 1px rgba(255,255,255,0.05)',

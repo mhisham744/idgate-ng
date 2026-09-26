@@ -57,7 +57,7 @@ export function IDGateCodeCard() {
         <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
           <QRCodeSVG value={address} size={180} level="M" />
         </div>
-        <div dir="ltr" className="text-center font-mono text-xs text-slate-700 break-all">
+        <div dir="ltr" className="text-center font-address text-xs text-slate-700 break-all">
           {address}
         </div>
         <div className="text-xs text-slate-400">{t('scanToVerify')}</div>
@@ -73,7 +73,7 @@ export function IDGateCodeCard() {
         {host && (
           <div className="flex items-center justify-between px-5 py-2.5">
             <span className="text-slate-500">{L('Personal account code', 'كود الحساب الشخصي')}</span>
-            <span dir="ltr" className="font-mono text-slate-800">{personalAddress(host)}</span>
+            <span dir="ltr" className="font-address text-slate-800">{personalAddress(host)}</span>
           </div>
         )}
         {vc!.positionCode && (

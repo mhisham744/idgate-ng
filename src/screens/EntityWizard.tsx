@@ -36,6 +36,7 @@ import type {
 } from '@/types'
 import { colorFor, unlinkedAddress, virtualAddress } from '@/lib/identity'
 import { StructureEditor } from '@/components/StructureEditor'
+import { ProfileEditor } from '@/components/ProfileEditor'
 import { Badge, Button, Card, Field, Input, Select, SectionHeader } from '@/ui/primitives'
 
 type Country = LegalEntity['countryOfRegistration']
@@ -106,6 +107,16 @@ export function EntityWizard() {
   const myVirtuals = entityId ? virtuals.filter((v) => v.entityId === entityId) : []
   const myDelegations = entityId ? delegations.filter((d) => d.entityId === entityId) : []
 
+  // Communication areas the creator may pick: ones they created, or areas of orgs
+  // their virtual accounts already belong to.
+  const visibleAreas = useMemo(() => {
+    const myEntityIds = new Set(virtuals.filter((v) => v.linkedNormalId === normalId).map((v) => v.entityId))
+    const myAreaIds = new Set(
+      entities.filter((e) => myEntityIds.has(e.id)).map((e) => e.communicationAreaId).filter(Boolean) as string[],
+    )
+    return communicationAreas.filter((a) => a.createdByNormalId === normalId || myAreaIds.has(a.id))
+  }, [communicationAreas, entities, virtuals, normalId])
+
   // ── entity registration (once) ──────────────────────────────────────────────
   function ensureEntity(): string {
     if (entityId) return entityId
@@ -173,7 +184,7 @@ export function EntityWizard() {
       {step === 1 && (
         <Step1
           L={L}
-          areas={communicationAreas}
+          areas={visibleAreas}
           areaId={areaId}
           setAreaId={setAreaId}
           addArea={addCommunicationArea}
@@ -186,13 +197,13 @@ export function EntityWizard() {
           <Field label={L('Communication Area', 'منطقة التواصل')} required>
             <Select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
               <option value="">{L('Select area…', 'اختر المنطقة…')}</option>
-              {communicationAreas.map((a) => (
+              {visibleAreas.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </Select>
           </Field>
           <Field label={L('Entity code', 'كود المؤسسة')} hint={L('auto-generated', 'يُنشأ تلقائيًا')}>
-            <Input value={entityCode} readOnly dir="ltr" className="font-mono" />
+            <Input value={entityCode} readOnly dir="ltr" className="font-address" />
           </Field>
           <Field label={L('Formal name', 'الاسم الرسمي')} required>
             <Input value={formalName} onChange={(e) => setFormalName(e.target.value)} placeholder="Acme Holding S.A.E." />
@@ -444,19 +455,9 @@ function Step4({
 }) {
   const [subject, setSubject] = useState('')
   const [limit, setLimit] = useState('')
+  const [profOpen, setProfOpen] = useState(false)
+  const [profEdit, setProfEdit] = useState<import('@/types').Profile | null>(null)
   if (!entityId) return <NeedDraft L={L} />
-
-  const makeExecutive = () => {
-    const permissions: Partial<Record<TransactionKey, PermissionSet>> = {}
-    PROFILE_GRANTABLE.forEach((k) => (permissions[k] = { ...FULL }))
-    addProfile({ entityId, name: L('Executive (full)', 'تنفيذي (كامل)'), permissions })
-  }
-  const makeMember = () => {
-    const keys: TransactionKey[] = ['post.send', 'post.react', 'post.comment', 'msg.send', 'msg.reply']
-    const permissions: Partial<Record<TransactionKey, PermissionSet>> = {}
-    keys.forEach((k) => (permissions[k] = { ...DISPLAY_ONLY, create: true }))
-    addProfile({ entityId, name: L('Member (minimal)', 'عضو (أساسي)'), permissions })
-  }
 
   return (
     <Card className="p-4 space-y-3">
@@ -464,41 +465,53 @@ function Step4({
         <Shield size={18} className="text-gate-600" />
         <h3 className="text-sm font-bold">{L('Authorization Profiles', 'بروفايلات الصلاحيات')}</h3>
       </div>
-      <div className="flex gap-2">
-        <Button size="sm" variant="secondary" className="flex-1" onClick={makeExecutive}>
-          <Plus size={14} /> {L('Executive', 'تنفيذي')}
-        </Button>
-        <Button size="sm" variant="secondary" className="flex-1" onClick={makeMember}>
-          <Plus size={14} /> {L('Member', 'عضو')}
-        </Button>
-      </div>
+      <Button
+        full
+        variant="secondary"
+        onClick={() => {
+          setProfEdit(null)
+          setProfOpen(true)
+        }}
+      >
+        <Plus size={14} /> {L('New profile', 'بروفايل جديد')}
+      </Button>
       {profiles.length > 0 && (
         <div className="space-y-1.5">
           {profiles.map((p) => (
-            <div key={p.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => {
+                setProfEdit(p)
+                setProfOpen(true)
+              }}
+              className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-start transition hover:bg-slate-100"
+            >
               <span className="text-sm font-medium text-slate-700">{p.name}</span>
               <Badge tone="gate">
                 {Object.keys(p.permissions).length} {L('tx', 'معاملة')}
               </Badge>
-            </div>
+            </button>
           ))}
         </div>
       )}
+
+      <ProfileEditor open={profOpen} onClose={() => setProfOpen(false)} entityId={entityId} profile={profEdit} />
 
       <div className="border-t border-slate-100 pt-3 space-y-2">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">{L('Delegation', 'التفويض')}</h4>
         <Field label={L('Subject', 'الموضوع')}>
           <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={L('Approve purchase orders', 'اعتماد أوامر الشراء')} />
         </Field>
-        <Field label={L('Limit', 'الحد')}>
-          <Input value={limit} onChange={(e) => setLimit(e.target.value)} placeholder={L('Up to EGP 1,000,000', 'حتى ١٬٠٠٠٬٠٠٠ ج.م')} />
+        <Field label={L('Limit (amount)', 'الحد (قيمة)')} hint={L('numeric', 'رقمي')}>
+          <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder="1000000" />
         </Field>
         <Button
           size="sm"
           variant="secondary"
           disabled={!subject.trim()}
           onClick={() => {
-            addDelegation({ entityId, subject: subject.trim(), limit: limit.trim() })
+            addDelegation({ entityId, subject: subject.trim(), limit: limit.trim(), limitAmount: limit ? Number(limit) : undefined })
             setSubject('')
             setLimit('')
           }}
@@ -622,7 +635,7 @@ function Step6({
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
         <Users size={18} className="text-gate-600" />
-        <h3 className="text-sm font-bold">{L('Virtual Accounts', 'الحسابات الافتراضية')}</h3>
+        <h3 className="text-sm font-bold">{L('Virtual Entity', 'الكيان الافتراضي')}</h3>
       </div>
       {positions.length === 0 ? (
         <p className="text-xs text-slate-500">{L('Add positions in the previous step first.', 'أضف وظائف في الخطوة السابقة أولًا.')}</p>
@@ -672,7 +685,7 @@ function Step6({
           {virtuals.map((v) => (
             <div key={v.id} className="rounded-xl bg-slate-50 px-3 py-2">
               <div className="text-xs font-semibold text-slate-700">{v.positionName}</div>
-              <div className="font-mono text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
+              <div className="font-address text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
             </div>
           ))}
         </div>

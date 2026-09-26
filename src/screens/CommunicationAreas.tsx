@@ -1,29 +1,39 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Network, Plus, Trash2, Building2 } from 'lucide-react'
+import { ChevronLeft, Network, Plus, Building2 } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
-import { Button, Card, Field, Input, EmptyState, Modal } from '@/ui/primitives'
-import type { CommunicationArea } from '@/types'
+import { Button, Card, Field, Input, EmptyState } from '@/ui/primitives'
 
 /**
  * Manage Communication Areas — named groupings that let multiple organizations
  * communicate with one another (organizations picking the same area interoperate).
+ * The list shows only areas the account can see (created by them, or used by an
+ * organization one of their virtual accounts belongs to). Areas are not deletable.
  */
 export function CommunicationAreas() {
   const nav = useNavigate()
   const { t, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
+  const normalId = useStore((s) => s.normalId)
   const areas = useStore((s) => s.communicationAreas)
   const entities = useStore((s) => s.entities)
+  const virtuals = useStore((s) => s.virtuals)
   const addCommunicationArea = useStore((s) => s.addCommunicationArea)
-  const removeCommunicationArea = useStore((s) => s.removeCommunicationArea)
 
   const [name, setName] = useState('')
-  const [del, setDel] = useState<CommunicationArea | null>(null)
 
   const orgsIn = (id: string) => entities.filter((e) => e.communicationAreaId === id)
+
+  // Visible areas: created by me, or the area of an org one of my virtuals belongs to.
+  const visibleAreas = useMemo(() => {
+    const myEntityIds = new Set(virtuals.filter((v) => v.linkedNormalId === normalId).map((v) => v.entityId))
+    const myAreaIds = new Set(
+      entities.filter((e) => myEntityIds.has(e.id)).map((e) => e.communicationAreaId).filter(Boolean) as string[],
+    )
+    return areas.filter((a) => a.createdByNormalId === normalId || myAreaIds.has(a.id))
+  }, [areas, entities, virtuals, normalId])
 
   return (
     <div className="p-4 space-y-4 pb-8">
@@ -60,31 +70,20 @@ export function CommunicationAreas() {
         </div>
       </Card>
 
-      {areas.length === 0 ? (
+      {visibleAreas.length === 0 ? (
         <EmptyState icon={<Network size={28} />} title={L('No communication areas yet', 'لا توجد مناطق تواصل بعد')} />
       ) : (
         <div className="space-y-2">
-          {areas.map((a) => {
+          {visibleAreas.map((a) => {
             const orgs = orgsIn(a.id)
             return (
               <Card key={a.id} className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Network size={16} className="text-gate-600" />
-                      <span className="text-sm font-bold text-slate-800">{a.name}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {orgs.length} {L(orgs.length === 1 ? 'organization' : 'organizations', 'مؤسسة')}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setDel(a)}
-                    className="rounded-full p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-                    aria-label={L('Delete', 'حذف')}
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                <div className="flex items-center gap-2">
+                  <Network size={16} className="text-gate-600" />
+                  <span className="text-sm font-bold text-slate-800">{a.name}</span>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {orgs.length} {L(orgs.length === 1 ? 'organization' : 'organizations', 'مؤسسة')}
                 </div>
                 {orgs.length > 0 && (
                   <div className="mt-2 space-y-1">
@@ -101,22 +100,6 @@ export function CommunicationAreas() {
           })}
         </div>
       )}
-
-      <Modal open={!!del} onClose={() => setDel(null)}>
-        <div className="space-y-4">
-          <h2 className="text-base font-bold text-slate-800">{L('Delete communication area', 'حذف منطقة التواصل')}</h2>
-          <p className="text-sm text-slate-600">
-            {L('Delete', 'حذف')} <span className="font-semibold text-slate-800">{del?.name}</span>?{' '}
-            {L('Organizations in it will no longer share an area.', 'لن تشترك المؤسسات فيها بعد الآن في منطقة واحدة.')}
-          </p>
-          <div className="flex gap-2">
-            <Button full variant="subtle" onClick={() => setDel(null)}>{t('cancel')}</Button>
-            <Button full variant="danger" onClick={() => { if (del) removeCommunicationArea(del.id); setDel(null) }}>
-              <Trash2 size={16} className="me-1.5" /> {L('Delete', 'حذف')}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

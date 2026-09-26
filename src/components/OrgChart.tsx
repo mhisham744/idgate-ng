@@ -98,12 +98,14 @@ export function OrgChart({
   nodes,
   L,
   rootLabel,
+  canDelete = true,
 }: {
   entityId: string
   kind: StructureKind
   nodes: StructureNode[]
   L: (en: string, ar: string) => string
   rootLabel: string
+  canDelete?: boolean
 }) {
   const addStructureNode = useStore((s) => s.addStructureNode)
   const removeStructureNode = useStore((s) => s.removeStructureNode)
@@ -294,11 +296,8 @@ export function OrgChart({
   const ensureRoot = (): string => {
     const r = nodes.find((n) => n.level === 0)
     if (r) return r.id
-    return addStructureNode({ entityId, kind, code: STRUCTURE_ROOT_CODE[kind], name: kind, level: 0, parentId: null })
+    return addStructureNode({ entityId, kind, code: String(STRUCTURE_ROOT_CODE[kind]), name: kind, level: 0, parentId: null })
   }
-
-  // Unique, node-distinguishing code: next value above the highest in this structure.
-  const nextCode = () => nodes.reduce((m, n) => Math.max(m, n.code), STRUCTURE_ROOT_CODE[kind]) + 1
 
   const selectedNode = selected ? nodes.find((n) => n.id === selected) : null
   const addChild = () => {
@@ -307,7 +306,12 @@ export function OrgChart({
     const parentLevel = selectedNode ? selectedNode.level : 0
     const parentId = selectedNode ? selectedNode.id : ensureRoot()
     const level = parentLevel + 1
-    const id = addStructureNode({ entityId, kind, code: nextCode(), name: text, level, parentId })
+    // Hierarchical code: parent code + a 3-digit segment (max existing sibling segment + 1).
+    const parent = nodes.find((n) => n.id === parentId)
+    const parentCode = parent ? parent.code : String(STRUCTURE_ROOT_CODE[kind])
+    const segs = nodes.filter((n) => n.parentId === parentId).map((n) => Number(n.code.slice(parentCode.length))).filter((n) => Number.isFinite(n))
+    const seg = String((segs.length ? Math.max(...segs) : 99) + 1)
+    const id = addStructureNode({ entityId, kind, code: parentCode + seg, name: text, level, parentId })
     setAddText('')
     // make sure the new child is visible
     if (selected) setCollapsed((prev) => {
@@ -519,7 +523,7 @@ export function OrgChart({
                       >
                         <Plus size={13} />
                       </button>
-                      {!isRoot && (
+                      {!isRoot && canDelete && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()

@@ -25,7 +25,7 @@ import type {
 import { buildSeed } from '@/data/seed'
 import type { AppData } from '@/data/seed'
 import { actorKey, colorFor, mergedPermission, uid } from '@/lib/identity'
-import { TRANSACTIONS } from '@/data/reference'
+import { TRANSACTIONS, makeInternalCode } from '@/data/reference'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived-helper (pure) — resolve what an active account is allowed to do.
@@ -39,10 +39,19 @@ export interface NewNormalInput {
   gender: 'Male' | 'Female'
   dateOfBirth?: string
   nationality?: import('@/types').Country
+  residenceCountry?: import('@/types').Country
   city: string
   nationalId?: string
   mobile: string
   email?: string
+  landline?: string
+  linkedIn?: string
+  facebook?: string
+  whatsApp?: string
+  motherTongue?: import('@/types').Language
+  languages?: { language: import('@/types').Language; level: 'Basic' | 'Average' | 'Fluent' }[]
+  education?: { school?: string; university?: string; postgraduate?: string; phd?: string }
+  career?: { title?: string; profession?: string; field?: string; industry?: string; history?: string }
   verification: import('@/types').VerificationInfo
 }
 
@@ -76,6 +85,8 @@ interface State extends AppData {
   signIn: (normalId: string) => void
   /** Create a freshly-proofed personal account (KYC) and sign in as it. Returns the new id. */
   registerNormal: (input: NewNormalInput) => string
+  /** Find an existing person colliding on mobile OR (nationalId + nationality). */
+  findDuplicateNormal: (mobile: string, nationalId: string | undefined, nationality: import('@/types').Country) => import('@/types').NormalCharacter | undefined
   /** Persist edits to a natural person's master data. */
   updateNormal: (id: string, patch: Partial<import('@/types').NormalCharacter>) => void
   logout: () => void
@@ -177,7 +188,9 @@ interface State extends AppData {
   renameStructureNode: (id: string, name: string) => void
   addProfile: (p: Omit<Profile, 'id'>) => string
   updateProfile: (id: string, patch: Partial<Profile>) => void
+  removeProfile: (id: string) => void
   addDelegation: (d: Omit<DelegationItem, 'id'>) => void
+  updateDelegation: (id: string, patch: Partial<DelegationItem>) => void
   addPosition: (entityId: string, name: string) => string
   addVirtual: (v: Omit<VirtualCharacter, 'id' | 'createdAt' | 'status'>) => string
   updateVirtual: (id: string, patch: Partial<VirtualCharacter>) => void
@@ -340,9 +353,22 @@ export const useStore = create<State>()(
       // ── session ────────────────────────────────────────────────────────────────
       signIn: (normalId) =>
         set({ normalId, active: { kind: 'normal', normalId }, onboarded: true }),
+      findDuplicateNormal: (mobile, nationalId, nationality) => {
+        const m = (mobile || '').replace(/\s+/g, '')
+        const nid = (nationalId || '').trim()
+        return get().normals.find((n) => {
+          const sameMobile = m && n.contacts.mobile.replace(/\s+/g, '') === m
+          const sameId = nid && n.nationalId?.trim() === nid && n.nationalities[0] === nationality
+          return sameMobile || sameId
+        })
+      },
       registerNormal: (input) => {
+        // Prevent duplicate accounts (mobile OR nationalId+nationality).
+        const nationality = input.nationality ?? 'Egypt'
+        if (get().findDuplicateNormal(input.mobile, input.nationalId, nationality)) return ''
         const id = uid('n')
         const fullName = `${input.firstName} ${input.surname}`.trim()
+        const seq = get().normals.length + 1
         const person: import('@/types').NormalCharacter = {
           id,
           firstName: input.firstName.trim(),
@@ -350,12 +376,23 @@ export const useStore = create<State>()(
           fullName,
           gender: input.gender,
           dateOfBirth: input.dateOfBirth,
-          nationalities: [input.nationality ?? 'Egypt'],
-          residenceCountry: input.nationality ?? 'Egypt',
+          nationalities: [nationality],
+          residenceCountry: input.residenceCountry ?? nationality,
           city: input.city.trim(),
           nationalId: input.nationalId?.trim() || undefined,
-          motherTongue: 'Arabic',
-          contacts: { mobile: input.mobile.trim(), email: input.email?.trim() || undefined },
+          internalCode: makeInternalCode(nationality, input.city, seq),
+          motherTongue: input.motherTongue ?? 'Arabic',
+          languages: input.languages,
+          education: input.education,
+          career: input.career,
+          contacts: {
+            mobile: input.mobile.trim(),
+            email: input.email?.trim() || undefined,
+            landline: input.landline?.trim() || undefined,
+            linkedIn: input.linkedIn?.trim() || undefined,
+            facebook: input.facebook?.trim() || undefined,
+            whatsApp: input.whatsApp?.trim() || undefined,
+          },
           verification: input.verification,
           privacy: { personalInfo: 'contacts', contactsInfo: 'contacts', education: 'public', career: 'public' },
           avatarColor: colorFor(fullName || id),
@@ -822,7 +859,8 @@ export const useStore = create<State>()(
       // ── communication areas ─────────────────────────────────────────────────────
       addCommunicationArea: (name) => {
         const id = uid('ca')
-        set((s) => ({ communicationAreas: [...s.communicationAreas, { id, name: name.trim() }] }))
+        const owner = get().normalId ?? undefined
+        set((s) => ({ communicationAreas: [...s.communicationAreas, { id, name: name.trim(), createdByNormalId: owner }] }))
         return id
       },
       removeCommunicationArea: (id) =>
@@ -869,7 +907,10 @@ export const useStore = create<State>()(
       },
       updateProfile: (id, patch) =>
         set((s) => ({ profiles: s.profiles.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+      removeProfile: (id) => set((s) => ({ profiles: s.profiles.filter((p) => p.id !== id) })),
       addDelegation: (d) => set((s) => ({ delegations: [...s.delegations, { ...d, id: uid('d') }] })),
+      updateDelegation: (id, patch) =>
+        set((s) => ({ delegations: s.delegations.map((d) => (d.id === id ? { ...d, ...patch } : d)) })),
       addPosition: (entityId, name) => {
         const id = uid('pos')
         const pos: Position = { id, entityId, name }
@@ -916,9 +957,10 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 3,
+      version: 4,
       // v2: notifications gained per-recipient status + private threads.
       // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
+      // v4: structure node codes are strings (hierarchical); coerce any legacy numeric codes.
       migrate: (persisted: any, from: number) => {
         if (persisted && from < 2 && Array.isArray(persisted.notifications)) {
           const valid = ['pending', 'accepted', 'rejected', 'clarify', 'closed']
@@ -941,6 +983,11 @@ export const useStore = create<State>()(
               g.positionNames ? g : { ...g, positionNames: g.positionName ? [g.positionName] : [] },
             )
           }
+        }
+        if (persisted && from < 4 && Array.isArray(persisted.structures)) {
+          persisted.structures = persisted.structures.map((n: any) =>
+            typeof n.code === 'number' ? { ...n, code: String(n.code) } : n,
+          )
         }
         return persisted
       },

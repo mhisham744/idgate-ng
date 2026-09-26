@@ -110,24 +110,10 @@ export function Settings() {
         />
         <Row
           leading={<Link2 size={20} className="text-gate-600" />}
-          title={L('Link a Position to a Person', 'ربط منصب بشخص')}
-          subtitle={L('Assign a position to its host', 'تعيين منصب لمضيفه')}
+          title={L('Link Request', 'طلب ربط')}
+          subtitle={L('Link a position to a person', 'ربط منصب بشخص')}
           trailing={Chevron}
           onClick={() => nav('/settings/link-position')}
-        />
-        <Row
-          leading={<UsersRound size={20} className="text-gate-600" />}
-          title={t('groups')}
-          subtitle={L('Communicate with a node & below', 'التواصل مع مستوى وما دونه')}
-          trailing={Chevron}
-          onClick={() => nav('/settings/groups')}
-        />
-        <Row
-          leading={<Users size={20} className="text-gate-600" />}
-          title={t('directory')}
-          subtitle={L('Browse people & entities', 'تصفح الأشخاص والكيانات')}
-          trailing={Chevron}
-          onClick={() => nav('/directory')}
         />
         <Row
           leading={<UserPlus size={20} className="text-gate-600" />}
@@ -137,9 +123,23 @@ export function Settings() {
           onClick={() => openSheet('contact')}
         />
         <Row
+          leading={<Users size={20} className="text-gate-600" />}
+          title={t('directory')}
+          subtitle={L('Browse people & entities', 'تصفح الأشخاص والكيانات')}
+          trailing={Chevron}
+          onClick={() => nav('/directory')}
+        />
+        <Row
+          leading={<UsersRound size={20} className="text-gate-600" />}
+          title={t('groups')}
+          subtitle={L('Build communication groups', 'إنشاء مجموعات تواصل')}
+          trailing={Chevron}
+          onClick={() => nav('/settings/groups')}
+        />
+        <Row
           leading={<ShieldCheck size={20} className="text-gate-600" />}
-          title={t('delegationDisplay')}
-          subtitle={L('Request to view delegated authorities', 'طلب عرض الصلاحيات المفوضة')}
+          title={L('Delegation Show', 'عرض التفويض')}
+          subtitle={L('Share a delegation with an account', 'مشاركة تفويض مع حساب')}
           trailing={Chevron}
           onClick={() => openSheet('delegation')}
         />
@@ -268,7 +268,7 @@ export function Settings() {
       <Sheet
         open={sheet === 'delegation'}
         onClose={() => setSheet(null)}
-        title={t('delegationDisplay')}
+        title={L('Delegation Show', 'عرض التفويض')}
         footer={
           <Button full variant="secondary" onClick={() => setSheet(null)}>
             {t('close')}

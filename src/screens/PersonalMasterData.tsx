@@ -228,7 +228,7 @@ export function PersonalMasterData() {
 
   const privacyOptions: { value: PrivacyLevel; label: string }[] = [
     { value: 'public', label: L('Public', 'عام') },
-    { value: 'contacts', label: L('Contacts', 'جهات الاتصال') },
+    { value: 'contacts', label: L('Directory', 'الدليل') },
     { value: 'closed', label: L('Closed', 'مغلق') },
   ]
   const privacyLabel = (v: PrivacyLevel) => privacyOptions.find((o) => o.value === v)?.label ?? v
@@ -262,7 +262,7 @@ export function PersonalMasterData() {
               <div className="truncate text-base font-bold text-slate-800">{me.fullName}</div>
               <VerificationBadge level={levelOf(me.verification)} />
             </div>
-            <div className="truncate font-mono text-xs text-gate-700" dir="ltr">
+            <div className="truncate font-address text-xs text-gate-700" dir="ltr">
               {personalAddress(me)}
             </div>
           </div>
@@ -323,6 +323,9 @@ export function PersonalMasterData() {
               <Field label={L('National ID', 'الرقم القومي')}>
                 <Input value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} />
               </Field>
+              <Field label={L('Internal code', 'الكود الداخلي')} hint={L('system generated', 'يُنشأ تلقائيًا')}>
+                <Input value={me.internalCode ?? ''} readOnly dir="ltr" className="font-address" />
+              </Field>
               <Field label={L('Passport #', 'رقم الجواز')} hint={t('optional')}>
                 <Input value={form.passport} onChange={(e) => set('passport', e.target.value)} dir="ltr" />
               </Field>
@@ -380,6 +383,7 @@ export function PersonalMasterData() {
               <RO label={L('Nationalities', 'الجنسيات')} value={me.nationalities.join(', ')} />
               <RO label={L('Residence', 'الإقامة')} value={me.residenceCountry} />
               <RO label={L('National ID', 'الرقم القومي')} value={form.nationalId} />
+              <RO label={L('Internal code', 'الكود الداخلي')} value={me.internalCode} />
               <RO label={L('Passport #', 'رقم الجواز')} value={form.passport} />
               <RO label={L('Mother tongue', 'اللغة الأم')} value={me.motherTongue} />
               <RO label={L('Languages', 'اللغات')} value={langSummary(me)} />

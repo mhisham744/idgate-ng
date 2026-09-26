@@ -6,6 +6,7 @@ import { useLang, useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
 import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { StatusBar } from '@/components/StatusBar'
 import { actorKey } from '@/lib/identity'
 import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
 import type { ActiveAccount, Presence } from '@/types'
@@ -150,7 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
                 {active?.kind === 'normal' && <VerificationBadge level={levelOf(me?.verification)} variant="icon" />}
               </div>
-              <div className="truncate font-mono text-[11px] text-gate-700"><bdi>{r.address}</bdi></div>
+              <div className="truncate font-address text-[11px] text-gate-700"><bdi>{r.address}</bdi></div>
             </div>
             <ChevronDown size={18} className="text-slate-400" />
           </button>
@@ -205,7 +206,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <PresenceAvatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} presence={presence} />
               <div className="min-w-0 flex-1 text-start">
                 <div className="truncate text-sm font-semibold">{r.displayName}</div>
-                <div className="truncate font-mono text-[10px] text-light/70">
+                <div className="truncate font-address text-[10px] text-light/70">
                   <bdi>{r.address}</bdi>
                 </div>
               </div>
@@ -219,7 +220,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Scrollable content — phone-style reading column by default; data-dense
             org-management screens break out to use the full available width. */}
         <main className="relative flex-1 overflow-y-auto thin-scroll">
-          <div className={cx('mx-auto w-full lg:py-4', wide ? 'max-w-[110rem]' : 'max-w-2xl')}>{children}</div>
+          <div className={cx('mx-auto w-full lg:py-4', wide ? 'max-w-[110rem]' : 'max-w-2xl')}>
+            <div className="px-4 pt-4 lg:px-0 lg:pt-0">
+              <StatusBar />
+            </div>
+            {children}
+          </div>
         </main>
 
         {/* Mobile bottom nav */}
