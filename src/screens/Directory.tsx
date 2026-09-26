@@ -1,51 +1,41 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Building2, Check, ChevronRight, Layers, Users, UserPlus, X, Briefcase } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Building2, Check, Layers, Users, UsersRound, X, Briefcase, Network } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
-import { ORG_TYPE_LABELS, LEGAL_TYPE_LABELS, INDUSTRY_LABELS } from '@/data/reference'
-import { actorKey, sameActor } from '@/lib/identity'
+import { ORG_TYPE_LABELS, LEGAL_TYPE_LABELS, INDUSTRY_LABELS, STRUCTURE_LABELS } from '@/data/reference'
+import { sameActor, actorKey } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { useDirectory } from '@/lib/userScope'
 import type { ActorRef } from '@/types'
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  Chip,
-  EmptyState,
-  Input,
-  Row,
-  SectionHeader,
-} from '@/ui/primitives'
+import { Avatar, Badge, Button, Card, Chip, EmptyState, Input, SectionHeader } from '@/ui/primitives'
 
-type Seg = 'orgs' | 'people'
+type Seg = 'orgs' | 'people' | 'groups' | 'nodes'
 
+/**
+ * Directory — display-only view of what the ACTIVE account can see: linked
+ * organizations, people it may reach (contacts + same-area virtuals), the groups
+ * it belongs to, and (for a virtual) the structure nodes it is placed in.
+ * Also where incoming contact / link requests are accepted.
+ */
 export function Directory() {
-  const navigate = useNavigate()
   const { t, lang, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const normalId = useStore((s) => s.normalId)
   const active = useStore((s) => s.active)
   const entities = useStore((s) => s.entities)
-  const normals = useStore((s) => s.normals)
-  const positions = useStore((s) => s.positions)
   const virtuals = useStore((s) => s.virtuals)
-  const structures = useStore((s) => s.structures)
   const contactRequests = useStore((s) => s.contactRequests)
   const linkRequests = useStore((s) => s.linkRequests)
-  const can = useStore((s) => s.can)
-  const sendContactRequest = useStore((s) => s.sendContactRequest)
   const respondContactRequest = useStore((s) => s.respondContactRequest)
   const respondLinkRequest = useStore((s) => s.respondLinkRequest)
   const resolve = useResolveActor()
+  const dir = useDirectory()
 
+  const isVirtual = active?.kind === 'virtual'
   const [seg, setSeg] = useState<Seg>('orgs')
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()
-
-  const canContact = can('tool.contactRequest')
 
   // incoming requests targeted at the active account / signed-in person
   const incomingContacts = active
@@ -53,27 +43,26 @@ export function Directory() {
     : []
   const incomingLinks = linkRequests.filter((l) => l.status === 'pending' && l.targetNormalId === normalId)
 
-  const orgs = entities.filter(
-    (e) =>
-      !query ||
-      e.commercialName.toLowerCase().includes(query) ||
-      e.formalName.toLowerCase().includes(query),
-  )
-  const people = normals.filter(
-    (n) => n.id !== normalId && (!query || n.fullName.toLowerCase().includes(query)),
-  )
+  const orgs = dir.orgs.filter((e) => !query || e.commercialName.toLowerCase().includes(query) || e.formalName.toLowerCase().includes(query))
+  const people = dir.people.filter((r) => !query || resolve(r).displayName.toLowerCase().includes(query))
+  const groups = dir.groups.filter((g) => !query || g.name.toLowerCase().includes(query))
+  const nodes = dir.nodes.filter((n) => !query || n.name.toLowerCase().includes(query))
 
-  const hasPendingTo = (ref: ActorRef) =>
-    !!active &&
-    contactRequests.some(
-      (c) => c.status === 'pending' && sameActor(c.from, active as ActorRef) && sameActor(c.to, ref),
-    )
+  const tabs: { key: Seg; label: string }[] = [
+    { key: 'orgs', label: L('Organizations', 'المؤسسات') },
+    { key: 'people', label: L('People', 'الأشخاص') },
+    { key: 'groups', label: t('groups') },
+    ...(isVirtual ? [{ key: 'nodes' as Seg, label: t('communicationStructure') }] : []),
+  ]
+  // Fall back to the first tab if the current segment isn't available (e.g. after
+  // switching from a virtual to a normal account, where the 'nodes' tab disappears).
+  const activeSeg: Seg = tabs.some((tb) => tb.key === seg) ? seg : 'orgs'
 
   return (
     <div className="p-4 space-y-4 pb-8">
       <SectionHeader title={t('directory')} />
 
-      {/* requests */}
+      {/* incoming requests */}
       {(incomingContacts.length > 0 || incomingLinks.length > 0) && (
         <Card className="p-4 space-y-2.5">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{L('Requests', 'الطلبات')}</h3>
@@ -113,91 +102,95 @@ export function Directory() {
         </Card>
       )}
 
-      {/* segment + search */}
-      <div className="flex gap-2">
-        <Chip active={seg === 'orgs'} onClick={() => setSeg('orgs')}>
-          {L('Organizations', 'المؤسسات')}
-        </Chip>
-        <Chip active={seg === 'people'} onClick={() => setSeg('people')}>
-          {L('People', 'الأشخاص')}
-        </Chip>
+      {/* tabs + search */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 thin-scroll">
+        {tabs.map((tb) => (
+          <Chip key={tb.key} active={activeSeg === tb.key} onClick={() => setSeg(tb.key)}>
+            {tb.label}
+          </Chip>
+        ))}
       </div>
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('search')} />
 
-      {seg === 'orgs' && (
+      {activeSeg === 'orgs' && (
         <div className="space-y-3">
           {orgs.length === 0 ? (
             <EmptyState icon={<Building2 size={36} />} title={t('empty')} />
           ) : (
-            orgs.map((e) => {
-              const posCount = positions.filter((p) => p.entityId === e.id).length
-              const virCount = virtuals.filter((v) => v.entityId === e.id).length
-              const strCount = structures.filter((n) => n.entityId === e.id).length
-              return (
-                <Card key={e.id} onClick={() => navigate('/settings/entity/' + e.id)} className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={e.commercialName} color={e.logoColor} size={44} square icon={<Building2 size={20} />} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-bold text-slate-800">{e.commercialName}</div>
-                      <div className="truncate font-address text-[11px] text-gate-700" dir="ltr">
-                        {e.domain}.{e.orgType}.{e.legalEntityType}
-                      </div>
+            orgs.map((e) => (
+              <Card key={e.id} className="p-4">
+                <div className="flex items-center gap-3">
+                  <Avatar name={e.commercialName} color={e.logoColor} size={44} square icon={<Building2 size={20} />} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-slate-800">{e.commercialName}</div>
+                    <div className="truncate font-address text-[11px] text-gate-700" dir="ltr">
+                      {e.domain}.{e.orgType}.{e.legalEntityType}
                     </div>
-                    <ChevronRight size={18} className="text-slate-300 rtl:rotate-180" />
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <Badge tone="gate">{bl(ORG_TYPE_LABELS[e.orgType], lang)}</Badge>
-                    <Badge tone="slate">{bl(LEGAL_TYPE_LABELS[e.legalEntityType], lang)}</Badge>
-                    <Badge tone="teal">{bl(INDUSTRY_LABELS[e.mainIndustry], lang)}</Badge>
-                  </div>
-                  <div className="mt-3 flex items-center gap-4 text-[11px] font-medium text-slate-500">
-                    <span className="inline-flex items-center gap-1"><Briefcase size={13} /> {posCount}</span>
-                    <span className="inline-flex items-center gap-1"><Users size={13} /> {virCount}</span>
-                    <span className="inline-flex items-center gap-1"><Layers size={13} /> {strCount}</span>
-                  </div>
-                </Card>
-              )
-            })
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <Badge tone="gate">{bl(ORG_TYPE_LABELS[e.orgType], lang)}</Badge>
+                  <Badge tone="slate">{bl(LEGAL_TYPE_LABELS[e.legalEntityType], lang)}</Badge>
+                  <Badge tone="teal">{bl(INDUSTRY_LABELS[e.mainIndustry], lang)}</Badge>
+                </div>
+              </Card>
+            ))
           )}
         </div>
       )}
 
-      {seg === 'people' && (
+      {activeSeg === 'people' && (
         <div className="space-y-2">
           {people.length === 0 ? (
             <EmptyState icon={<Users size={36} />} title={t('empty')} />
           ) : (
-            people.map((n) => {
-              const ref: ActorRef = { kind: 'normal', normalId: n.id }
-              const roles = virtuals.filter((v) => v.linkedNormalId === n.id).length
-              const pending = hasPendingTo(ref)
-              const isContactActive = active && actorKey(active) === actorKey(ref)
-              return (
-                <Card key={n.id} className="p-3.5">
-                  <ActorLine
-                    actor={ref}
-                    size={42}
-                    trailing={
-                      isContactActive ? null : pending ? (
-                        <Badge tone="amber">{t('pending')}</Badge>
-                      ) : canContact ? (
-                        <Button size="sm" variant="secondary" onClick={() => sendContactRequest(ref)}>
-                          <UserPlus size={13} /> {L('Contact', 'تواصل')}
-                        </Button>
-                      ) : (
-                        <Badge tone="slate">{t('canReceiveOnly')}</Badge>
-                      )
-                    }
-                  />
-                  <div className="mt-2 flex items-center gap-3 ps-[52px] text-[11px] text-slate-500">
-                    <span>{n.city}</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Users size={12} /> {roles} {L('roles', 'صفات')}
-                    </span>
+            people.map((r) => (
+              <Card key={actorKey(r)} className="p-3.5">
+                <ActorLine actor={r} size={42} />
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeSeg === 'groups' && (
+        <div className="space-y-2">
+          {groups.length === 0 ? (
+            <EmptyState icon={<UsersRound size={36} />} title={t('empty')} />
+          ) : (
+            groups.map((g) => (
+              <Card key={g.id} className="p-3.5">
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={g.name} color="#0d9488" size={38} square icon={<UsersRound size={16} />} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-800">{g.name}</div>
+                    {g.positionNames && g.positionNames.length > 0 && (
+                      <div className="truncate text-xs text-slate-500">{g.positionNames.join(', ')}</div>
+                    )}
                   </div>
-                </Card>
-              )
-            })
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeSeg === 'nodes' && (
+        <div className="space-y-2">
+          {nodes.length === 0 ? (
+            <EmptyState icon={<Layers size={36} />} title={t('empty')} />
+          ) : (
+            nodes.map((n) => (
+              <Card key={n.id} className="flex items-center gap-2.5 p-3.5">
+                <Avatar name={n.name} color="#4f46e5" size={38} square icon={<Network size={16} />} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-slate-800">{n.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {bl(STRUCTURE_LABELS[n.kind], lang)} · <span dir="ltr" className="font-mono">{n.code}</span>
+                  </div>
+                </div>
+              </Card>
+            ))
           )}
         </div>
       )}

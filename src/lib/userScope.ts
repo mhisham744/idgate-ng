@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useStore } from '@/store'
 import { actorKey } from '@/lib/identity'
-import type { ActorRef, Message, Notification, NoteRecipient } from '@/types'
+import type { ActorRef, Group, LegalEntity, Message, Notification, NoteRecipient, StructureNode } from '@/types'
 
 export interface MyInbox {
   /** Every actorKey the signed-in person acts through (personal + owned virtuals). */
@@ -88,4 +88,105 @@ export function useMyInbox(): MyInbox {
 
     return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems }
   }, [normalId, virtuals, messages, notifications])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Directory — who/what the ACTIVE account can see and communicate with.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface Directory {
+  /** Organizations the account is linked to (normal: via its virtuals; virtual: its own entity). */
+  orgs: LegalEntity[]
+  /** People the account may reach: accepted contacts + (virtual) same-area active virtuals. */
+  people: ActorRef[]
+  /** Groups the account is a member of. */
+  groups: Group[]
+  /** (Virtual only) structure nodes the account is part of. */
+  nodes: StructureNode[]
+  /** actorKeys of `people` (for gating recipient lists). */
+  peopleKeys: Set<string>
+}
+
+/**
+ * The active account's Directory. Drives the Directory screen AND gates who can
+ * receive posts/messages/notifications/tools (only accounts in the directory).
+ */
+export function useDirectory(): Directory {
+  const active = useStore((s) => s.active)
+  const normalId = useStore((s) => s.normalId)
+  const entities = useStore((s) => s.entities)
+  const virtuals = useStore((s) => s.virtuals)
+  const groups = useStore((s) => s.groups)
+  const structures = useStore((s) => s.structures)
+  const contactRequests = useStore((s) => s.contactRequests)
+  const entity = useStore((s) => s.entity)
+  const virtual = useStore((s) => s.virtual)
+  const virtualsFor = useStore((s) => s.virtualsFor)
+  const groupRecipients = useStore((s) => s.groupRecipients)
+  const areaOf = useStore((s) => s.areaOf)
+
+  return useMemo(() => {
+    if (!active) return { orgs: [], people: [], groups: [], nodes: [], peopleKeys: new Set<string>() }
+    const meKey = actorKey(active)
+
+    // Accepted contacts (both directions) → the other party.
+    const contacts: ActorRef[] = []
+    for (const c of contactRequests) {
+      if (c.status !== 'accepted') continue
+      if (actorKey(c.from) === meKey) contacts.push(c.to)
+      else if (actorKey(c.to) === meKey) contacts.push(c.from)
+    }
+
+    // Virtual accounts sharing the acting virtual's communication area.
+    const areaVirtuals: ActorRef[] = []
+    if (active.kind === 'virtual') {
+      const areaId = areaOf(active)
+      if (areaId) {
+        for (const v of virtuals) {
+          if (v.status !== 'active' || v.id === active.virtualId) continue
+          if (entity(v.entityId)?.communicationAreaId === areaId) areaVirtuals.push({ kind: 'virtual', virtualId: v.id })
+        }
+      }
+    }
+
+    // Dedup people, excluding self.
+    const seen = new Set<string>()
+    const people: ActorRef[] = []
+    for (const r of [...contacts, ...areaVirtuals]) {
+      const k = actorKey(r)
+      if (k !== meKey && !seen.has(k)) {
+        seen.add(k)
+        people.push(r)
+      }
+    }
+
+    // Orgs.
+    let orgs: LegalEntity[] = []
+    if (active.kind === 'virtual') {
+      const v = virtual(active.virtualId)
+      const e = v ? entity(v.entityId) : undefined
+      orgs = e ? [e] : []
+    } else if (normalId) {
+      const ids = new Set(virtualsFor(normalId).map((v) => v.entityId))
+      orgs = entities.filter((e) => ids.has(e.id))
+    }
+
+    // Scope keys for group membership: normal → person + owned virtuals; virtual → itself.
+    const scopeKeys = new Set<string>()
+    if (active.kind === 'virtual') scopeKeys.add(`v:${active.virtualId}`)
+    else if (normalId) {
+      scopeKeys.add(`n:${normalId}`)
+      virtualsFor(normalId).forEach((v) => scopeKeys.add(`v:${v.id}`))
+    }
+    const myGroups = groups.filter((g) => groupRecipients(g.id).some((r) => scopeKeys.has(actorKey(r))))
+
+    // Nodes (virtual only) — the structure nodes the acting virtual is placed in.
+    let nodes: StructureNode[] = []
+    if (active.kind === 'virtual') {
+      const v = virtual(active.virtualId)
+      const nodeIds = v ? [v.structure.corporate, v.structure.relation, v.structure.organization, v.structure.geographical] : []
+      nodes = nodeIds.filter(Boolean).map((id) => structures.find((n) => n.id === id)).filter(Boolean) as StructureNode[]
+    }
+
+    return { orgs, people, groups: myGroups, nodes, peopleKeys: new Set(people.map(actorKey)) }
+  }, [active, normalId, entities, virtuals, groups, structures, contactRequests, entity, virtual, virtualsFor, groupRecipients, areaOf])
 }

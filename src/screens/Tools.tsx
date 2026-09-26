@@ -4,6 +4,7 @@ import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey } from '@/lib/identity'
 import { useResolveActor } from '@/components/identity'
+import { useDirectory } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
 import {
@@ -49,23 +50,18 @@ export function Tools() {
 
   const toolTx = TRANSACTIONS.filter((tx) => tx.area === 'tools')
 
-  // Recipient options + groups (mirrors the Notifications create sheet).
-  const recipientOptions = useMemo<ActorRef[]>(() => {
-    const opts: ActorRef[] = []
-    normals.forEach((n) => opts.push({ kind: 'normal', normalId: n.id }))
-    virtuals.filter((v) => v.status === 'active').forEach((v) => opts.push({ kind: 'virtual', virtualId: v.id }))
-    return opts.filter((r) => actorKey(r) !== meKey && (!active || canCommunicate(active, r)))
-  }, [normals, virtuals, meKey, active, canCommunicate])
-
-  const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
-  const pickerGroups = useMemo<PickerGroup[]>(() => {
-    const src = activeVirtual ? groups.filter((g) => g.entityId === activeVirtual.entityId) : groups
-    return src.map((g) => ({
-      id: g.id,
-      name: g.name,
-      count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
-    }))
-  }, [groups, activeVirtual, groupRecipients, meKey])
+  // Recipients + groups are scoped to the acting account's Directory.
+  const dir = useDirectory()
+  const recipientOptions = dir.people
+  const pickerGroups = useMemo<PickerGroup[]>(
+    () =>
+      dir.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
+      })),
+    [dir.groups, groupRecipients, meKey],
+  )
 
   const expandGroup = (id: string): ActorRef[] =>
     groupRecipients(id).filter((r) => actorKey(r) !== meKey)

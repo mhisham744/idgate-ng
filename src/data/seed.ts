@@ -583,6 +583,8 @@ export function buildSeed(): AppData {
 
   const contactRequests: ContactRequest[] = [
     { id: 'cr_1', from: { kind: 'normal', normalId: 'n_sara' }, to: { kind: 'virtual', virtualId: hrNestle.id }, status: 'pending', createdAt: ago(30) },
+    { id: 'cr_2', from: { kind: 'normal', normalId: 'n_hossam' }, to: { kind: 'normal', normalId: 'n_mohamed' }, status: 'accepted', createdAt: ago(2000) },
+    { id: 'cr_3', from: { kind: 'normal', normalId: 'n_sara' }, to: { kind: 'normal', normalId: 'n_hossam' }, status: 'accepted', createdAt: ago(1500) },
   ]
 
   return {
