@@ -212,6 +212,9 @@ export function buildSeed(): AppData {
       status: opts.linkedNormalId ? 'active' : 'unlinked',
       createdAt: opts.createdAt ?? ago(60 * 24 * 30),
       connectedAt: opts.linkedNormalId ? (opts.connectedAt ?? opts.createdAt ?? ago(60 * 24 * 25)) : undefined,
+      links: opts.linkedNormalId
+        ? [{ normalId: opts.linkedNormalId, status: 'active', connectedAt: opts.connectedAt ?? opts.createdAt ?? ago(60 * 24 * 25) }]
+        : [],
       positionCode: opts.positionCode,
       additionalCodes: opts.additionalCodes,
     }

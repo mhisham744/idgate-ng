@@ -20,7 +20,9 @@ import type {
   StructureNode,
   TransactionKey,
   Vacancy,
+  Validity,
   VirtualCharacter,
+  VirtualLink,
 } from '@/types'
 import { buildSeed } from '@/data/seed'
 import type { AppData } from '@/data/seed'
@@ -167,7 +169,13 @@ interface State extends AppData {
   sendContactRequest: (to: ActorRef) => void
   respondContactRequest: (id: string, status: 'accepted' | 'rejected') => void
   createLinkRequest: (entityId: string, virtualId: string, targetNormalId: string) => void
+  /** Rich link request: adds a 'waiting' link + a pending LinkRequest. Returns false if a duplicate (same entity/virtual/person already waiting or active). */
+  requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation'] }) => boolean
   respondLinkRequest: (id: string, status: 'accepted' | 'rejected') => void
+  /** Set one person's link status on a virtual entity (active/rejected/unlinked/blocked). */
+  setLinkStatus: (virtualId: string, normalId: string, status: VirtualLink['status']) => void
+  /** Edit the delegation granted to one person on a virtual entity. */
+  updateLinkDelegation: (virtualId: string, normalId: string, delegation: VirtualLink['delegation']) => void
 
   // ── groups ─────────────────────────────────────────────────────────────────
   addGroup: (g: Omit<Group, 'id'>) => string
@@ -218,6 +226,23 @@ function dedupeRefs(refs: ActorRef[]): ActorRef[] {
   return out
 }
 
+/**
+ * Recompute the legacy single-host mirror (`linkedNormalId`/`status`/`connectedAt`)
+ * from the per-person `links[]`, so existing consumers keep working. Entity-level
+ * `blocked` (set by blockVirtual) is preserved; otherwise status is 'active' when
+ * any link is active, else 'unlinked'. The primary is the first active link.
+ */
+function syncMirror(v: VirtualCharacter, links: VirtualLink[]): VirtualCharacter {
+  const primary = links.find((l) => l.status === 'active')
+  return {
+    ...v,
+    links,
+    linkedNormalId: primary ? primary.normalId : null,
+    status: v.status === 'blocked' ? 'blocked' : primary ? 'active' : 'unlinked',
+    connectedAt: primary?.connectedAt ?? v.connectedAt,
+  }
+}
+
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
@@ -229,7 +254,10 @@ export const useStore = create<State>()(
 
       // ── selectors ────────────────────────────────────────────────────────────
       currentNormal: () => get().normals.find((n) => n.id === get().normalId),
-      virtualsFor: (normalId) => get().virtuals.filter((v) => v.linkedNormalId === normalId),
+      virtualsFor: (normalId) =>
+        get().virtuals.filter(
+          (v) => v.linkedNormalId === normalId || (v.links ?? []).some((l) => l.normalId === normalId && l.status === 'active'),
+        ),
       myActorKeys: () => {
         const { normalId } = get()
         if (!normalId) return []
@@ -828,6 +856,22 @@ export const useStore = create<State>()(
       respondContactRequest: (id, status) =>
         set((s) => ({ contactRequests: s.contactRequests.map((c) => (c.id === id ? { ...c, status } : c)) })),
       createLinkRequest: (entityId, virtualId, targetNormalId) => {
+        get().requestLink(entityId, virtualId, targetNormalId)
+      },
+      requestLink: (entityId, virtualId, targetNormalId, opts) => {
+        const v = get().virtual(virtualId)
+        if (!v) return false
+        // Dedup: same person already waiting, active, or blocked on this virtual
+        // (blocked must be explicitly Unblocked, not silently overwritten by a re-request).
+        const existing = (v.links ?? []).find((l) => l.normalId === targetNormalId)
+        if (existing && (existing.status === 'waiting' || existing.status === 'active' || existing.status === 'blocked')) return false
+        const link: VirtualLink = {
+          normalId: targetNormalId,
+          status: 'waiting',
+          validity: opts?.validity,
+          delegation: opts?.delegation,
+        }
+        const nextLinks = [...(v.links ?? []).filter((l) => l.normalId !== targetNormalId), link]
         const lr: LinkRequest = {
           id: uid('lr'),
           entityId,
@@ -837,13 +881,63 @@ export const useStore = create<State>()(
           status: 'pending',
           createdAt: new Date().toISOString(),
         }
-        set((s) => ({ linkRequests: [lr, ...s.linkRequests] }))
+        set((s) => ({
+          virtuals: s.virtuals.map((x) => (x.id === virtualId ? syncMirror(x, nextLinks) : x)),
+          linkRequests: [lr, ...s.linkRequests],
+        }))
+        return true
       },
       respondLinkRequest: (id, status) => {
         const lr = get().linkRequests.find((l) => l.id === id)
         if (!lr) return
-        if (status === 'accepted') get().linkVirtual(lr.virtualId, lr.targetNormalId)
-        set((s) => ({ linkRequests: s.linkRequests.map((l) => (l.id === id ? { ...l, status } : l)) }))
+        const now = new Date().toISOString()
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== lr.virtualId) return v
+            const cur = v.links ?? []
+            const has = cur.some((l) => l.normalId === lr.targetNormalId)
+            let links = cur.map((l) =>
+              l.normalId === lr.targetNormalId
+                ? { ...l, status: status === 'accepted' ? ('active' as const) : ('rejected' as const), connectedAt: status === 'accepted' ? now : l.connectedAt }
+                : l,
+            )
+            // No links[] entry (e.g. a request migrated from v4) — establish it on accept.
+            if (status === 'accepted' && !has) links = [...links, { normalId: lr.targetNormalId, status: 'active', connectedAt: now }]
+            return syncMirror(v, links)
+          }),
+          linkRequests: s.linkRequests.map((l) => (l.id === id ? { ...l, status } : l)),
+        }))
+      },
+      setLinkStatus: (virtualId, normalId, status) => {
+        const now = new Date().toISOString()
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const links = (v.links ?? []).map((l) =>
+              l.normalId === normalId
+                ? { ...l, status, disconnectedAt: status === 'unlinked' || status === 'rejected' ? now : l.disconnectedAt }
+                : l,
+            )
+            return syncMirror(v, links)
+          }),
+          // Cancelling/blocking/unlinking a link withdraws any still-pending request,
+          // so the person can't accept a request that no longer stands.
+          linkRequests:
+            status === 'active' || status === 'waiting'
+              ? s.linkRequests
+              : s.linkRequests.map((l) =>
+                  l.virtualId === virtualId && l.targetNormalId === normalId && l.status === 'pending' ? { ...l, status: 'rejected' } : l,
+                ),
+        }))
+      },
+      updateLinkDelegation: (virtualId, normalId, delegation) => {
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const links = (v.links ?? []).map((l) => (l.normalId === normalId ? { ...l, delegation } : l))
+            return syncMirror(v, links)
+          }),
+        }))
       },
 
       // ── groups ────────────────────────────────────────────────────────────────
@@ -919,9 +1013,11 @@ export const useStore = create<State>()(
       },
       addVirtual: (v) => {
         const id = uid('v')
+        const links: VirtualLink[] = v.links ?? (v.linkedNormalId ? [{ normalId: v.linkedNormalId, status: 'active', connectedAt: new Date().toISOString() }] : [])
         const vc: VirtualCharacter = {
           ...v,
           id,
+          links,
           createdAt: new Date().toISOString(),
           status: v.linkedNormalId ? 'active' : 'unlinked',
         }
@@ -932,17 +1028,26 @@ export const useStore = create<State>()(
         set((s) => ({ virtuals: s.virtuals.map((v) => (v.id === id ? { ...v, ...patch } : v)) })),
       linkVirtual: (virtualId, normalId) =>
         set((s) => ({
-          virtuals: s.virtuals.map((v) =>
-            v.id === virtualId
-              ? { ...v, linkedNormalId: normalId, status: 'active', connectedAt: new Date().toISOString(), disconnectedAt: undefined }
-              : v,
-          ),
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const now = new Date().toISOString()
+            const links = [
+              ...(v.links ?? []).filter((l) => l.normalId !== normalId),
+              { normalId, status: 'active' as const, connectedAt: now },
+            ]
+            return syncMirror(v, links)
+          }),
         })),
       unlinkVirtual: (virtualId) =>
         set((s) => ({
-          virtuals: s.virtuals.map((v) =>
-            v.id === virtualId ? { ...v, linkedNormalId: null, status: 'unlinked', disconnectedAt: new Date().toISOString() } : v,
-          ),
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const now = new Date().toISOString()
+            const links = (v.links ?? []).map((l) =>
+              l.status === 'active' ? { ...l, status: 'unlinked' as const, disconnectedAt: now } : l,
+            )
+            return syncMirror(v, links)
+          }),
         })),
       blockVirtual: (virtualId, blocked) =>
         set((s) => ({
@@ -957,10 +1062,11 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 4,
+      version: 5,
       // v2: notifications gained per-recipient status + private threads.
       // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
       // v4: structure node codes are strings (hierarchical); coerce any legacy numeric codes.
+      // v5: virtual entities gained per-person links[]; synthesize from linkedNormalId.
       migrate: (persisted: any, from: number) => {
         if (persisted && from < 2 && Array.isArray(persisted.notifications)) {
           const valid = ['pending', 'accepted', 'rejected', 'clarify', 'closed']
@@ -987,6 +1093,13 @@ export const useStore = create<State>()(
         if (persisted && from < 4 && Array.isArray(persisted.structures)) {
           persisted.structures = persisted.structures.map((n: any) =>
             typeof n.code === 'number' ? { ...n, code: String(n.code) } : n,
+          )
+        }
+        if (persisted && from < 5 && Array.isArray(persisted.virtuals)) {
+          persisted.virtuals = persisted.virtuals.map((v: any) =>
+            v.links
+              ? v
+              : { ...v, links: v.linkedNormalId ? [{ normalId: v.linkedNormalId, status: 'active', connectedAt: v.connectedAt }] : [] },
           )
         }
         return persisted

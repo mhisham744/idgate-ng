@@ -272,8 +272,7 @@ export function EntityManage() {
                     L={L}
                     t={t}
                     v={v}
-                    host={v.linkedNormalId ? normals.find((n) => n.id === v.linkedNormalId) : undefined}
-                    onUnlink={() => unlinkVirtual(v.id)}
+                    normals={normals}
                     onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
                   />
                 ))}
@@ -489,21 +488,20 @@ function VirtualRow({
   L,
   t,
   v,
-  host,
-  onUnlink,
+  normals,
   onBlock,
 }: {
   L: (en: string, ar: string) => string
   t: (k: string) => string
   v: VirtualCharacter
-  host?: import('@/types').NormalCharacter
-  onUnlink: () => void
+  normals: import('@/types').NormalCharacter[]
   onBlock: () => void
 }) {
   const resolve = useResolveActor()
   const r = resolve({ kind: 'virtual', virtualId: v.id })
-  const tone = v.status === 'active' ? 'green' : v.status === 'blocked' ? 'red' : 'slate'
-  const statusText = v.status === 'active' ? t('active') : v.status === 'blocked' ? t('blocked') : t('unlinked')
+  const entTone = v.status === 'active' ? 'green' : v.status === 'blocked' ? 'red' : 'slate'
+  const entStatus = v.status === 'active' ? t('active') : v.status === 'blocked' ? t('blocked') : t('unlinked')
+  const links = v.links ?? []
   return (
     <Card className="p-3.5 space-y-2">
       <div className="flex items-center gap-2.5">
@@ -512,19 +510,8 @@ function VirtualRow({
           <div className="truncate text-sm font-semibold text-slate-800">{v.positionName}</div>
           <div className="truncate font-address text-[10px] text-gate-700" dir="ltr">{r.address}</div>
         </div>
-        <Badge tone={tone}>{statusText}</Badge>
+        <Badge tone={entTone}>{entStatus}</Badge>
       </div>
-      {host && (
-        <div className="space-y-0.5 rounded-xl bg-slate-50 px-2.5 py-1.5">
-          <div className="text-[11px] text-slate-500">
-            {t('linkedTo')} <span className="font-medium text-slate-700">{host.fullName}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span>{L('Personal account code', 'كود الحساب الشخصي')}</span>
-            <span dir="ltr" className="font-address text-gate-700">{personalAddress(host)}</span>
-          </div>
-        </div>
-      )}
       {(v.positionCode || (v.additionalCodes && v.additionalCodes.length > 0)) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400">
           {v.positionCode && (
@@ -541,16 +528,133 @@ function VirtualRow({
           )}
         </div>
       )}
-      <div className="flex flex-wrap gap-1.5">
-        {v.status === 'active' ? (
-          <Button size="sm" variant="subtle" onClick={onUnlink}>
-            <Unlink size={13} /> {t('unlink')}
-          </Button>
-        ) : null}
+
+      {/* Per-person links */}
+      <div className="space-y-1.5">
+        <div className="text-[11px] font-semibold text-slate-500">{L('Linked persons', 'الأشخاص المرتبطون')}</div>
+        {links.length === 0 ? (
+          <p className="text-[11px] text-slate-400">{L('No linked persons yet — use Link Request.', 'لا يوجد أشخاص مرتبطون — استخدم طلب الربط.')}</p>
+        ) : (
+          links.map((l) => <LinkBox key={l.normalId} v={v} link={l} person={normals.find((n) => n.id === l.normalId)} L={L} t={t} />)
+        )}
+      </div>
+
+      {/* Entity-level control */}
+      <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
         <Button size="sm" variant={v.status === 'blocked' ? 'secondary' : 'danger'} onClick={onBlock}>
-          <Ban size={13} /> {v.status === 'blocked' ? L('Unblock', 'إلغاء الحظر') : t('block')}
+          <Ban size={13} /> {v.status === 'blocked' ? L('Unblock entity', 'إلغاء حظر الكيان') : L('Block entity', 'حظر الكيان')}
         </Button>
       </div>
     </Card>
+  )
+}
+
+const LINK_TONE: Record<string, 'amber' | 'green' | 'red' | 'slate'> = {
+  waiting: 'amber',
+  active: 'green',
+  rejected: 'red',
+  unlinked: 'slate',
+  blocked: 'red',
+}
+
+function LinkBox({
+  v,
+  link,
+  person,
+  L,
+  t,
+}: {
+  v: VirtualCharacter
+  link: import('@/types').VirtualLink
+  person?: import('@/types').NormalCharacter
+  L: (en: string, ar: string) => string
+  t: (k: string) => string
+}) {
+  const setLinkStatus = useStore((s) => s.setLinkStatus)
+  const updateLinkDelegation = useStore((s) => s.updateLinkDelegation)
+  const [editVal, setEditVal] = useState(false)
+  const [from, setFrom] = useState(link.delegation?.validity?.from ?? '')
+  const [to, setTo] = useState(link.delegation?.validity?.to ?? '')
+
+  const statusLabel: Record<string, string> = {
+    waiting: L('Waiting response', 'بانتظار الرد'),
+    active: t('active'),
+    rejected: L('Rejected', 'مرفوض'),
+    unlinked: t('unlinked'),
+    blocked: t('blocked'),
+  }
+  const fmtVal = (val?: import('@/types').Validity) =>
+    !val || val.open ? L('Open', 'مفتوح') : `${val.from || '—'} → ${val.to || '—'}`
+
+  return (
+    <div className="space-y-1.5 rounded-xl bg-slate-50 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium text-slate-700">{person?.fullName ?? link.normalId}</div>
+          <div className="truncate font-address text-[10px] text-slate-400" dir="ltr">{person?.internalCode ?? '—'}</div>
+        </div>
+        <Badge tone={LINK_TONE[link.status] ?? 'slate'}>{statusLabel[link.status] ?? link.status}</Badge>
+      </div>
+      <div className="text-[10px] text-slate-400">
+        {L('Validity', 'الصلاحية')}: <span dir="ltr">{fmtVal(link.validity)}</span>
+      </div>
+      {link.delegation && (
+        <div className="rounded-lg bg-white px-2 py-1.5 text-[10px] text-slate-500">
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate">
+              {L('Delegation', 'تفويض')}: <span className="font-medium text-slate-700">{link.delegation.subject}</span>
+              {link.delegation.limitAmount != null && <span> · {link.delegation.limitAmount.toLocaleString()}</span>}
+              <span> · {fmtVal(link.delegation.validity)}</span>
+            </span>
+            <div className="flex shrink-0 gap-1">
+              <button onClick={() => setEditVal((x) => !x)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
+                <Pencil size={12} />
+              </button>
+              <button onClick={() => updateLinkDelegation(v.id, link.normalId, undefined)} className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+          {editVal && (
+            <div className="mt-1.5 space-y-1.5">
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={() => updateLinkDelegation(v.id, link.normalId, { ...link.delegation!, validity: { open: true } })}>
+                  {L('Open', 'مفتوح')}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => updateLinkDelegation(v.id, link.normalId, { ...link.delegation!, validity: { open: false, from, to } })}>
+                  {L('Save limited', 'حفظ محدود')}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        {link.status === 'active' && (
+          <>
+            <Button size="sm" variant="subtle" onClick={() => setLinkStatus(v.id, link.normalId, 'unlinked')}>
+              <Unlink size={12} /> {t('unlink')}
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => setLinkStatus(v.id, link.normalId, 'blocked')}>
+              <Ban size={12} /> {t('block')}
+            </Button>
+          </>
+        )}
+        {link.status === 'blocked' && (
+          <Button size="sm" variant="secondary" onClick={() => setLinkStatus(v.id, link.normalId, 'active')}>
+            {L('Unblock', 'إلغاء الحظر')}
+          </Button>
+        )}
+        {link.status === 'waiting' && (
+          <Button size="sm" variant="ghost" onClick={() => setLinkStatus(v.id, link.normalId, 'rejected')}>
+            {t('cancel')}
+          </Button>
+        )}
+      </div>
+    </div>
   )
 }

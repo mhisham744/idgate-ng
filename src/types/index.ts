@@ -290,9 +290,27 @@ export interface Position {
   description?: string
 }
 
+/** A validity window applied to a link or a granted delegation. */
+export interface Validity {
+  open: boolean
+  from?: string
+  to?: string
+}
+
+/** One person linked to a virtual entity, with their own status, window and optional delegation. */
+export interface VirtualLink {
+  normalId: string
+  status: 'waiting' | 'active' | 'rejected' | 'unlinked' | 'blocked'
+  connectedAt?: string
+  disconnectedAt?: string
+  validity?: Validity
+  /** A delegation granted to this person on this entity, with its own validity window. */
+  delegation?: { subject: string; limit?: string; limitAmount?: number; validity?: Validity }
+}
+
 /**
  * A Virtual Character = a Position instance placed within the four structures,
- * granted a profile & delegation, optionally LINKED to a natural person (host).
+ * granted a profile & delegation, optionally LINKED to natural persons (hosts).
  */
 export interface VirtualCharacter {
   id: string
@@ -316,7 +334,9 @@ export interface VirtualCharacter {
   duration: { open: boolean; from?: string; to?: string }
   displayHistory: boolean
   location: PrivacyLevel
-  /** Linked natural person id, or null when unlinked/inactive. */
+  /** Per-person links (multi-host). The `linkedNormalId`/`status` below mirror the first ACTIVE link for legacy consumers. */
+  links?: VirtualLink[]
+  /** Linked natural person id, or null when unlinked/inactive. (Mirror of the primary active link.) */
   linkedNormalId: string | null
   status: 'unlinked' | 'active' | 'blocked'
   createdAt: string
