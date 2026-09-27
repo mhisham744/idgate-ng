@@ -196,8 +196,8 @@ export function Settings() {
         <Card className="overflow-hidden">
           <Row
             leading={<RotateCcw size={20} className="text-red-500" />}
-            title={<span className="text-red-600">{L('Reset demo data', 'إعادة تعيين بيانات العرض')}</span>}
-            subtitle={L('Restore all seed data and sign out', 'استعادة كل البيانات وتسجيل الخروج')}
+            title={<span className="text-red-600">{L('Clear all data', 'مسح كل البيانات')}</span>}
+            subtitle={L('Erase all accounts, organizations & communications', 'مسح كل الحسابات والمؤسسات والمراسلات')}
             onClick={() => setConfirmReset(true)}
           />
         </Card>
@@ -213,12 +213,12 @@ export function Settings() {
       <Modal open={confirmReset} onClose={() => setConfirmReset(false)}>
         <div className="space-y-4">
           <div className="text-base font-semibold text-slate-800">
-            {L('Reset demo data?', 'إعادة تعيين البيانات؟')}
+            {L('Clear all data?', 'مسح كل البيانات؟')}
           </div>
           <p className="text-sm text-slate-500">
             {L(
-              'This restores the original seed data and signs you out. You will need to onboard again.',
-              'سيؤدي هذا إلى استعادة البيانات الأصلية وتسجيل خروجك. ستحتاج إلى الدخول من جديد.',
+              'This permanently erases every account, organization, group and all communications (messages, notifications, posts) and signs you out. The app returns to onboarding so you start from scratch. This cannot be undone.',
+              'سيؤدي هذا إلى مسح كل الحسابات والمؤسسات والمجموعات وكل المراسلات (الرسائل والتنبيهات والمنشورات) نهائيًا وتسجيل خروجك. يعود التطبيق إلى شاشة البدء لتبدأ من جديد. لا يمكن التراجع.',
             )}
           </p>
           <div className="flex gap-2">
@@ -233,7 +233,7 @@ export function Settings() {
                 reset()
               }}
             >
-              {L('Reset', 'إعادة تعيين')}
+              {L('Clear everything', 'مسح الكل')}
             </Button>
           </div>
         </div>

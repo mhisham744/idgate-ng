@@ -1083,7 +1083,30 @@ export const useStore = create<State>()(
           ),
         })),
 
-      reset: () => set({ ...buildSeed(), normalId: null, active: null, onboarded: false }),
+      // Full wipe → blank slate: no accounts, organizations, or communications.
+      // The app returns to onboarding so everything is created from scratch.
+      reset: () =>
+        set({
+          normals: [],
+          communicationAreas: [],
+          entities: [],
+          structures: [],
+          profiles: [],
+          delegations: [],
+          positions: [],
+          virtuals: [],
+          groups: [],
+          posts: [],
+          messages: [],
+          notifications: [],
+          vacancies: [],
+          contactRequests: [],
+          linkRequests: [],
+          normalId: null,
+          active: null,
+          onboarded: false,
+          presenceByNormal: {},
+        }),
     }),
     {
       name: 'idgate.app',
