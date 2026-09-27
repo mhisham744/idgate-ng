@@ -392,6 +392,8 @@ export interface Post {
   comments: { id: string; author: ActorRef; body: string; createdAt: string }[]
   reactedBy: string[] // account keys
   savedBy: string[]
+  /** Directory-scoped audience (actorKeys). Absent = legacy broadcast (visible to all). */
+  audience?: string[]
 }
 
 /** A file attached to a message. `dataUrl` is an in-session preview blob only — it
@@ -420,6 +422,8 @@ export interface Message {
   attachments?: AttachmentMeta[]
   /** actorKeys who soft-deleted (hid) this message from their own view. */
   deletedBy?: string[]
+  /** System-generated (auto-sent, non-editable) — e.g. delegation-share or admin hand-over notices. */
+  system?: boolean
 }
 
 export type NoteKind =

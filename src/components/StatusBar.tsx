@@ -51,6 +51,8 @@ export function StatusBar() {
   const resolve = useResolveActor()
 
   const messages = useStore((s) => s.messages)
+  const normals = useStore((s) => s.normals)
+  const virtuals = useStore((s) => s.virtuals)
   const markRead = useStore((s) => s.markRead)
   const respondNotification = useStore((s) => s.respondNotification)
   const presence = useStore((s) => s.myPresence())
@@ -89,7 +91,7 @@ export function StatusBar() {
         <Cell
           icon={<ClipboardList size={20} />}
           label={t('pending')}
-          count={inbox.senderPending.length + inbox.sentPendingContacts.length}
+          count={inbox.senderPending.length + inbox.sentPendingContacts.length + inbox.sentPendingLinks.length}
           dot={inbox.senderUnread > 0}
           onClick={() => setSheet('pending')}
         />
@@ -184,6 +186,26 @@ export function StatusBar() {
             ))}
           </div>
         )}
+        {inbox.sentPendingLinks.length > 0 && (
+          <div className="mb-2 space-y-1.5">
+            <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {isRtl ? 'طلبات ربط معلّقة' : 'Link requests — waiting'}
+            </div>
+            {inbox.sentPendingLinks.map((l) => {
+              const v = virtuals.find((x) => x.id === l.virtualId)
+              const person = normals.find((n) => n.id === l.targetNormalId)
+              return (
+                <div key={l.id} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-800">{v?.positionName}</div>
+                    <div className="truncate text-xs text-slate-500">{person?.fullName}</div>
+                  </div>
+                  <Badge tone="amber">{isRtl ? 'بانتظار الرد' : 'Waiting'}</Badge>
+                </div>
+              )
+            })}
+          </div>
+        )}
         {inbox.senderPending.length > 0 ? (
           <NoteList
             notes={inbox.senderPending.map((n) => ({
@@ -196,7 +218,7 @@ export function StatusBar() {
             isRtl={isRtl}
             showStatus
           />
-        ) : inbox.sentPendingContacts.length === 0 ? (
+        ) : inbox.sentPendingContacts.length === 0 && inbox.sentPendingLinks.length === 0 ? (
           <EmptyState title={t('pending')} subtitle={isRtl ? 'لا يوجد شيء.' : 'Nothing here.'} />
         ) : null}
       </Sheet>

@@ -5,8 +5,11 @@ import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { useDirectory, useMyInbox } from '@/lib/userScope'
+import { RecipientPicker } from '@/components/RecipientPicker'
+import type { PickerGroup } from '@/components/RecipientPicker'
 
-import type { Post } from '@/types'
+import type { ActorRef, Post } from '@/types'
 import {
   cx,
   Button,
@@ -73,27 +76,57 @@ export function Home() {
   const addPost = useStore((s) => s.addPost)
   const reactPost = useStore((s) => s.reactPost)
   const savePost = useStore((s) => s.savePost)
+  const groupRecipients = useStore((s) => s.groupRecipients)
+  const resolve = useResolveActor()
+  const dir = useDirectory()
+  const inbox = useMyInbox()
 
   const canSend = can('post.send')
 
   const [body, setBody] = useState('')
   const [composerCat, setComposerCat] = useState<Category>('friend')
   const [filter, setFilter] = useState<Category | 'all'>('all')
+  const [toRefs, setToRefs] = useState<ActorRef[]>([])
+  const [toGroups, setToGroups] = useState<string[]>([])
 
   const meKey = active ? actorKey(active) : ''
 
+  const pickerGroups = useMemo<PickerGroup[]>(
+    () => dir.groups.map((g) => ({ id: g.id, name: g.name, count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length })),
+    [dir.groups, groupRecipients, meKey],
+  )
+  const expandGroup = (id: string): ActorRef[] => groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+
+  // A post is visible if I authored it, it's a legacy broadcast (no audience),
+  // or its audience includes one of my accounts.
   const visible = useMemo(() => {
-    const list = filter === 'all' ? posts : posts.filter((p) => p.category === filter)
-    return [...list].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    const keys = inbox.keys
+    const list = (filter === 'all' ? posts : posts.filter((p) => p.category === filter)).filter(
+      (p) => !p.audience || keys.has(actorKey(p.author)) || p.audience.some((k) => keys.has(k)),
     )
-  }, [posts, filter])
+    return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [posts, filter, inbox.keys])
 
   const submit = () => {
     const text = body.trim()
     if (!text || !canSend) return
-    addPost(text, composerCat)
+    // Audience = the chosen people/groups (expanded), or the whole directory by default.
+    // Always include the author so the audience is never empty — an empty audience
+    // would collapse to undefined and be treated as a legacy broadcast (leak).
+    const seen = new Set<string>()
+    const explicit: ActorRef[] = []
+    for (const r of [...toRefs, ...toGroups.flatMap(expandGroup)]) {
+      const k = actorKey(r)
+      if (!seen.has(k)) {
+        seen.add(k)
+        explicit.push(r)
+      }
+    }
+    const audienceKeys = Array.from(new Set([...(explicit.length ? explicit : dir.people).map(actorKey), meKey].filter(Boolean)))
+    addPost(text, composerCat, audienceKeys)
     setBody('')
+    setToRefs([])
+    setToGroups([])
   }
 
   return (
@@ -107,6 +140,21 @@ export function Home() {
           rows={3}
           disabled={!canSend}
         />
+        {canSend && (
+          <RecipientPicker
+            label={L('Audience (from your directory)', 'الجمهور (من دليلك)')}
+            options={dir.people}
+            groups={pickerGroups}
+            refs={toRefs}
+            groupIds={toGroups}
+            onChangeRefs={setToRefs}
+            onChangeGroupIds={setToGroups}
+            resolveName={(r) => resolve(r).displayName}
+            resolveLabel={(r) => resolve(r).displayName}
+            placeholder={L('Everyone in your directory…', 'كل من في دليلك…')}
+            isRtl={isRtl}
+          />
+        )}
         <div className="flex items-center gap-2">
           <Select
             value={composerCat}

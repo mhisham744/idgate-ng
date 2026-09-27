@@ -97,7 +97,7 @@ interface State extends AppData {
   setPresence: (p: import('@/types').Presence) => void
 
   // ── posts ─────────────────────────────────────────────────────────────────────
-  addPost: (body: string, category: Post['category']) => void
+  addPost: (body: string, category: Post['category'], audience?: string[]) => void
   reactPost: (postId: string) => void
   savePost: (postId: string) => void
   commentPost: (postId: string, body: string) => void
@@ -112,6 +112,8 @@ interface State extends AppData {
     attachments?: import('@/types').AttachmentMeta[]
     threadId?: string
   }) => void
+  /** Send a system-generated (auto, non-editable) message from a given sender. */
+  sendSystemMessage: (from: ActorRef, to: ActorRef[], subject: string, body: string) => void
   forwardMessage: (input: {
     source: Message
     to: ActorRef[]
@@ -445,7 +447,7 @@ export const useStore = create<State>()(
       },
 
       // ── posts ──────────────────────────────────────────────────────────────────
-      addPost: (body, category) => {
+      addPost: (body, category, audience) => {
         const { active } = get()
         if (!active) return
         const post: Post = {
@@ -458,6 +460,7 @@ export const useStore = create<State>()(
           comments: [],
           reactedBy: [],
           savedBy: [],
+          audience: audience && audience.length ? audience : undefined,
         }
         set((s) => ({ posts: [post, ...s.posts] }))
       },
@@ -525,6 +528,21 @@ export const useStore = create<State>()(
           readBy: [actorKey(active)],
           savedBy: [],
           attachments: attachments && attachments.length ? attachments : undefined,
+        }
+        set((s) => ({ messages: [msg, ...s.messages] }))
+      },
+      sendSystemMessage: (from, to, subject, body) => {
+        const msg: Message = {
+          id: uid('m'),
+          threadId: uid('t'),
+          from,
+          to: dedupeRefs(to),
+          subject,
+          body,
+          createdAt: new Date().toISOString(),
+          readBy: [actorKey(from)],
+          savedBy: [],
+          system: true,
         }
         set((s) => ({ messages: [msg, ...s.messages] }))
       },

@@ -20,6 +20,8 @@ export interface MyInbox {
   datedItems: Notification[]
   /** Contact requests I sent that are still pending (→ Pending button). */
   sentPendingContacts: import('@/types').ContactRequest[]
+  /** Link requests I sent (I administer the entity) that are still pending (→ Pending button). */
+  sentPendingLinks: import('@/types').LinkRequest[]
 }
 
 const anyKey = (refs: ActorRef[] | undefined, keys: Set<string>) =>
@@ -47,6 +49,8 @@ export function useMyInbox(): MyInbox {
   const messages = useStore((s) => s.messages)
   const notifications = useStore((s) => s.notifications)
   const contactRequests = useStore((s) => s.contactRequests)
+  const linkRequests = useStore((s) => s.linkRequests)
+  const entities = useStore((s) => s.entities)
 
   return useMemo(() => {
     const keys = new Set<string>()
@@ -90,9 +94,14 @@ export function useMyInbox(): MyInbox {
     }
 
     const sentPendingContacts = contactRequests.filter((c) => c.status === 'pending' && keys.has(actorKey(c.from)))
+    const sentPendingLinks = linkRequests.filter((l) => {
+      if (l.status !== 'pending') return false
+      const e = entities.find((x) => x.id === l.entityId)
+      return !!e && (e.adminNormalId === normalId || e.managingDirectorNormalId === normalId)
+    })
 
-    return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts }
-  }, [normalId, virtuals, messages, notifications, contactRequests])
+    return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts, sentPendingLinks }
+  }, [normalId, virtuals, messages, notifications, contactRequests, linkRequests, entities])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -47,7 +47,7 @@ export function Settings() {
 
   const [confirmReset, setConfirmReset] = useState(false)
   // Contact Request relocated from the Tools page; Delegation Display stays illustrative.
-  const [sheet, setSheet] = useState<null | 'contact' | 'delegation'>(null)
+  const [sheet, setSheet] = useState<null | 'contact'>(null)
   const [contactQuery, setContactQuery] = useState('')
   const [contactSent, setContactSent] = useState(false)
 
@@ -81,7 +81,7 @@ export function Settings() {
     })
   }, [normals, virtuals, meKey, contactRequests, contactQuery, resolve])
 
-  const openSheet = (which: 'contact' | 'delegation') => {
+  const openSheet = (which: 'contact') => {
     setContactQuery('')
     setContactSent(false)
     setSheet(which)
@@ -161,7 +161,7 @@ export function Settings() {
           title={L('Delegation Show', 'عرض التفويض')}
           subtitle={L('Share a delegation with an account', 'مشاركة تفويض مع حساب')}
           trailing={Chevron}
-          onClick={() => openSheet('delegation')}
+          onClick={() => nav('/settings/delegation-show')}
         />
         <Row
           leading={<Info size={20} className="text-gate-600" />}
@@ -297,25 +297,6 @@ export function Settings() {
             )}
           </div>
         )}
-      </Sheet>
-
-      {/* Delegation Display Request — illustrative */}
-      <Sheet
-        open={sheet === 'delegation'}
-        onClose={() => setSheet(null)}
-        title={L('Delegation Show', 'عرض التفويض')}
-        footer={
-          <Button full variant="secondary" onClick={() => setSheet(null)}>
-            {t('close')}
-          </Button>
-        }
-      >
-        <p className="text-sm text-slate-600">
-          {L(
-            'This tool is part of the IDGate demo and is illustrative only.',
-            'هذه الأداة جزء من العرض التوضيحي لـ IDGate وهي للتوضيح فقط.',
-          )}
-        </p>
       </Sheet>
     </div>
   )

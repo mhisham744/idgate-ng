@@ -360,6 +360,11 @@ function ThreadSheet({
                       : 'rounded-3xl rounded-es-md bg-slate-100 px-4 py-2.5 text-sm text-slate-800'
                   }
                 >
+                  {m.system && (
+                    <span className={cx('mb-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide', mine ? 'bg-light/20 text-light' : 'bg-slate-200 text-slate-500')}>
+                      {isRtl ? 'نظامي' : 'System'}
+                    </span>
+                  )}
                   <p className="whitespace-pre-wrap">{m.body}</p>
                   {m.attachments && m.attachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
