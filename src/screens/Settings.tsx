@@ -4,7 +4,7 @@ import { useStore } from '@/store'
 import { useLang, useI18n } from '@/i18n'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { actorKey } from '@/lib/identity'
-import { Button, Card, Chip, Field, Row, Select, SectionHeader, Sheet, Modal } from '@/ui/primitives'
+import { Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal } from '@/ui/primitives'
 import type { ActorRef } from '@/types'
 import {
   User,
@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Link2,
   Network,
+  Search,
   Info,
   ChevronRight,
   Languages,
@@ -47,22 +48,41 @@ export function Settings() {
   const [confirmReset, setConfirmReset] = useState(false)
   // Contact Request relocated from the Tools page; Delegation Display stays illustrative.
   const [sheet, setSheet] = useState<null | 'contact' | 'delegation'>(null)
-  const [recipient, setRecipient] = useState('')
+  const [contactQuery, setContactQuery] = useState('')
   const [contactSent, setContactSent] = useState(false)
 
+  const contactRequests = useStore((s) => s.contactRequests)
   const meKey = active ? actorKey(active) : ''
-  const contactOptions = useMemo<{ key: string; ref: ActorRef }[]>(() => {
+
+  // Candidates for a NEW contact request: any person or active virtual, excluding
+  // self and anyone already connected (accepted) or with a request pending either way.
+  const contactCandidates = useMemo<{ key: string; ref: ActorRef }[]>(() => {
+    const excluded = new Set<string>([meKey])
+    for (const c of contactRequests) {
+      if (c.status === 'rejected') continue
+      if (actorKey(c.from) === meKey) excluded.add(actorKey(c.to))
+      else if (actorKey(c.to) === meKey) excluded.add(actorKey(c.from))
+    }
     const opts: { key: string; ref: ActorRef }[] = [
       ...normals.map((n) => ({ key: `n:${n.id}`, ref: { kind: 'normal', normalId: n.id } as ActorRef })),
-      ...virtuals
-        .filter((v) => v.status === 'active')
-        .map((v) => ({ key: `v:${v.id}`, ref: { kind: 'virtual', virtualId: v.id } as ActorRef })),
+      ...virtuals.filter((v) => v.status === 'active').map((v) => ({ key: `v:${v.id}`, ref: { kind: 'virtual', virtualId: v.id } as ActorRef })),
     ]
-    return opts.filter((o) => o.key !== meKey && (!active || canCommunicate(active, o.ref)))
-  }, [normals, virtuals, meKey, active, canCommunicate])
+    const q = contactQuery.trim().toLowerCase()
+    return opts.filter((o) => {
+      if (excluded.has(o.key)) return false
+      if (!q) return true
+      const info = resolve(o.ref)
+      const nrec = normals.find((x) => o.ref.kind === 'normal' && x.id === o.ref.normalId)
+      return (
+        info.displayName.toLowerCase().includes(q) ||
+        (nrec?.internalCode ?? '').toLowerCase().includes(q) ||
+        (nrec?.contacts.mobile ?? '').replace(/\s+/g, '').includes(q.replace(/\s+/g, ''))
+      )
+    })
+  }, [normals, virtuals, meKey, contactRequests, contactQuery, resolve])
 
   const openSheet = (which: 'contact' | 'delegation') => {
-    setRecipient('')
+    setContactQuery('')
     setContactSent(false)
     setSheet(which)
   }
@@ -219,7 +239,7 @@ export function Settings() {
         </div>
       </Modal>
 
-      {/* Contact Request — functional */}
+      {/* Contact Request — searchable, excludes already-connected */}
       <Sheet
         open={sheet === 'contact'}
         onClose={() => setSheet(null)}
@@ -229,38 +249,53 @@ export function Settings() {
             <Button full variant="secondary" onClick={() => setSheet(null)}>
               {t('done')}
             </Button>
-          ) : (
-            <Button
-              full
-              disabled={!recipient}
-              onClick={() => {
-                const ref = contactOptions.find((o) => o.key === recipient)?.ref
-                if (!ref) return
-                sendContactRequest(ref)
-                setContactSent(true)
-              }}
-            >
-              <Send size={16} className="me-1.5" />
-              {t('send')}
-            </Button>
-          )
+          ) : undefined
         }
       >
         {contactSent ? (
           <p className="py-6 text-center text-sm text-slate-600">
-            {L('Contact request sent.', 'تم إرسال طلب التواصل.')}
+            {L('Contact request sent — it is now pending on your top bar until accepted.', 'تم إرسال طلب التواصل — وهو الآن معلّق في الشريط العلوي حتى القبول.')}
           </p>
         ) : (
-          <Field label={t('to')} required>
-            <Select value={recipient} onChange={(e) => setRecipient(e.target.value)}>
-              <option value="">{L('Select a recipient', 'اختر مستلمًا')}</option>
-              {contactOptions.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {resolve(o.ref).displayName}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-slate-400" />
+              <Input
+                value={contactQuery}
+                onChange={(e) => setContactQuery(e.target.value)}
+                placeholder={L('Search by name / internal code / mobile…', 'ابحث بالاسم / الكود الداخلي / الجوال…')}
+                className="ps-9"
+              />
+            </div>
+            {contactCandidates.length === 0 ? (
+              <p className="py-4 text-center text-sm text-slate-500">
+                {L('No accounts to connect with.', 'لا توجد حسابات للتواصل معها.')}
+              </p>
+            ) : (
+              <div className="max-h-80 space-y-1.5 overflow-y-auto thin-scroll pe-0.5">
+                {contactCandidates.map((o) => {
+                  const info = resolve(o.ref)
+                  return (
+                    <div key={o.key} className="flex items-center gap-2 rounded-2xl border border-slate-100 p-2.5">
+                      <div className="min-w-0 flex-1">
+                        <ActorLine actor={o.ref} size={34} />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          sendContactRequest(o.ref)
+                          setContactSent(true)
+                        }}
+                      >
+                        <Send size={13} /> {t('send')}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )}
       </Sheet>
 

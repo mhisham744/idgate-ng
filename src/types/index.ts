@@ -352,11 +352,15 @@ export interface VirtualCharacter {
 
 export interface Group {
   id: string
-  entityId: string
-  ownerVirtualId: string
+  /** Owning entity (for entity/criteria-based groups); omitted for personal directory groups. */
+  entityId?: string
+  /** Owning virtual account (entity groups) — omitted for personal groups. */
+  ownerVirtualId?: string
+  /** Owning natural person (personal directory groups). */
+  ownerNormalId?: string
   name: string
   // selection criteria — any combination
-  /** Position criteria (mandatory in the UI: at least one). A virtual matches if its position is any of these. */
+  /** Position criteria (entity groups). A virtual matches if its position is any of these. */
   positionNames?: string[]
   /** @deprecated legacy single-position field, migrated into positionNames. */
   positionName?: string

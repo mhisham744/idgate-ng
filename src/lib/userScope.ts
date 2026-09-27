@@ -18,6 +18,8 @@ export interface MyInbox {
   myDuties: Notification[]
   /** Notes I sent OR received that carry a target date (feeds the calendar). */
   datedItems: Notification[]
+  /** Contact requests I sent that are still pending (→ Pending button). */
+  sentPendingContacts: import('@/types').ContactRequest[]
 }
 
 const anyKey = (refs: ActorRef[] | undefined, keys: Set<string>) =>
@@ -44,6 +46,7 @@ export function useMyInbox(): MyInbox {
   const virtuals = useStore((s) => s.virtuals)
   const messages = useStore((s) => s.messages)
   const notifications = useStore((s) => s.notifications)
+  const contactRequests = useStore((s) => s.contactRequests)
 
   return useMemo(() => {
     const keys = new Set<string>()
@@ -86,8 +89,10 @@ export function useMyInbox(): MyInbox {
       if ((iAmSender || !!mine) && n.targetDate) datedItems.push(n)
     }
 
-    return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems }
-  }, [normalId, virtuals, messages, notifications])
+    const sentPendingContacts = contactRequests.filter((c) => c.status === 'pending' && keys.has(actorKey(c.from)))
+
+    return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts }
+  }, [normalId, virtuals, messages, notifications, contactRequests])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -89,7 +89,7 @@ export function StatusBar() {
         <Cell
           icon={<ClipboardList size={20} />}
           label={t('pending')}
-          count={inbox.senderPending.length}
+          count={inbox.senderPending.length + inbox.sentPendingContacts.length}
           dot={inbox.senderUnread > 0}
           onClick={() => setSheet('pending')}
         />
@@ -167,19 +167,38 @@ export function StatusBar() {
         )}
       </Sheet>
 
-      {/* Sender-side open notes */}
+      {/* Sender-side open notes + pending sent contact requests */}
       <Sheet open={sheet === 'pending'} onClose={close} title={t('pending')}>
-        <NoteList
-          notes={inbox.senderPending.map((n) => ({
-            note: n,
-            dot: (n.recipients ?? []).some((rc) => threadHasUnseen(rc, keys)),
-          }))}
-          emptyLabel={t('pending')}
-          onOpen={goNote}
-          lang={lang}
-          isRtl={isRtl}
-          showStatus
-        />
+        {inbox.sentPendingContacts.length > 0 && (
+          <div className="mb-2 space-y-1.5">
+            <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {isRtl ? 'طلبات تواصل معلّقة' : 'Contact requests — waiting'}
+            </div>
+            {inbox.sentPendingContacts.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 p-3">
+                <div className="min-w-0 flex-1">
+                  <ActorLine actor={c.to} size={30} />
+                </div>
+                <Badge tone="amber">{isRtl ? 'بانتظار الرد' : 'Waiting'}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+        {inbox.senderPending.length > 0 ? (
+          <NoteList
+            notes={inbox.senderPending.map((n) => ({
+              note: n,
+              dot: (n.recipients ?? []).some((rc) => threadHasUnseen(rc, keys)),
+            }))}
+            emptyLabel={t('pending')}
+            onOpen={goNote}
+            lang={lang}
+            isRtl={isRtl}
+            showStatus
+          />
+        ) : inbox.sentPendingContacts.length === 0 ? (
+          <EmptyState title={t('pending')} subtitle={isRtl ? 'لا يوجد شيء.' : 'Nothing here.'} />
+        ) : null}
       </Sheet>
 
       {/* Accepted-not-closed duties */}
