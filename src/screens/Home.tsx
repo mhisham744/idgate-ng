@@ -84,8 +84,6 @@ export function Home() {
   const canSend = can('post.send')
 
   const [body, setBody] = useState('')
-  const [composerCat, setComposerCat] = useState<Category>('friend')
-  const [filter, setFilter] = useState<Category | 'all'>('all')
   const [toRefs, setToRefs] = useState<ActorRef[]>([])
   const [toGroups, setToGroups] = useState<string[]>([])
 
@@ -101,11 +99,9 @@ export function Home() {
   // or its audience includes one of my accounts.
   const visible = useMemo(() => {
     const keys = inbox.keys
-    const list = (filter === 'all' ? posts : posts.filter((p) => p.category === filter)).filter(
-      (p) => !p.audience || keys.has(actorKey(p.author)) || p.audience.some((k) => keys.has(k)),
-    )
+    const list = posts.filter((p) => !p.audience || keys.has(actorKey(p.author)) || p.audience.some((k) => keys.has(k)))
     return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [posts, filter, inbox.keys])
+  }, [posts, inbox.keys])
 
   const submit = () => {
     const text = body.trim()
@@ -123,7 +119,7 @@ export function Home() {
       }
     }
     const audienceKeys = Array.from(new Set([...(explicit.length ? explicit : dir.people).map(actorKey), meKey].filter(Boolean)))
-    addPost(text, composerCat, audienceKeys)
+    addPost(text, 'friend', audienceKeys)
     setBody('')
     setToRefs([])
     setToGroups([])
@@ -156,18 +152,6 @@ export function Home() {
           />
         )}
         <div className="flex items-center gap-2">
-          <Select
-            value={composerCat}
-            onChange={(e) => setComposerCat(e.target.value as Category)}
-            disabled={!canSend}
-            className="w-auto min-w-[8rem]"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {catLabel(c)}
-              </option>
-            ))}
-          </Select>
           <div className="flex-1" />
           <Button
             variant="primary"
@@ -181,18 +165,6 @@ export function Home() {
           <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
         )}
       </Card>
-
-      {/* Category filter */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-4 px-4">
-        <Chip active={filter === 'all'} onClick={() => setFilter('all')}>
-          {L('All', 'الكل')}
-        </Chip>
-        {CATEGORIES.map((c) => (
-          <Chip key={c} active={filter === c} onClick={() => setFilter(c)}>
-            {catLabel(c)}
-          </Chip>
-        ))}
-      </div>
 
       {/* Feed */}
       {visible.length === 0 ? (
@@ -210,8 +182,6 @@ export function Home() {
               index={i}
               meKey={meKey}
               lang={lang}
-              catLabel={catLabel(p.category)}
-              catTone={catTone(p.category)}
               L={L}
               onReact={() => reactPost(p.id)}
               onSave={() => savePost(p.id)}
@@ -228,8 +198,6 @@ function PostCard({
   index,
   meKey,
   lang,
-  catLabel,
-  catTone,
   L,
   onReact,
   onSave,
@@ -238,8 +206,6 @@ function PostCard({
   index: number
   meKey: string
   lang: 'en' | 'ar'
-  catLabel: string
-  catTone: 'slate' | 'green' | 'amber' | 'red' | 'gate' | 'teal' | 'violet'
   L: (en: string, ar: string) => string
   onReact: () => void
   onSave: () => void
@@ -268,7 +234,6 @@ function PostCard({
       <div className="flex items-start justify-between gap-2">
         <ActorLine actor={post.author} size={40} showAddress />
         <div className="flex flex-col items-end gap-0.5 shrink-0">
-          <Badge tone={catTone}>{catLabel}</Badge>
           <span className="text-[11px] leading-none text-slate-500">
             {relativeTime(post.createdAt, lang)}
           </span>

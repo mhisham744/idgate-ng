@@ -7,8 +7,10 @@ import {
   CheckCircle2,
   Layers,
   Link2,
+  Pencil,
   Plus,
   Shield,
+  Trash2,
   Users,
   Briefcase,
   UsersRound,
@@ -51,7 +53,7 @@ const COUNTRIES: Country[] = ['Egypt', 'USA', 'France', 'Germany', 'India']
 const FULL: PermissionSet = { create: true, change: true, display: true, delete: true }
 const DISPLAY_ONLY: PermissionSet = { create: false, change: false, display: true, delete: false }
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 8
 
 export function EntityWizard() {
   const navigate = useNavigate()
@@ -64,8 +66,13 @@ export function EntityWizard() {
   const addProfile = useStore((s) => s.addProfile)
   const addDelegation = useStore((s) => s.addDelegation)
   const addPosition = useStore((s) => s.addPosition)
+  const updatePosition = useStore((s) => s.updatePosition)
+  const removePosition = useStore((s) => s.removePosition)
   const addVirtual = useStore((s) => s.addVirtual)
+  const removeVirtual = useStore((s) => s.removeVirtual)
   const activateEntity = useStore((s) => s.activateEntity)
+  const updateEntity = useStore((s) => s.updateEntity)
+  const sendSystemMessage = useStore((s) => s.sendSystemMessage)
   const communicationAreas = useStore((s) => s.communicationAreas)
   const addCommunicationArea = useStore((s) => s.addCommunicationArea)
 
@@ -76,6 +83,7 @@ export function EntityWizard() {
   const virtuals = useStore((s) => s.virtuals)
   const delegations = useStore((s) => s.delegations)
   const entities = useStore((s) => s.entities)
+  const normals = useStore((s) => s.normals)
 
   const [step, setStep] = useState(1)
   const [entityId, setEntityId] = useState<string | null>(null)
@@ -93,6 +101,7 @@ export function EntityWizard() {
   const [legalType, setLegalType] = useState<LegalEntityType | ''>('')
   const [industry, setIndustry] = useState<Industry | ''>('')
   const [country, setCountry] = useState<Country | ''>('')
+  const [adminNId, setAdminNId] = useState('')
 
   const ent = entityId ? entities.find((e) => e.id === entityId) : undefined
 
@@ -155,7 +164,7 @@ export function EntityWizard() {
     !!country
 
   function goNext() {
-    if (step === 2) ensureEntity()
+    if (step === 1) ensureEntity()
     setStep((s) => Math.min(TOTAL_STEPS, s + 1))
   }
   function goBack() {
@@ -182,16 +191,6 @@ export function EntityWizard() {
       </div>
 
       {step === 1 && (
-        <Step1
-          L={L}
-          areas={visibleAreas}
-          areaId={areaId}
-          setAreaId={setAreaId}
-          addArea={addCommunicationArea}
-        />
-      )}
-
-      {step === 2 && (
         <Card className="p-4 space-y-3">
           <SectionHeader title={L('Corporate Master Data', 'البيانات الأساسية للمؤسسة')} />
           <Field label={L('Communication Area', 'منطقة التواصل')} required>
@@ -267,29 +266,16 @@ export function EntityWizard() {
         </Card>
       )}
 
-      {step === 3 && (
-        <Step3 L={L} lang={lang} entityId={entityId} myStructures={allMyStructures} />
-      )}
+      {step === 2 && <Step3 L={L} lang={lang} entityId={entityId} myStructures={allMyStructures} />}
+
+      {step === 3 && <ProfilesStep L={L} entityId={entityId} profiles={myProfiles} />}
 
       {step === 4 && (
-        <Step4
-          L={L}
-          lang={lang}
-          entityId={entityId}
-          profiles={myProfiles}
-          delegations={myDelegations}
-          addProfile={addProfile}
-          addDelegation={addDelegation}
-        />
+        <DelegationStep L={L} entityId={entityId} delegations={myDelegations} addDelegation={addDelegation} />
       )}
 
       {step === 5 && (
-        <Step5
-          L={L}
-          entityId={entityId}
-          positions={myPositions}
-          addPosition={addPosition}
-        />
+        <Step5 L={L} entityId={entityId} positions={myPositions} addPosition={addPosition} updatePosition={updatePosition} removePosition={removePosition} />
       )}
 
       {step === 6 && (
@@ -302,10 +288,15 @@ export function EntityWizard() {
           structures={myStructures}
           virtuals={myVirtuals}
           addVirtual={(payload) => addVirtual(payload)}
+          removeVirtual={removeVirtual}
         />
       )}
 
       {step === 7 && (
+        <AdminStep L={L} normals={normals} adminNId={adminNId} setAdminNId={setAdminNId} />
+      )}
+
+      {step === 8 && (
         <Card className="p-4 space-y-3">
           <div className="flex items-center gap-2 text-slate-800">
             <CheckCircle2 size={20} className="text-emerald-600" />
@@ -318,16 +309,53 @@ export function EntityWizard() {
               { icon: <Layers size={14} />, n: myStructures.length, text: L('structure nodes', 'عقد الهيكل') },
               { icon: <Shield size={14} />, n: myProfiles.length, text: t('authorization') },
               { icon: <Briefcase size={14} />, n: myPositions.length, text: t('positions') },
-              { icon: <Users size={14} />, n: myVirtuals.length, text: t('virtualAccountsMd') },
+              { icon: <Users size={14} />, n: myVirtuals.length, text: L('Virtual Entity', 'الكيان الافتراضي') },
             ]}
           />
+          <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            {L('On activation, an Administrator virtual entity is created for ', 'عند التفعيل، يُنشأ كيان افتراضي "مدير" لـ ')}
+            <span className="font-semibold text-slate-800">{normals.find((n) => n.id === adminNId)?.fullName ?? '—'}</span>
+            {L(' with full authority, and control is handed over to them.', ' بصلاحية كاملة، وتُسلَّم الإدارة إليه.')}
+          </div>
           <Button
             full
-            disabled={!entityId}
+            disabled={!entityId || !adminNId}
             onClick={() => {
-              if (!entityId) return
+              if (!entityId || !adminNId) return
+              // Auto-create the Administrator position + full-authority virtual, link the chosen person.
+              const posId = addPosition(entityId, 'Administrator')
+              const permissions: Partial<Record<TransactionKey, PermissionSet>> = {}
+              PROFILE_GRANTABLE.forEach((k) => (permissions[k] = { ...FULL }))
+              const profId = addProfile({ entityId, name: L('Administrator', 'مدير'), permissions })
+              const adminVId = addVirtual({
+                entityId,
+                positionId: posId,
+                positionName: 'Administrator',
+                structure: {},
+                profileIds: [profId],
+                delegationSubjects: [],
+                delegationLimits: [],
+                delegationDisplay: true,
+                delegateOthers: true,
+                duration: { open: true },
+                displayHistory: true,
+                location: 'contacts',
+                linkedNormalId: adminNId,
+              })
+              // System message to the new admin with the org internal code.
+              sendSystemMessage(
+                { kind: 'virtual', virtualId: adminVId },
+                [{ kind: 'normal', normalId: adminNId }],
+                L('Your administrator account is ready', 'حساب المدير الخاص بك جاهز'),
+                L(
+                  `You are now the administrator of ${ent?.commercialName ?? ''}. Organization internal code: ${entityCode}.`,
+                  `أنت الآن مدير ${ent?.commercialName ?? ''}. كود المؤسسة الداخلي: ${entityCode}.`,
+                ),
+              )
+              // Hand authority to the admin — the creator no longer administers it.
+              updateEntity(entityId, { adminNormalId: adminNId, managingDirectorNormalId: adminNId })
               activateEntity(entityId)
-              navigate('/settings/entity/' + entityId)
+              navigate('/settings/entities')
             }}
           >
             <CheckCircle2 size={16} /> {t('activate')}
@@ -341,7 +369,7 @@ export function EntityWizard() {
           <ArrowLeft size={16} className="rtl:rotate-180" /> {t('back')}
         </Button>
         {step < TOTAL_STEPS && (
-          <Button onClick={goNext} className="flex-1" disabled={(step === 1 && !areaId) || (step === 2 && !step2Valid)}>
+          <Button onClick={goNext} className="flex-1" disabled={(step === 1 && !step2Valid) || (step === 7 && !adminNId)}>
             {t('next')} <ArrowRight size={16} className="rtl:rotate-180" />
           </Button>
         )}
@@ -351,57 +379,38 @@ export function EntityWizard() {
 }
 
 // ── Step 1 ────────────────────────────────────────────────────────────────────
-function Step1({
+// ── Administrator step ────────────────────────────────────────────────────────
+function AdminStep({
   L,
-  areas,
-  areaId,
-  setAreaId,
-  addArea,
+  normals,
+  adminNId,
+  setAdminNId,
 }: {
   L: (en: string, ar: string) => string
-  areas: import('@/types').CommunicationArea[]
-  areaId: string
-  setAreaId: (id: string) => void
-  addArea: (name: string) => string
+  normals: import('@/types').NormalCharacter[]
+  adminNId: string
+  setAdminNId: (id: string) => void
 }) {
-  const [newName, setNewName] = useState('')
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
-        <Building2 size={20} className="text-gate-600" />
-        <h3 className="text-sm font-bold">{L('Communication Area', 'منطقة التواصل')}</h3>
+        <Shield size={18} className="text-gate-600" />
+        <h3 className="text-sm font-bold">{L('Administrator', 'المدير')}</h3>
       </div>
       <p className="text-xs leading-relaxed text-slate-500">
         {L(
-          'Organizations that share a Communication Area can communicate with one another. Pick an existing area, or create one.',
-          'المؤسسات التي تشترك في منطقة تواصل واحدة يمكنها التواصل معًا. اختر منطقة قائمة أو أنشئ واحدة.',
+          'Choose the natural person who will administer this organization. On activation they receive a full-authority Administrator account and control is handed over to them — you will no longer administer it (unless you choose yourself).',
+          'اختر الشخص الطبيعي الذي سيدير هذه المؤسسة. عند التفعيل يحصل على حساب "مدير" بصلاحية كاملة وتُسلَّم الإدارة إليه — ولن تديرها بعد ذلك (إلا إذا اخترت نفسك).',
         )}
       </p>
-      <Field label={L('Communication Area', 'منطقة التواصل')} required>
-        <Select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          <option value="">{L('Select area…', 'اختر المنطقة…')}</option>
-          {areas.map((a) => (
-            <option key={a.id} value={a.id}>{a.name}</option>
+      <Field label={L('Administrator', 'المدير')} required>
+        <Select value={adminNId} onChange={(e) => setAdminNId(e.target.value)}>
+          <option value="">—</option>
+          {normals.map((n) => (
+            <option key={n.id} value={n.id}>{n.fullName}</option>
           ))}
         </Select>
       </Field>
-      <div className="flex items-end gap-2 border-t border-slate-100 pt-3">
-        <Field label={L('Create a new area', 'إنشاء منطقة جديدة')} hint={L('optional', 'اختياري')}>
-          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={L('e.g. Global Group', 'مثال: المجموعة العالمية')} />
-        </Field>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!newName.trim()}
-          onClick={() => {
-            const id = addArea(newName.trim())
-            setAreaId(id)
-            setNewName('')
-          }}
-        >
-          <Plus size={14} />
-        </Button>
-      </div>
     </Card>
   )
 }
@@ -435,44 +444,26 @@ function Step3({
   )
 }
 
-// ── Step 4 ────────────────────────────────────────────────────────────────────
-function Step4({
+// ── Profiles step ───────────────────────────────────────────────────────────
+function ProfilesStep({
   L,
-  lang,
   entityId,
   profiles,
-  delegations,
-  addProfile,
-  addDelegation,
 }: {
   L: (en: string, ar: string) => string
-  lang: 'en' | 'ar'
   entityId: string | null
   profiles: import('@/types').Profile[]
-  delegations: import('@/types').DelegationItem[]
-  addProfile: (p: Omit<import('@/types').Profile, 'id'>) => string
-  addDelegation: (d: Omit<import('@/types').DelegationItem, 'id'>) => void
 }) {
-  const [subject, setSubject] = useState('')
-  const [limit, setLimit] = useState('')
   const [profOpen, setProfOpen] = useState(false)
   const [profEdit, setProfEdit] = useState<import('@/types').Profile | null>(null)
   if (!entityId) return <NeedDraft L={L} />
-
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
         <Shield size={18} className="text-gate-600" />
         <h3 className="text-sm font-bold">{L('Authorization Profiles', 'بروفايلات الصلاحيات')}</h3>
       </div>
-      <Button
-        full
-        variant="secondary"
-        onClick={() => {
-          setProfEdit(null)
-          setProfOpen(true)
-        }}
-      >
+      <Button full variant="secondary" onClick={() => { setProfEdit(null); setProfOpen(true) }}>
         <Plus size={14} /> {L('New profile', 'بروفايل جديد')}
       </Button>
       {profiles.length > 0 && (
@@ -481,54 +472,72 @@ function Step4({
             <button
               key={p.id}
               type="button"
-              onClick={() => {
-                setProfEdit(p)
-                setProfOpen(true)
-              }}
+              onClick={() => { setProfEdit(p); setProfOpen(true) }}
               className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-start transition hover:bg-slate-100"
             >
               <span className="text-sm font-medium text-slate-700">{p.name}</span>
-              <Badge tone="gate">
-                {Object.keys(p.permissions).length} {L('tx', 'معاملة')}
-              </Badge>
+              <Badge tone="gate">{Object.keys(p.permissions).length} {L('tx', 'معاملة')}</Badge>
             </button>
           ))}
         </div>
       )}
-
       <ProfileEditor open={profOpen} onClose={() => setProfOpen(false)} entityId={entityId} profile={profEdit} />
+    </Card>
+  )
+}
 
-      <div className="border-t border-slate-100 pt-3 space-y-2">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">{L('Delegation', 'التفويض')}</h4>
-        <Field label={L('Subject', 'الموضوع')}>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={L('Approve purchase orders', 'اعتماد أوامر الشراء')} />
-        </Field>
-        <Field label={L('Limit (amount)', 'الحد (قيمة)')} hint={L('numeric', 'رقمي')}>
-          <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder="1000000" />
-        </Field>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!subject.trim()}
-          onClick={() => {
-            addDelegation({ entityId, subject: subject.trim(), limit: limit.trim(), limitAmount: limit ? Number(limit) : undefined })
-            setSubject('')
-            setLimit('')
-          }}
-        >
-          <Plus size={14} /> {L('Add delegation', 'إضافة تفويض')}
-        </Button>
-        {delegations.length > 0 && (
-          <div className="space-y-1 pt-1">
-            {delegations.map((d) => (
-              <div key={d.id} className="rounded-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
-                <span className="font-medium text-slate-700">{d.subject}</span>
-                {d.limit && <span className="text-slate-400"> · {d.limit}</span>}
-              </div>
-            ))}
-          </div>
-        )}
+// ── Delegation Object step ────────────────────────────────────────────────────
+function DelegationStep({
+  L,
+  entityId,
+  delegations,
+  addDelegation,
+}: {
+  L: (en: string, ar: string) => string
+  entityId: string | null
+  delegations: import('@/types').DelegationItem[]
+  addDelegation: (d: Omit<import('@/types').DelegationItem, 'id'>) => void
+}) {
+  const [subject, setSubject] = useState('')
+  const [limit, setLimit] = useState('')
+  if (!entityId) return <NeedDraft L={L} />
+  return (
+    <Card className="p-4 space-y-3">
+      <div className="flex items-center gap-2 text-slate-800">
+        <Shield size={18} className="text-gate-600" />
+        <h3 className="text-sm font-bold">{L('Delegation Objects', 'كائنات التفويض')}</h3>
       </div>
+      <p className="text-xs text-slate-500">
+        {L('Define delegation objects (subject + numeric limit) to grant to virtual accounts when linking.', 'عرّف كائنات التفويض (الموضوع + حد رقمي) لمنحها للحسابات الافتراضية عند الربط.')}
+      </p>
+      <Field label={L('Subject', 'الموضوع')}>
+        <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={L('Approve purchase orders', 'اعتماد أوامر الشراء')} />
+      </Field>
+      <Field label={L('Limit (amount)', 'الحد (قيمة)')} hint={L('numeric', 'رقمي')}>
+        <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder="1000000" />
+      </Field>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={!subject.trim()}
+        onClick={() => {
+          addDelegation({ entityId, subject: subject.trim(), limit: limit.trim(), limitAmount: limit ? Number(limit) : undefined })
+          setSubject('')
+          setLimit('')
+        }}
+      >
+        <Plus size={14} /> {L('Add delegation', 'إضافة تفويض')}
+      </Button>
+      {delegations.length > 0 && (
+        <div className="space-y-1 pt-1">
+          {delegations.map((d) => (
+            <div key={d.id} className="rounded-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+              <span className="font-medium text-slate-700">{d.subject}</span>
+              {(d.limitAmount != null || d.limit) && <span className="text-slate-400"> · {d.limitAmount != null ? d.limitAmount.toLocaleString() : d.limit}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }
@@ -539,13 +548,19 @@ function Step5({
   entityId,
   positions,
   addPosition,
+  updatePosition,
+  removePosition,
 }: {
   L: (en: string, ar: string) => string
   entityId: string | null
   positions: import('@/types').Position[]
   addPosition: (entityId: string, name: string) => string
+  updatePosition: (id: string, name: string) => void
+  removePosition: (id: string) => void
 }) {
   const [name, setName] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
   if (!entityId) return <NeedDraft L={L} />
   return (
     <Card className="p-4 space-y-3">
@@ -569,12 +584,28 @@ function Step5({
       </div>
       {positions.length > 0 && (
         <div className="space-y-1.5">
-          {positions.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-              <Briefcase size={14} className="text-gate-600" />
-              <span className="text-sm font-medium text-slate-700">{p.name}</span>
-            </div>
-          ))}
+          {positions.map((p) =>
+            editId === p.id ? (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-1.5">
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8 flex-1 py-0" />
+                <Button size="sm" disabled={!editName.trim()} onClick={() => { updatePosition(p.id, editName.trim()); setEditId(null) }}>
+                  {L('Save', 'حفظ')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>{L('Cancel', 'إلغاء')}</Button>
+              </div>
+            ) : (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                <Briefcase size={14} className="text-gate-600" />
+                <span className="flex-1 text-sm font-medium text-slate-700">{p.name}</span>
+                <button onClick={() => { setEditId(p.id); setEditName(p.name) }} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
+                  <Pencil size={13} />
+                </button>
+                <button onClick={() => removePosition(p.id)} className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ),
+          )}
         </div>
       )}
     </Card>
@@ -591,6 +622,7 @@ function Step6({
   structures,
   virtuals,
   addVirtual,
+  removeVirtual,
 }: {
   L: (en: string, ar: string) => string
   lang: 'en' | 'ar'
@@ -600,6 +632,7 @@ function Step6({
   structures: import('@/types').StructureNode[]
   virtuals: import('@/types').VirtualCharacter[]
   addVirtual: (v: Omit<import('@/types').VirtualCharacter, 'id' | 'createdAt' | 'status'>) => string
+  removeVirtual: (id: string) => void
 }) {
   const [posId, setPosId] = useState('')
   const [profId, setProfId] = useState('')
@@ -683,9 +716,14 @@ function Step6({
       {virtuals.length > 0 && (
         <div className="space-y-1.5 border-t border-slate-100 pt-3">
           {virtuals.map((v) => (
-            <div key={v.id} className="rounded-xl bg-slate-50 px-3 py-2">
-              <div className="text-xs font-semibold text-slate-700">{v.positionName}</div>
-              <div className="font-address text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
+            <div key={v.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-slate-700">{v.positionName}</div>
+                <div className="font-address text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
+              </div>
+              <button onClick={() => removeVirtual(v.id)} className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
+                <Trash2 size={13} />
+              </button>
             </div>
           ))}
         </div>

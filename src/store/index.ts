@@ -202,8 +202,11 @@ interface State extends AppData {
   addDelegation: (d: Omit<DelegationItem, 'id'>) => void
   updateDelegation: (id: string, patch: Partial<DelegationItem>) => void
   addPosition: (entityId: string, name: string) => string
+  updatePosition: (id: string, name: string) => void
+  removePosition: (id: string) => void
   addVirtual: (v: Omit<VirtualCharacter, 'id' | 'createdAt' | 'status'>) => string
   updateVirtual: (id: string, patch: Partial<VirtualCharacter>) => void
+  removeVirtual: (id: string) => void
   linkVirtual: (virtualId: string, normalId: string) => void
   unlinkVirtual: (virtualId: string) => void
   blockVirtual: (virtualId: string, blocked: boolean) => void
@@ -1029,6 +1032,9 @@ export const useStore = create<State>()(
         set((s) => ({ positions: [...s.positions, pos] }))
         return id
       },
+      updatePosition: (id, name) =>
+        set((s) => ({ positions: s.positions.map((p) => (p.id === id ? { ...p, name } : p)) })),
+      removePosition: (id) => set((s) => ({ positions: s.positions.filter((p) => p.id !== id) })),
       addVirtual: (v) => {
         const id = uid('v')
         const links: VirtualLink[] = v.links ?? (v.linkedNormalId ? [{ normalId: v.linkedNormalId, status: 'active', connectedAt: new Date().toISOString() }] : [])
@@ -1044,6 +1050,7 @@ export const useStore = create<State>()(
       },
       updateVirtual: (id, patch) =>
         set((s) => ({ virtuals: s.virtuals.map((v) => (v.id === id ? { ...v, ...patch } : v)) })),
+      removeVirtual: (id) => set((s) => ({ virtuals: s.virtuals.filter((v) => v.id !== id) })),
       linkVirtual: (virtualId, normalId) =>
         set((s) => ({
           virtuals: s.virtuals.map((v) => {
