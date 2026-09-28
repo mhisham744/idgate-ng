@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang, useI18n } from '@/i18n'
+import { useTheme } from '@/theme'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { actorKey } from '@/lib/identity'
 import { Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal } from '@/ui/primitives'
 import type { ActorRef } from '@/types'
@@ -18,7 +20,10 @@ import {
   Search,
   Info,
   ChevronRight,
+  ChevronDown,
   Languages,
+  Sun,
+  Moon,
   RotateCcw,
   LogOut,
   Send,
@@ -29,6 +34,8 @@ export function Settings() {
   const nav = useNavigate()
   const { lang, isRtl, t } = useLang()
   const setLang = useI18n((s) => s.setLang)
+  const theme = useTheme((s) => s.theme)
+  const toggleTheme = useTheme((s) => s.toggle)
 
   const normalId = useStore((s) => s.normalId)
   const currentNormal = useStore((s) => s.currentNormal)
@@ -36,13 +43,16 @@ export function Settings() {
   const logout = useStore((s) => s.logout)
   const reset = useStore((s) => s.reset)
   const active = useStore((s) => s.active)
+  const presence = useStore((s) => s.myPresence())
   const normals = useStore((s) => s.normals)
   const virtuals = useStore((s) => s.virtuals)
   const sendContactRequest = useStore((s) => s.sendContactRequest)
   const canCommunicate = useStore((s) => s.canCommunicate)
   const resolve = useResolveActor()
+  const [switcherOpen, setSwitcherOpen] = useState(false)
 
   const me = currentNormal()
+  const r = resolve(active)
   const roles = normalId ? virtualsFor(normalId) : []
 
   const [confirmReset, setConfirmReset] = useState(false)
@@ -93,16 +103,26 @@ export function Settings() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
-      {/* Identity header */}
-      <Card className="p-4">
-        {normalId && <ActorLine actor={{ kind: 'normal', normalId }} size={52} />}
-        <div className="mt-3 text-xs text-slate-500">
-          {L(
-            `${roles.length} hosted ${roles.length === 1 ? 'role' : 'roles'}`,
-            `${roles.length} ${roles.length === 1 ? 'صفة مستضافة' : 'صفة مستضافة'}`,
-          )}
-          {me ? ` · ${me.city}, ${me.residenceCountry}` : ''}
-        </div>
+      {/* Identity header — tap to switch account (personal ↔ virtual identities) */}
+      <Card className="p-1.5">
+        <button
+          onClick={() => setSwitcherOpen(true)}
+          className="flex w-full items-center gap-3 rounded-2xl p-2.5 text-start transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+        >
+          {active && <PresenceAvatar name={r.displayName} color={r.color} size={48} square={r.isVirtual} presence={presence} />}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-bold text-slate-800">{r.displayName}</div>
+            <div className="truncate font-address text-[11px] text-gate-700" dir="ltr"><bdi>{r.address}</bdi></div>
+            <div className="mt-0.5 text-[11px] text-slate-500">
+              {L(
+                `${roles.length} hosted ${roles.length === 1 ? 'role' : 'roles'}`,
+                `${roles.length} صفة مستضافة`,
+              )}
+              {me ? ` · ${me.city}, ${me.residenceCountry}` : ''}
+            </div>
+          </div>
+          <ChevronDown size={20} className="shrink-0 text-slate-400" />
+        </button>
       </Card>
 
       {/* Navigation */}
@@ -172,18 +192,35 @@ export function Settings() {
         />
       </Card>
 
-      {/* Language */}
+      {/* Preferences: language + appearance */}
       <div className="space-y-2">
-        <SectionHeader title={t('language')} />
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <Languages size={18} className="text-slate-400" />
+        <SectionHeader title={L('Preferences', 'التفضيلات')} />
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Languages size={18} className="text-slate-400" />
+              {t('language')}
+            </div>
             <div className="flex gap-2">
               <Chip active={lang === 'en'} onClick={() => setLang('en')}>
                 English
               </Chip>
               <Chip active={lang === 'ar'} onClick={() => setLang('ar')}>
                 العربية
+              </Chip>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              {theme === 'dark' ? <Moon size={18} className="text-slate-400" /> : <Sun size={18} className="text-slate-400" />}
+              {L('Appearance', 'المظهر')}
+            </div>
+            <div className="flex gap-2">
+              <Chip active={theme === 'light'} onClick={() => { if (theme !== 'light') toggleTheme() }}>
+                {L('Light', 'فاتح')}
+              </Chip>
+              <Chip active={theme === 'dark'} onClick={() => { if (theme !== 'dark') toggleTheme() }}>
+                {L('Dark', 'داكن')}
               </Chip>
             </div>
           </div>
@@ -298,6 +335,8 @@ export function Settings() {
           </div>
         )}
       </Sheet>
+
+      <AccountSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </div>
   )
 }

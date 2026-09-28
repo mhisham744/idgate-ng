@@ -7,3 +7,24 @@ dist-ssr
 !.vscode/extensions.json
 .vercel
 .netlify
+
+# Capacitor native build artifacts (the project scaffolding IS committed;
+# only generated/build output is ignored). See CAPACITOR.md.
+# iOS
+ios/App/Pods/
+ios/App/App/public/
+ios/App/output/
+ios/App/build/
+ios/DerivedData/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+android/capacitor-cordova-android-plugins/
+android/local.properties
+*.keystore
+!debug.keystore
+.idea/

@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MessageSquare, Bell, Wrench, Settings, ChevronDown, Check, Plus, Globe, Sun, Moon } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { Home, MessageSquare, Bell, Wrench, Settings, ChevronDown, Globe, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
-import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
-import { ActorLine, useResolveActor } from '@/components/identity'
+import { Badge, cx } from '@/ui/primitives'
+import { useResolveActor } from '@/components/identity'
+import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { StatusBar } from '@/components/StatusBar'
 import { actorKey } from '@/lib/identity'
 import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
-import type { ActiveAccount, Presence } from '@/types'
+import type { ActiveAccount } from '@/types'
 
 const TABS = [
   { to: '/home', key: 'home', icon: Home },
@@ -18,41 +19,6 @@ const TABS = [
   { to: '/tools', key: 'tools', icon: Wrench },
   { to: '/settings', key: 'settings', icon: Settings },
 ] as const
-
-/** Fixed tints (not remapped in dark mode) — presence reads correctly in both themes. */
-const PRESENCE_DOT: Record<Presence, string> = {
-  active: 'bg-emerald-500',
-  busy: 'bg-amber-500',
-  away: 'bg-slate-400',
-  closed: 'bg-rose-500',
-}
-
-/** Avatar with a user-level presence dot in the corner. */
-function PresenceAvatar({
-  name,
-  color,
-  size,
-  square,
-  presence,
-}: {
-  name: string
-  color?: string
-  size: number
-  square?: boolean
-  presence: Presence
-}) {
-  return (
-    <div className="relative shrink-0">
-      <Avatar name={name} color={color} size={size} square={square} />
-      <span
-        className={cx(
-          'absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full ring-2 ring-white',
-          PRESENCE_DOT[presence],
-        )}
-      />
-    </div>
-  )
-}
 
 const keyOf = (a: ActiveAccount | null) =>
   a ? (a.kind === 'normal' ? `n:${a.normalId}` : `v:${a.virtualId}`) : ''
@@ -196,32 +162,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Main column ─────────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top bar */}
-        <header className="relative z-30 shrink-0 bg-gradient-to-b from-[#1f39ad] to-[#2447d6] px-4 pt-[max(2.25rem,env(safe-area-inset-top))] pb-3 text-light lg:hidden">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSwitcherOpen(true)}
-              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-light/10 px-3 py-2 backdrop-blur transition hover:bg-light/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-light/70 focus-visible:ring-offset-0"
-            >
-              <PresenceAvatar name={r.displayName} color={r.color} size={36} square={r.isVirtual} presence={presence} />
-              <div className="min-w-0 flex-1 text-start">
-                <div className="truncate text-sm font-semibold">{r.displayName}</div>
-                <div className="truncate font-address text-[10px] text-light/70">
-                  <bdi>{r.address}</bdi>
-                </div>
-              </div>
-              <ChevronDown size={18} className="text-light/70" />
-            </button>
-            <ThemeToggle className="shrink-0 bg-light/10 text-light hover:bg-light/20 focus-visible:ring-light/70 focus-visible:ring-offset-0" />
-            <LangToggle className="shrink-0 bg-light/10 text-light hover:bg-light/20 focus-visible:ring-light/70 focus-visible:ring-offset-0" />
-          </div>
-        </header>
-
-        {/* Scrollable content — phone-style reading column by default; data-dense
-            org-management screens break out to use the full available width. */}
+        {/* Scrollable content — full-screen on mobile (no top shellbar); phone-style
+            reading column by default, wide for data-dense org-management screens. */}
         <main className="relative flex-1 overflow-y-auto thin-scroll">
           <div className={cx('mx-auto w-full lg:py-4', wide ? 'max-w-[110rem]' : 'max-w-2xl')}>
-            <div className="px-4 pt-4 lg:px-0 lg:pt-0">
+            <div className="px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:px-0 lg:pt-0">
               <StatusBar />
             </div>
             {children}
@@ -262,101 +207,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <AccountSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </div>
-  )
-}
-
-function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLang()
-  const navigate = useNavigate()
-  const normalId = useStore((s) => s.normalId)
-  const active = useStore((s) => s.active)
-  const setActive = useStore((s) => s.setActive)
-  const virtualsFor = useStore((s) => s.virtualsFor)
-  const currentNormal = useStore((s) => s.currentNormal)
-  const resolve = useResolveActor()
-
-  if (!normalId) return null
-  const person = currentNormal()
-  const myVirtuals = virtualsFor(normalId).filter((v) => v.status !== 'blocked')
-
-  const pick = (acc: ActiveAccount) => {
-    setActive(acc)
-    onClose()
-  }
-  const activeKey = active ? (active.kind === 'normal' ? `n:${active.normalId}` : `v:${active.virtualId}`) : ''
-
-  return (
-    <Sheet open={open} onClose={onClose} title={t('switchAccount')}>
-      <div className="space-y-4 pb-2">
-        <div>
-          <p className="mb-1.5 px-1 text-xs font-bold uppercase tracking-wider text-slate-400">{t('personalAccount')}</p>
-          <AccountOption
-            selected={activeKey === `n:${normalId}`}
-            onClick={() => pick({ kind: 'normal', normalId })}
-            actor={{ kind: 'normal', normalId }}
-            trailing={<VerificationBadge level={levelOf(person?.verification)} />}
-          />
-        </div>
-
-        <div>
-          <p className="mb-1.5 px-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-            {t('virtualAccounts')} · {myVirtuals.length}
-          </p>
-          <div className="space-y-1.5">
-            {myVirtuals.map((v) => (
-              <AccountOption
-                key={v.id}
-                selected={activeKey === `v:${v.id}`}
-                onClick={() => pick({ kind: 'virtual', virtualId: v.id })}
-                actor={{ kind: 'virtual', virtualId: v.id }}
-              />
-            ))}
-            {myVirtuals.length === 0 && (
-              <p className="px-1 py-3 text-xs text-slate-400">
-                {resolve({ kind: 'normal', normalId }).displayName} — no active virtual identities yet.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={() => {
-            onClose()
-            navigate('/settings/entities')
-          }}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"
-        >
-          <Plus size={16} /> {t('registerEntity')}
-        </button>
-        <p className="px-1 text-[11px] leading-relaxed text-slate-400">{person?.fullName}</p>
-      </div>
-    </Sheet>
-  )
-}
-
-function AccountOption({
-  selected,
-  onClick,
-  actor,
-  trailing,
-}: {
-  selected: boolean
-  onClick: () => void
-  actor: ActiveAccount
-  trailing?: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cx(
-        'flex w-full items-center gap-2 rounded-2xl border p-2.5 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
-        selected ? 'border-gate-300 bg-gate-50/60 ring-1 ring-gate-200' : 'border-slate-100 bg-white hover:bg-slate-50',
-      )}
-    >
-      <ActorLine actor={actor} size={40} />
-      {trailing}
-      {selected && <Check size={18} className="ms-auto shrink-0 text-gate-600" />}
-    </button>
   )
 }
 
