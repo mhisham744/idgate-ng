@@ -4,6 +4,7 @@ import { useStore } from '@/store'
 import { useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
 import { AppShell } from '@/components/AppShell'
+import { applyStatusBarStyle } from '@/native'
 import { Onboarding } from '@/screens/Onboarding'
 import { Home } from '@/screens/Home'
 import { Messages } from '@/screens/Messages'
@@ -71,6 +72,12 @@ export default function App() {
   }, [theme])
 
   const signedIn = onboarded && normalId
+
+  // Native status bar: logged-out Onboarding shows the dark gradient; the signed-in
+  // shell shows the theme surface. Keep the status-bar icons legible against it.
+  useEffect(() => {
+    applyStatusBarStyle(!signedIn || theme === 'dark')
+  }, [signedIn, theme])
 
   return signedIn ? (
     <Shell />
