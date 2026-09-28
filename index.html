@@ -18,8 +18,9 @@
     <script>
       // Freshness guard (web only): GitHub Pages caches index.html, so a phone can
       // keep showing an old bundle. On load we fetch version.json uncached; if a
-      // newer build is live, reload ONCE (sessionStorage guard prevents any loop).
-      // No-op under Capacitor (file://) and offline.
+      // newer build is live, reload with a cache-busting ?v= so Safari must refetch
+      // the HTML (a plain reload can still hit the cached copy). sessionStorage guard
+      // prevents any loop. No-op under Capacitor (file://) and offline.
       ;(function () {
         try {
           if (location.protocol === 'file:') return
@@ -31,7 +32,9 @@
               if (!v || !v.buildId || v.buildId === CURRENT) return
               if (sessionStorage.getItem(KEY) === v.buildId) return
               sessionStorage.setItem(KEY, v.buildId)
-              location.reload()
+              var u = new URL(location.href)
+              u.searchParams.set('v', v.buildId)
+              location.replace(u.href)
             })
             .catch(function () {})
         } catch (e) {}
