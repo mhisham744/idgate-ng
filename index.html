@@ -2,10 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/gate.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="./gate.svg" />
+    <!-- maximum-scale=1 + user-scalable=no stops iOS Safari/WKWebView from
+         auto-zooming when a sub-16px input is focused (and never zooming back
+         out). This app is a fixed, native-style layout, so page zoom is off. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#151f42" />
     <title>IDGate — Identity Gate</title>
+
+    <!-- PWA / Add to Home Screen (iOS + Android). Icons are PNGs (iOS ignores
+         SVG touch icons); paths are relative so they resolve under the GitHub
+         Pages project subpath. No-op inside the Capacitor native shell. -->
+    <link rel="manifest" href="./site.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="IDGate" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
