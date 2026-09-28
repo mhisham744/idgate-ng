@@ -67,17 +67,17 @@ export function GroupsScreen() {
                     {memberCount(g)} {L('members', 'أعضاء')}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={() => { setEditTarget(g); setFormOpen(true) }}
-                    className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
                     aria-label={L('Edit', 'تعديل')}
                   >
                     <Pencil size={15} />
                   </button>
                   <button
                     onClick={() => setDeleteTarget(g)}
-                    className="rounded-full p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     aria-label={L('Delete', 'حذف')}
                   >
                     <Trash2 size={15} />

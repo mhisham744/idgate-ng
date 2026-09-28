@@ -76,6 +76,16 @@ body,
   height: 100%;
 }
 
+/* Anchor the app to the *dynamic* viewport so the shell always fills the screen
+   on mobile browsers whose toolbars grow/shrink the visible area — otherwise the
+   flex shell can collapse to content height and leave a gap above the browser
+   chrome. `min-height` (not `height`) so tall, unscrolled screens like Onboarding
+   can still grow and scroll at the body level. */
+#root {
+  min-height: 100vh; /* fallback for browsers without dvh */
+  min-height: 100dvh;
+}
+
 body {
   margin: 0;
   background:

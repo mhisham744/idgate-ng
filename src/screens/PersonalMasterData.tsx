@@ -259,8 +259,10 @@ export function PersonalMasterData() {
           <Avatar name={me.fullName} color={me.avatarColor} size={52} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <div className="truncate text-base font-bold text-slate-800">{me.fullName}</div>
-              <VerificationBadge level={levelOf(me.verification)} />
+              <div className="min-w-0 truncate text-base font-bold text-slate-800">{me.fullName}</div>
+              <span className="shrink-0">
+                <VerificationBadge level={levelOf(me.verification)} />
+              </span>
             </div>
             <div className="truncate font-address text-xs text-gate-700" dir="ltr">
               {personalAddress(me)}
@@ -489,8 +491,8 @@ export function PersonalMasterData() {
               <RO label={L('Industry', 'المجال')} value={form.industry} />
               {form.history && <p className="whitespace-pre-wrap pt-1 text-sm text-slate-700">{form.history}</p>}
               {form.cv && (
-                <div className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
-                  <FileText size={13} /> {form.cv.name} <span className="text-slate-400">{humanSize(form.cv.size)}</span>
+                <div className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
+                  <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span> <span className="shrink-0 text-slate-400">{humanSize(form.cv.size)}</span>
                 </div>
               )}
             </>
@@ -541,13 +543,13 @@ export function PersonalMasterData() {
             <div key={key} className="flex items-center justify-between gap-3">
               <span className="text-sm text-slate-700">{label}</span>
               {editing ? (
-                <div className="flex gap-1">
+                <div className="flex flex-wrap justify-end gap-1">
                   {privacyOptions.map((o) => (
                     <button
                       key={o.value}
                       onClick={() => setPrivacy(key, o.value)}
                       className={cx(
-                        'rounded-full px-2.5 py-1 text-xs font-medium',
+                        'inline-flex min-h-[40px] items-center rounded-full px-2.5 py-2 text-xs font-medium',
                         form.privacy[key] === o.value ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-500',
                       )}
                     >

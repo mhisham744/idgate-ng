@@ -109,7 +109,7 @@ export function AboutConcept() {
         />
         <div className="mt-3 rounded-2xl bg-slate-50 p-3">
           <div className="mb-1 text-xs text-slate-500">{L('Example', 'مثال')}</div>
-          <div className="font-mono text-sm text-gate-700" dir="ltr">
+          <div className="break-all font-mono text-sm text-gate-700" dir="ltr">
             Hossam.Fouad,CEO@Nestle.Com.JSC
           </div>
         </div>

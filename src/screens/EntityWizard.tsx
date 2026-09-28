@@ -595,12 +595,12 @@ function Step5({
               </div>
             ) : (
               <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-                <Briefcase size={14} className="text-gate-600" />
-                <span className="flex-1 text-sm font-medium text-slate-700">{p.name}</span>
-                <button onClick={() => { setEditId(p.id); setEditName(p.name) }} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
+                <Briefcase size={14} className="shrink-0 text-gate-600" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{p.name}</span>
+                <button onClick={() => { setEditId(p.id); setEditName(p.name) }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
                   <Pencil size={13} />
                 </button>
-                <button onClick={() => removePosition(p.id)} className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
+                <button onClick={() => removePosition(p.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -718,10 +718,10 @@ function Step6({
           {virtuals.map((v) => (
             <div key={v.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-slate-700">{v.positionName}</div>
-                <div className="font-address text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
+                <div className="truncate text-xs font-semibold text-slate-700">{v.positionName}</div>
+                <div className="truncate font-address text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
               </div>
-              <button onClick={() => removeVirtual(v.id)} className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
+              <button onClick={() => removeVirtual(v.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
                 <Trash2 size={13} />
               </button>
             </div>

@@ -16,6 +16,28 @@
   <body>
     <div id="root"></div>
     <script>
+      // Freshness guard (web only): GitHub Pages caches index.html, so a phone can
+      // keep showing an old bundle. On load we fetch version.json uncached; if a
+      // newer build is live, reload ONCE (sessionStorage guard prevents any loop).
+      // No-op under Capacitor (file://) and offline.
+      ;(function () {
+        try {
+          if (location.protocol === 'file:') return
+          var CURRENT = '__BUILD_ID__'
+          var KEY = 'idgate.reloadedFor'
+          fetch('./version.json?ts=' + Date.now(), { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null })
+            .then(function (v) {
+              if (!v || !v.buildId || v.buildId === CURRENT) return
+              if (sessionStorage.getItem(KEY) === v.buildId) return
+              sessionStorage.setItem(KEY, v.buildId)
+              location.reload()
+            })
+            .catch(function () {})
+        } catch (e) {}
+      })()
+    </script>
+    <script>
       // Apply the persisted appearance before first paint to avoid a light flash.
       try {
         var raw = localStorage.getItem('idgate.theme')

@@ -167,9 +167,9 @@ export function Notifications() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-800">{t('notification')}</h1>
-        <Button size="sm" disabled={!canCreateAny} onClick={() => setCreateOpen(true)}>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="min-w-0 truncate text-xl font-bold text-slate-800">{t('notification')}</h1>
+        <Button size="sm" disabled={!canCreateAny} onClick={() => setCreateOpen(true)} className="shrink-0 whitespace-nowrap">
           <Plus size={16} /> {t('createNotification')}
         </Button>
       </div>

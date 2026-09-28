@@ -102,7 +102,7 @@ export function MiniCalendar({ items }: { items: Notification[] }) {
               onClick={() => setSelectedKey(has || isSelected ? (isSelected ? null : k) : null)}
               disabled={!has}
               className={cx(
-                'relative mx-auto flex h-9 w-9 flex-col items-center justify-center rounded-full text-sm transition',
+                'relative mx-auto flex h-10 w-9 flex-col items-center justify-center rounded-full text-sm transition',
                 isSelected
                   ? 'bg-gate-600 font-semibold text-light'
                   : isToday

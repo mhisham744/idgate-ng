@@ -14,14 +14,14 @@ function ValidityPicker({ value, onChange, L }: { value: Validity; onChange: (v:
         <button
           type="button"
           onClick={() => onChange({ open: true })}
-          className={cx('rounded-full px-3 py-1 text-xs font-medium', value.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}
+          className={cx('inline-flex min-h-[40px] items-center rounded-full px-3 py-2 text-xs font-medium', value.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}
         >
           {L('Open', 'مفتوح')}
         </button>
         <button
           type="button"
           onClick={() => onChange({ open: false, from: value.from, to: value.to })}
-          className={cx('rounded-full px-3 py-1 text-xs font-medium', !value.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}
+          className={cx('inline-flex min-h-[40px] items-center rounded-full px-3 py-2 text-xs font-medium', !value.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}
         >
           {L('Limited', 'محدود')}
         </button>

@@ -340,7 +340,7 @@ function Cell({
     <button
       type="button"
       onClick={onClick}
-      className="relative flex flex-col items-center gap-1 rounded-2xl px-1 py-2 text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+      className="relative flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
     >
       <span className="relative text-gate-600">
         {icon}
@@ -353,7 +353,7 @@ function Cell({
           <span className="absolute -top-1 -end-1 h-2 w-2 rounded-full bg-rose-500" />
         )}
       </span>
-      <span className="truncate text-[10px] font-medium leading-none">{label}</span>
+      <span className="w-full truncate text-center text-[10px] font-medium leading-none">{label}</span>
     </button>
   )
 }

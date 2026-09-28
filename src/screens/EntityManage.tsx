@@ -470,7 +470,7 @@ function DelegationsTab({
                     setEditSubject(d.subject)
                     setEditLimit(d.limitAmount != null ? String(d.limitAmount) : '')
                   }}
-                  className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-gate-600"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600"
                   aria-label={L('Edit', 'تعديل')}
                 >
                   <Pencil size={13} />
@@ -607,10 +607,10 @@ function LinkBox({
               <span> · {fmtVal(link.delegation.validity)}</span>
             </span>
             <div className="flex shrink-0 gap-1">
-              <button onClick={() => setEditVal((x) => !x)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
+              <button onClick={() => setEditVal((x) => !x)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
                 <Pencil size={12} />
               </button>
-              <button onClick={() => updateLinkDelegation(v.id, link.normalId, undefined)} className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
+              <button onClick={() => updateLinkDelegation(v.id, link.normalId, undefined)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
                 <Trash2 size={12} />
               </button>
             </div>

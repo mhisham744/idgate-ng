@@ -193,8 +193,8 @@ export function Messages() {
                 onClick={() => openThreadDetail(th.threadId)}
                 leading={<ActorLine actor={other} size={40} showAddress={false} />}
                 title={
-                  <span className="flex items-center gap-2">
-                    <span className="truncate">{th.latest.subject}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 truncate">{th.latest.subject}</span>
                     {unread && <span className="h-2 w-2 shrink-0 rounded-full bg-gate-600" />}
                   </span>
                 }
@@ -380,7 +380,7 @@ function ThreadSheet({
                     <button
                       type="button"
                       onClick={() => onDelete(m.id)}
-                      className="rounded-full p-1 text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:opacity-100 group-hover:opacity-100"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                       aria-label={t('delete')}
                     >
                       <Trash2 size={13} />

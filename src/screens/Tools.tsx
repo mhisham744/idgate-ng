@@ -302,7 +302,7 @@ function AssessmentComposeSheet({
                   <button
                     type="button"
                     onClick={() => setBallot((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-rose-500"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-rose-500"
                     aria-label={L('Remove', 'إزالة')}
                   >
                     <XIcon size={15} />

@@ -342,7 +342,7 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+        'inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-2 text-xs font-medium transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         disabled
           ? 'text-slate-300 cursor-not-allowed'
           : active
