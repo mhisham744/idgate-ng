@@ -40,6 +40,33 @@ export function threadHasUnseen(rc: NoteRecipient, keys: Set<string>): boolean {
 }
 
 /**
+ * The set of actorKeys that count as "me" for the Messages/Notifications SCREENS,
+ * driven by the user's `inboxScope` setting:
+ *  - 'unified' → personal account + every owned virtual identity (matches the hub).
+ *  - 'active'  → only the currently active account.
+ * The single source of truth shared by the screens and the tab badges.
+ */
+export function useInboxScopeKeys(): Set<string> {
+  const scope = useStore((s) => s.inboxScope())
+  const normalId = useStore((s) => s.normalId)
+  const virtuals = useStore((s) => s.virtuals)
+  const active = useStore((s) => s.active)
+
+  return useMemo(() => {
+    const keys = new Set<string>()
+    if (scope === 'active') {
+      if (active) keys.add(actorKey(active))
+      return keys
+    }
+    if (normalId) {
+      keys.add(`n:${normalId}`)
+      virtuals.filter((v) => v.linkedNormalId === normalId).forEach((v) => keys.add(`v:${v.id}`))
+    }
+    return keys
+  }, [scope, normalId, virtuals, active])
+}
+
+/**
  * USER-LEVEL aggregation across the signed-in person and ALL their virtual
  * accounts — the single source of truth for the Home status bar.
  */

@@ -9,8 +9,8 @@ import { useResolveActor } from '@/components/identity'
 import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { StatusBar } from '@/components/StatusBar'
 import { actorKey } from '@/lib/identity'
+import { useInboxScopeKeys } from '@/lib/userScope'
 import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
-import type { ActiveAccount } from '@/types'
 
 const TABS = [
   { to: '/home', key: 'home', icon: Home },
@@ -19,9 +19,6 @@ const TABS = [
   { to: '/tools', key: 'tools', icon: Wrench },
   { to: '/settings', key: 'settings', icon: Settings },
 ] as const
-
-const keyOf = (a: ActiveAccount | null) =>
-  a ? (a.kind === 'normal' ? `n:${a.normalId}` : `v:${a.virtualId}`) : ''
 
 /** Language toggle — used in the desktop sidebar and the mobile top bar. */
 function LangToggle({ className }: { className?: string }) {
@@ -67,24 +64,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const resolve = useResolveActor()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
-  // unread badges
+  // Unread badges — scoped to the same identity set the screens use (inbox scope setting).
   const messages = useStore((s) => s.messages)
   const notifications = useStore((s) => s.notifications)
-  const activeKey = keyOf(active)
+  const keys = useInboxScopeKeys()
   const unreadMsgs = messages.filter(
     (m) =>
-      keyOf(m.from) !== activeKey &&
-      !m.readBy.includes(activeKey) &&
-      !(m.deletedBy ?? []).includes(activeKey) &&
-      (m.to.some((a) => keyOf(a) === activeKey) ||
-        (m.cc ?? []).some((a) => keyOf(a) === activeKey) ||
-        (m.bcc ?? []).some((a) => keyOf(a) === activeKey)),
+      !keys.has(actorKey(m.from)) &&
+      !m.readBy.some((k) => keys.has(k)) &&
+      !(m.deletedBy ?? []).some((k) => keys.has(k)) &&
+      (m.to.some((a) => keys.has(actorKey(a))) ||
+        (m.cc ?? []).some((a) => keys.has(actorKey(a))) ||
+        (m.bcc ?? []).some((a) => keys.has(actorKey(a)))),
   ).length
   const pendingNotes = notifications.filter(
     (n) =>
       n.needsResponse &&
       !n.frozen &&
-      (n.recipients ?? []).some((rc) => actorKey(rc.ref) === activeKey && rc.status === 'pending'),
+      (n.recipients ?? []).some((rc) => keys.has(actorKey(rc.ref)) && rc.status === 'pending'),
   ).length
   const badgeFor = (key: string) => (key === 'messages' ? unreadMsgs : key === 'notification' ? pendingNotes : 0)
 

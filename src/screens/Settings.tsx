@@ -6,7 +6,7 @@ import { useTheme } from '@/theme'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { actorKey } from '@/lib/identity'
-import { Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal } from '@/ui/primitives'
+import { Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal, Toggle } from '@/ui/primitives'
 import type { ActorRef } from '@/types'
 import {
   User,
@@ -24,6 +24,7 @@ import {
   Languages,
   Sun,
   Moon,
+  Inbox,
   RotateCcw,
   LogOut,
   Send,
@@ -48,6 +49,8 @@ export function Settings() {
   const virtuals = useStore((s) => s.virtuals)
   const sendContactRequest = useStore((s) => s.sendContactRequest)
   const canCommunicate = useStore((s) => s.canCommunicate)
+  const inboxScope = useStore((s) => s.inboxScope())
+  const setInboxScope = useStore((s) => s.setInboxScope)
   const resolve = useResolveActor()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
@@ -223,6 +226,21 @@ export function Settings() {
                 {L('Dark', 'داكن')}
               </Chip>
             </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="flex items-start gap-2 text-sm text-slate-600">
+              <Inbox size={18} className="mt-0.5 shrink-0 text-slate-400" />
+              <div className="min-w-0">
+                <div>{L('Unified inbox', 'صندوق موحّد')}</div>
+                <div className="text-[11px] leading-snug text-slate-400">
+                  {L(
+                    'Show messages & notifications across all my identities. Off: only the active one.',
+                    'إظهار الرسائل والتنبيهات عبر جميع هوياتي. إيقاف: الهوية النشطة فقط.',
+                  )}
+                </div>
+              </div>
+            </div>
+            <Toggle checked={inboxScope === 'unified'} onChange={(v) => setInboxScope(v ? 'unified' : 'active')} />
           </div>
         </Card>
       </div>

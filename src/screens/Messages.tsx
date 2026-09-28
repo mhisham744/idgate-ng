@@ -12,7 +12,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { useStore } from '@/store'
-import { useDirectory } from '@/lib/userScope'
+import { useDirectory, useInboxScopeKeys } from '@/lib/userScope'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime, uid } from '@/lib/identity'
 import { useResolveActor, ActorLine } from '@/components/identity'
@@ -36,7 +36,7 @@ import type { ActorRef, ActiveAccount, AttachmentMeta, Message } from '@/types'
 const L = (isRtl: boolean, en: string, ar: string) => (isRtl ? ar : en)
 
 type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward'
-type ComposeState = { mode: ComposeMode; source?: Message }
+type ComposeState = { mode: ComposeMode; source?: Message; me: ActorRef }
 
 /** ActiveAccount and ActorRef share the same shape — treat the active account as a ref. */
 function activeRef(a: ActiveAccount): ActorRef {
@@ -82,7 +82,10 @@ export function Messages() {
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [query, setQuery] = useState('')
 
+  // Active account key — used only for the active-scoped Directory / recipient picker.
   const meKey = active ? actorKey(active) : ''
+  // The set of identities that count as "me" for the inbox (per the scope setting).
+  const keys = useInboxScopeKeys()
 
   // ── Recipients & groups are scoped to the acting account's Directory ─────────
   const dir = useDirectory()
@@ -103,11 +106,11 @@ export function Messages() {
   // ── Threads: latest message per threadId that involves me, minus my soft-deletes ─
   const threads = useMemo(() => {
     const involves = (m: Message) =>
-      actorKey(m.from) === meKey ||
-      m.to.some((r) => actorKey(r) === meKey) ||
-      (m.cc ?? []).some((r) => actorKey(r) === meKey) ||
-      (m.bcc ?? []).some((r) => actorKey(r) === meKey)
-    const notDeleted = (m: Message) => !(m.deletedBy ?? []).includes(meKey)
+      keys.has(actorKey(m.from)) ||
+      m.to.some((r) => keys.has(actorKey(r))) ||
+      (m.cc ?? []).some((r) => keys.has(actorKey(r))) ||
+      (m.bcc ?? []).some((r) => keys.has(actorKey(r)))
+    const notDeleted = (m: Message) => !(m.deletedBy ?? []).some((k) => keys.has(k))
 
     const byThread = new Map<string, Message[]>()
     messages
@@ -127,15 +130,22 @@ export function Messages() {
     if (q) list = list.filter((th) => th.msgs.some((m) => m.subject.toLowerCase().includes(q)))
 
     return list.sort((a, b) => b.latest.createdAt.localeCompare(a.latest.createdAt))
-  }, [messages, meKey, query])
+  }, [messages, keys, query])
 
   if (!active) return null
   const meRef = activeRef(active)
 
   const otherParty = (m: Message): ActorRef => {
-    if (actorKey(m.from) !== meKey) return m.from
-    const other = m.to.find((r) => actorKey(r) !== meKey)
+    if (!keys.has(actorKey(m.from))) return m.from
+    const other = m.to.find((r) => !keys.has(actorKey(r)))
     return other ?? m.to[0] ?? m.from
+  }
+
+  // The owned identity that participates in a message (recipient I own, else its
+  // sender if I sent it) — read-marking and replies act *as* this identity.
+  const ownedParticipant = (m: Message): ActorRef => {
+    const all = [m.from, ...m.to, ...(m.cc ?? []), ...(m.bcc ?? [])]
+    return all.find((r) => keys.has(actorKey(r))) ?? meRef
   }
 
   const activeThread = threads.find((th) => th.threadId === openThread) ?? null
@@ -144,13 +154,13 @@ export function Messages() {
     setOpenThread(threadId)
     const th = threads.find((x) => x.threadId === threadId)
     th?.msgs.forEach((m) => {
-      if (!m.readBy.includes(meKey)) markRead(m.id)
+      if (!m.readBy.some((k) => keys.has(k))) markRead(m.id, ownedParticipant(m))
     })
   }
 
   const startCompose = (mode: ComposeMode, source?: Message) => {
     setOpenThread(null)
-    setCompose({ mode, source })
+    setCompose({ mode, source, me: source ? ownedParticipant(source) : meRef })
   }
 
   return (
@@ -186,7 +196,7 @@ export function Messages() {
         <Card className="divide-y divide-slate-100 overflow-hidden p-0">
           {threads.map((th) => {
             const other = otherParty(th.latest)
-            const unread = !th.latest.readBy.includes(meKey)
+            const unread = !th.latest.readBy.some((k) => keys.has(k))
             return (
               <Row
                 key={th.threadId}
@@ -218,7 +228,7 @@ export function Messages() {
       {/* Thread detail */}
       <ThreadSheet
         thread={activeThread}
-        meKey={meKey}
+        keys={keys}
         onClose={() => setOpenThread(null)}
         onReply={() => activeThread && startCompose('reply', activeThread.latest)}
         onReplyAll={() => activeThread && startCompose('replyAll', activeThread.latest)}
@@ -240,8 +250,8 @@ export function Messages() {
           key={`${compose.mode}:${compose.source?.id ?? 'new'}`}
           mode={compose.mode}
           source={compose.source}
-          meKey={meKey}
-          meRef={meRef}
+          meKey={actorKey(compose.me)}
+          meRef={compose.me}
           options={recipientOptions}
           groups={pickerGroups}
           expandGroup={expandGroup}
@@ -264,7 +274,7 @@ export function Messages() {
 // ── Thread detail sheet ─────────────────────────────────────────────────────────
 function ThreadSheet({
   thread,
-  meKey,
+  keys,
   onClose,
   onReply,
   onReplyAll,
@@ -280,7 +290,7 @@ function ThreadSheet({
   t,
 }: {
   thread: { threadId: string; msgs: Message[]; latest: Message } | null
-  meKey: string
+  keys: Set<string>
   onClose: () => void
   onReply: () => void
   onReplyAll: () => void
@@ -344,7 +354,7 @@ function ThreadSheet({
 
       <div className="space-y-3 py-3">
         {thread.msgs.map((m) => {
-          const mine = actorKey(m.from) === meKey
+          const mine = keys.has(actorKey(m.from))
           return (
             <div key={m.id} className={mine ? 'flex justify-end' : 'flex justify-start'}>
               <div className="group max-w-[82%]">
@@ -426,6 +436,7 @@ function ComposeEditor({
   mode,
   source,
   meKey,
+  meRef,
   options,
   groups,
   expandGroup,
@@ -527,6 +538,7 @@ function ComposeEditor({
         bcc: bcc.length ? bcc : undefined,
         body: body.trim() || undefined,
         attachments: attachments.length ? attachments : undefined,
+        as: meRef,
       })
     } else {
       sendMessage({
@@ -537,6 +549,7 @@ function ComposeEditor({
         body: body.trim(),
         attachments,
         threadId: mode === 'reply' || mode === 'replyAll' ? source?.threadId : undefined,
+        as: meRef,
       })
     }
     onClose()

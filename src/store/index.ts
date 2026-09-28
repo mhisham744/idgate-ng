@@ -64,6 +64,9 @@ interface State extends AppData {
   onboarded: boolean
   /** User-level presence, keyed by normalId (persists across account switches). */
   presenceByNormal: Record<string, import('@/types').Presence>
+  /** Inbox scope for Messages/Notifications, keyed by normalId. 'unified' = all
+   *  owned identities; 'active' = only the currently active account. */
+  inboxScopeByNormal: Record<string, 'unified' | 'active'>
 
   // ── selectors ──────────────────────────────────────────────────────────────
   currentNormal: () => import('@/types').NormalCharacter | undefined
@@ -72,6 +75,8 @@ interface State extends AppData {
   myActorKeys: () => string[]
   /** The signed-in person's presence (defaults to 'active'). */
   myPresence: () => import('@/types').Presence
+  /** The signed-in person's inbox scope (defaults to 'unified'). */
+  inboxScope: () => 'unified' | 'active'
   entity: (id: string) => LegalEntity | undefined
   virtual: (id: string) => VirtualCharacter | undefined
   profilesForVirtual: (v: VirtualCharacter) => Profile[]
@@ -95,6 +100,7 @@ interface State extends AppData {
   setActive: (a: ActiveAccount) => void
   setOnboarded: (v: boolean) => void
   setPresence: (p: import('@/types').Presence) => void
+  setInboxScope: (v: 'unified' | 'active') => void
 
   // ── posts ─────────────────────────────────────────────────────────────────────
   addPost: (body: string, category: Post['category'], audience?: string[]) => void
@@ -111,6 +117,8 @@ interface State extends AppData {
     body: string
     attachments?: import('@/types').AttachmentMeta[]
     threadId?: string
+    /** Author as this identity instead of the active account (unified inbox replies). */
+    as?: ActorRef
   }) => void
   /** Send a system-generated (auto, non-editable) message from a given sender. */
   sendSystemMessage: (from: ActorRef, to: ActorRef[], subject: string, body: string) => void
@@ -121,9 +129,12 @@ interface State extends AppData {
     bcc?: ActorRef[]
     body?: string
     attachments?: import('@/types').AttachmentMeta[]
+    /** Author as this identity instead of the active account (unified inbox forwards). */
+    as?: ActorRef
   }) => void
   deleteMessage: (messageId: string) => void
-  markRead: (messageId: string) => void
+  /** Mark a message read by the given identity (defaults to the active account). */
+  markRead: (messageId: string, as?: ActorRef) => void
 
   // ── notifications ─────────────────────────────────────────────────────────────
   createNotification: (n: {
@@ -150,6 +161,8 @@ interface State extends AppData {
     recipientKey: string,
     text: string,
     attachments?: import('@/types').AttachmentMeta[],
+    /** Author as this identity instead of the active account (unified inbox threads). */
+    as?: ActorRef,
   ) => void
   /** Sender edits the note envelope; records a system entry in every thread. */
   editNotification: (
@@ -159,9 +172,11 @@ interface State extends AppData {
   /** Sender freezes the note — locks all reactions/messages. */
   freezeNotification: (id: string) => void
   voteNotification: (id: string, choice: 'accept' | 'reject') => void
-  markNotificationRead: (id: string) => void
-  /** Mark all entries in one recipient's thread as read by the active account. */
-  markNoteThreadRead: (id: string, recipientKey: string) => void
+  /** Mark a note read by the given identity (defaults to the active account). */
+  markNotificationRead: (id: string, as?: ActorRef) => void
+  /** Mark all entries in one recipient's thread as read by the given identity
+   *  (defaults to the active account). */
+  markNoteThreadRead: (id: string, recipientKey: string, as?: ActorRef) => void
 
   // ── vacancies ───────────────────────────────────────────────────────────────
   postVacancy: (v: Omit<Vacancy, 'id' | 'createdAt' | 'applicants' | 'postedByVirtualId'>) => void
@@ -256,6 +271,7 @@ export const useStore = create<State>()(
       active: null,
       onboarded: false,
       presenceByNormal: {},
+      inboxScopeByNormal: {},
 
       // ── selectors ────────────────────────────────────────────────────────────
       currentNormal: () => get().normals.find((n) => n.id === get().normalId),
@@ -271,6 +287,10 @@ export const useStore = create<State>()(
       myPresence: () => {
         const { normalId, presenceByNormal } = get()
         return (normalId && presenceByNormal[normalId]) || 'active'
+      },
+      inboxScope: () => {
+        const { normalId, inboxScopeByNormal } = get()
+        return (normalId && inboxScopeByNormal[normalId]) || 'unified'
       },
       entity: (id) => get().entities.find((e) => e.id === id),
       virtual: (id) => get().virtuals.find((v) => v.id === id),
@@ -448,6 +468,11 @@ export const useStore = create<State>()(
         if (!normalId) return
         set((s) => ({ presenceByNormal: { ...s.presenceByNormal, [normalId]: p } }))
       },
+      setInboxScope: (v) => {
+        const { normalId } = get()
+        if (!normalId) return
+        set((s) => ({ inboxScopeByNormal: { ...s.inboxScopeByNormal, [normalId]: v } }))
+      },
 
       // ── posts ──────────────────────────────────────────────────────────────────
       addPost: (body, category, audience) => {
@@ -514,21 +539,22 @@ export const useStore = create<State>()(
       },
 
       // ── messages ─────────────────────────────────────────────────────────────
-      sendMessage: ({ to, cc, bcc, subject, body, attachments, threadId }) => {
+      sendMessage: ({ to, cc, bcc, subject, body, attachments, threadId, as }) => {
         const { active } = get()
-        if (!active) return
+        const from = (as ?? active) as ActorRef | null
+        if (!from) return
         const clean = (arr?: ActorRef[]) => (arr && arr.length ? dedupeRefs(arr) : undefined)
         const msg: Message = {
           id: uid('m'),
           threadId: threadId ?? uid('t'),
-          from: active as ActorRef,
+          from,
           to: dedupeRefs(to),
           cc: clean(cc),
           bcc: clean(bcc),
           subject,
           body,
           createdAt: new Date().toISOString(),
-          readBy: [actorKey(active)],
+          readBy: [actorKey(from)],
           savedBy: [],
           attachments: attachments && attachments.length ? attachments : undefined,
         }
@@ -549,9 +575,10 @@ export const useStore = create<State>()(
         }
         set((s) => ({ messages: [msg, ...s.messages] }))
       },
-      forwardMessage: ({ source, to, cc, bcc, body, attachments }) => {
+      forwardMessage: ({ source, to, cc, bcc, body, attachments, as }) => {
         const { active } = get()
-        if (!active) return
+        const from = (as ?? active) as ActorRef | null
+        if (!from) return
         const clean = (arr?: ActorRef[]) => (arr && arr.length ? dedupeRefs(arr) : undefined)
         const subject = source.subject.startsWith('Fwd: ') ? source.subject : `Fwd: ${source.subject}`
         const quoted = `\n\n——————\n${source.body}`
@@ -560,14 +587,14 @@ export const useStore = create<State>()(
         const msg: Message = {
           id: uid('m'),
           threadId: uid('t'),
-          from: active as ActorRef,
+          from,
           to: dedupeRefs(to),
           cc: clean(cc),
           bcc: clean(bcc),
           subject,
           body: (body?.trim() ? body.trim() : '') + quoted,
           createdAt: new Date().toISOString(),
-          readBy: [actorKey(active)],
+          readBy: [actorKey(from)],
           savedBy: [],
           attachments: merged.length ? merged : undefined,
         }
@@ -585,10 +612,11 @@ export const useStore = create<State>()(
           ),
         }))
       },
-      markRead: (messageId) => {
+      markRead: (messageId, as) => {
         const { active } = get()
-        if (!active) return
-        const k = actorKey(active)
+        const who = as ?? active
+        if (!who) return
+        const k = actorKey(who)
         set((s) => ({
           messages: s.messages.map((m) =>
             m.id === messageId && !m.readBy.includes(k) ? { ...m, readBy: [...m.readBy, k] } : m,
@@ -702,9 +730,10 @@ export const useStore = create<State>()(
           }),
         }))
       },
-      postNoteMessage: (id, recipientKey, text, attachments) => {
+      postNoteMessage: (id, recipientKey, text, attachments, as) => {
         const { active } = get()
-        if (!active || !text.trim()) return
+        const who = as ?? active
+        if (!who || !text.trim()) return
         const at = new Date().toISOString()
         set((s) => ({
           notifications: s.notifications.map((n) => {
@@ -718,11 +747,11 @@ export const useStore = create<State>()(
                   {
                     id: uid('nte'),
                     at,
-                    by: active as ActorRef,
+                    by: who as ActorRef,
                     type: 'message' as const,
                     text: text.trim(),
                     attachments: attachments && attachments.length ? attachments : undefined,
-                    readBy: [actorKey(active)],
+                    readBy: [actorKey(who)],
                   },
                 ],
               }
@@ -803,10 +832,11 @@ export const useStore = create<State>()(
           ),
         }))
       },
-      markNotificationRead: (id) => {
+      markNotificationRead: (id, as) => {
         const { active } = get()
-        if (!active) return
-        const k = actorKey(active)
+        const who = as ?? active
+        if (!who) return
+        const k = actorKey(who)
         set((s) => ({
           notifications: s.notifications.map((n) =>
             n.id === id && !(n.readBy ?? []).includes(k)
@@ -815,10 +845,11 @@ export const useStore = create<State>()(
           ),
         }))
       },
-      markNoteThreadRead: (id, recipientKey) => {
+      markNoteThreadRead: (id, recipientKey, as) => {
         const { active } = get()
-        if (!active) return
-        const k = actorKey(active)
+        const who = as ?? active
+        if (!who) return
+        const k = actorKey(who)
         set((s) => ({
           notifications: s.notifications.map((n) => {
             if (n.id !== id) return n
@@ -1106,6 +1137,7 @@ export const useStore = create<State>()(
           active: null,
           onboarded: false,
           presenceByNormal: {},
+          inboxScopeByNormal: {},
         }),
     }),
     {

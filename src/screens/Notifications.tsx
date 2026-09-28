@@ -19,7 +19,7 @@ import { ActorLine, useResolveActor } from '@/components/identity'
 import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS } from '@/data/reference'
 import type { EvalType } from '@/data/reference'
 import { RecipientPicker } from '@/components/RecipientPicker'
-import { useDirectory } from '@/lib/userScope'
+import { useDirectory, useInboxScopeKeys } from '@/lib/userScope'
 import type { PickerGroup } from '@/components/RecipientPicker'
 import {
   Button,
@@ -103,9 +103,9 @@ function lastActivity(n: Notification): string {
   return t
 }
 
-/** Any thread entry authored by someone else that meKey hasn't read yet. */
-function hasUnseen(threads: NoteThreadEntry[], meKey: string): boolean {
-  return threads.some((e) => actorKey(e.by) !== meKey && !(e.readBy ?? []).includes(meKey))
+/** Any thread entry authored by someone outside my scope that I haven't read yet. */
+function hasUnseen(threads: NoteThreadEntry[], keys: Set<string>): boolean {
+  return threads.some((e) => !keys.has(actorKey(e.by)) && !(e.readBy ?? []).some((k) => keys.has(k)))
 }
 
 export function Notifications() {
@@ -127,20 +127,23 @@ export function Notifications() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
 
+  // Active account key — used only for the active-scoped Directory / recipient picker.
   const meKey = active ? actorKey(active) : ''
+  // The set of identities that count as "me" for the inbox (per the scope setting).
+  const keys = useInboxScopeKeys()
 
-  // Sent + received for the active account, newest activity first.
+  // Sent + received across my in-scope identities, newest activity first.
   const mine = useMemo(() => {
     const q = query.trim().toLowerCase()
     return notifications
       .filter(
         (n) =>
-          actorKey(n.from) === meKey ||
-          (n.recipients ?? []).some((rc) => actorKey(rc.ref) === meKey),
+          keys.has(actorKey(n.from)) ||
+          (n.recipients ?? []).some((rc) => keys.has(actorKey(rc.ref))),
       )
       .filter((n) => !q || n.subject.toLowerCase().includes(q))
       .sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)))
-  }, [notifications, meKey, query])
+  }, [notifications, keys, query])
 
   const creatableKinds = useMemo(() => CREATABLE_KINDS.filter((c) => can(c.permission)), [can])
   const canCreateAny = creatableKinds.length > 0
@@ -202,7 +205,7 @@ export function Notifications() {
             <NoteCard
               key={n.id}
               note={n}
-              meKey={meKey}
+              keys={keys}
               onOpen={() => setOpenId(n.id)}
               isRtl={isRtl}
               lang={lang}
@@ -214,7 +217,7 @@ export function Notifications() {
 
       <NoteThreadSheet
         note={openNote}
-        meKey={meKey}
+        keys={keys}
         onClose={() => setOpenId(null)}
         resolveName={(r) => resolve(r).displayName}
         isRtl={isRtl}
@@ -249,27 +252,27 @@ export function Notifications() {
 // ── Single notification card ─────────────────────────────────────────────────────
 function NoteCard({
   note,
-  meKey,
+  keys,
   onOpen,
   isRtl,
   lang,
   t,
 }: {
   note: Notification
-  meKey: string
+  keys: Set<string>
   onOpen: () => void
   isRtl: boolean
   lang: 'en' | 'ar'
   t: (k: string) => string
 }) {
-  const isSender = actorKey(note.from) === meKey
-  const myRec = (note.recipients ?? []).find((rc) => actorKey(rc.ref) === meKey)
+  const isSender = keys.has(actorKey(note.from))
+  const myRec = (note.recipients ?? []).find((rc) => keys.has(actorKey(rc.ref)))
 
   // Unread dot: sender sees recipient-authored updates; recipient sees sender-authored ones.
   const unread = isSender
-    ? (note.recipients ?? []).some((rc) => hasUnseen(rc.thread, meKey))
+    ? (note.recipients ?? []).some((rc) => hasUnseen(rc.thread, keys))
     : myRec
-      ? hasUnseen(myRec.thread, meKey)
+      ? hasUnseen(myRec.thread, keys)
       : false
 
   return (
@@ -341,7 +344,7 @@ function StatusRollup({ recipients, isRtl }: { recipients: NoteRecipient[]; isRt
 // ── Note conversation / drill-down ──────────────────────────────────────────────
 function NoteThreadSheet({
   note,
-  meKey,
+  keys,
   onClose,
   resolveName,
   isRtl,
@@ -349,7 +352,7 @@ function NoteThreadSheet({
   t,
 }: {
   note: Notification | null
-  meKey: string
+  keys: Set<string>
   onClose: () => void
   resolveName: (r: ActorRef) => string
   isRtl: boolean
@@ -366,15 +369,17 @@ function NoteThreadSheet({
 
   const [editing, setEditing] = useState(false)
 
-  const isSender = !!note && actorKey(note.from) === meKey
-  const myRec = note ? (note.recipients ?? []).find((rc) => actorKey(rc.ref) === meKey) : undefined
+  const isSender = !!note && keys.has(actorKey(note.from))
+  const myRec = note ? (note.recipients ?? []).find((rc) => keys.has(actorKey(rc.ref))) : undefined
+  // The owned identity acting on this note: its sender if I sent it, else my recipient ref.
+  const myKey = myRec ? actorKey(myRec.ref) : ''
 
-  // Mark the threads I'm looking at as read.
+  // Mark the threads I'm looking at as read, acting as the owned identity.
   const noteId = note?.id
   useEffect(() => {
     if (!note) return
-    if (isSender) (note.recipients ?? []).forEach((rc) => markNoteThreadRead(note.id, actorKey(rc.ref)))
-    else if (myRec) markNoteThreadRead(note.id, actorKey(myRec.ref))
+    if (isSender) (note.recipients ?? []).forEach((rc) => markNoteThreadRead(note.id, actorKey(rc.ref), note.from))
+    else if (myRec) markNoteThreadRead(note.id, actorKey(myRec.ref), myRec.ref)
     setEditing(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId])
@@ -461,9 +466,9 @@ function NoteThreadSheet({
                   key={actorKey(rc.ref)}
                   note={note}
                   rc={rc}
-                  meKey={meKey}
+                  keys={keys}
                   frozen={!!note.frozen}
-                  onReply={(text) => postNoteMessage(note.id, actorKey(rc.ref), text)}
+                  onReply={(text) => postNoteMessage(note.id, actorKey(rc.ref), text, undefined, note.from)}
                   resolveName={resolveName}
                   isRtl={isRtl}
                   lang={lang}
@@ -477,11 +482,10 @@ function NoteThreadSheet({
             <AssessmentReaction
               note={note}
               rc={myRec}
-              meKey={meKey}
               frozen={!!note.frozen}
-              onRate={(rating) => rateNotification(note.id, meKey, rating)}
-              onChoice={(i, choice) => setBallotChoice(note.id, meKey, i, choice)}
-              onClose={() => respondNotification(note.id, meKey, 'closed')}
+              onRate={(rating) => rateNotification(note.id, myKey, rating)}
+              onChoice={(i, choice) => setBallotChoice(note.id, myKey, i, choice)}
+              onClose={() => respondNotification(note.id, myKey, 'closed')}
               isRtl={isRtl}
               lang={lang}
               t={t}
@@ -490,10 +494,10 @@ function NoteThreadSheet({
             <RecipientView
               note={note}
               rc={myRec}
-              meKey={meKey}
+              keys={keys}
               frozen={!!note.frozen}
-              onRespond={(status, text) => respondNotification(note.id, meKey, status, text)}
-              onMessage={(text) => postNoteMessage(note.id, meKey, text)}
+              onRespond={(status, text) => respondNotification(note.id, myKey, status, text)}
+              onMessage={(text) => postNoteMessage(note.id, myKey, text, undefined, myRec.ref)}
               isRtl={isRtl}
               lang={lang}
               t={t}
@@ -508,7 +512,7 @@ function NoteThreadSheet({
 // Sender-side view of ONE recipient's private thread + reply box.
 function RecipientSection({
   rc,
-  meKey,
+  keys,
   frozen,
   onReply,
   resolveName,
@@ -518,7 +522,7 @@ function RecipientSection({
 }: {
   note: Notification
   rc: NoteRecipient
-  meKey: string
+  keys: Set<string>
   frozen: boolean
   onReply: (text: string) => void
   resolveName: (r: ActorRef) => string
@@ -533,7 +537,7 @@ function RecipientSection({
         <ActorLine actor={rc.ref} size={28} />
         <Badge tone={STATUS_TONE[rc.status]}>{statusLabel(rc.status, isRtl)}</Badge>
       </div>
-      <ThreadList thread={rc.thread} meKey={meKey} lang={lang} isRtl={isRtl} t={t} resolveName={resolveName} />
+      <ThreadList thread={rc.thread} keys={keys} lang={lang} isRtl={isRtl} t={t} resolveName={resolveName} />
       {!locked ? (
         <Composer placeholder={t('replyToClarification')} onSend={onReply} isRtl={isRtl} />
       ) : (
@@ -546,7 +550,7 @@ function RecipientSection({
 // Recipient-side view: my own thread + reaction bar + follow-up composer.
 function RecipientView({
   rc,
-  meKey,
+  keys,
   frozen,
   onRespond,
   onMessage,
@@ -556,7 +560,7 @@ function RecipientView({
 }: {
   note: Notification
   rc: NoteRecipient
-  meKey: string
+  keys: Set<string>
   frozen: boolean
   onRespond: (status: NoteStatus, text?: string) => void
   onMessage: (text: string) => void
@@ -579,7 +583,7 @@ function RecipientView({
         <Badge tone={STATUS_TONE[rc.status]}>{statusLabel(rc.status, isRtl)}</Badge>
       </div>
 
-      <ThreadList thread={rc.thread} meKey={meKey} lang={lang} isRtl={isRtl} t={t} />
+      <ThreadList thread={rc.thread} keys={keys} lang={lang} isRtl={isRtl} t={t} />
 
       {locked ? (
         <LockedNote frozen={frozen} isRtl={isRtl} t={t} />
@@ -717,7 +721,6 @@ function AssessmentReaction({
 }: {
   note: Notification
   rc: NoteRecipient
-  meKey: string
   frozen: boolean
   onRate: (rating: RatingKey) => void
   onChoice: (index: number, choice: 'agree' | 'disagree') => void
@@ -798,14 +801,14 @@ function LockedNote({ frozen, isRtl, t }: { frozen: boolean; isRtl: boolean; t: 
 
 function ThreadList({
   thread,
-  meKey,
+  keys,
   lang,
   isRtl,
   t,
   resolveName,
 }: {
   thread: NoteThreadEntry[]
-  meKey: string
+  keys: Set<string>
   lang: 'en' | 'ar'
   isRtl: boolean
   t: (k: string) => string
@@ -816,7 +819,7 @@ function ThreadList({
   return (
     <div className="space-y-2 py-1">
       {thread.map((e) => (
-        <ThreadEntryView key={e.id} e={e} meKey={meKey} lang={lang} isRtl={isRtl} t={t} resolveName={resolveName} />
+        <ThreadEntryView key={e.id} e={e} keys={keys} lang={lang} isRtl={isRtl} t={t} resolveName={resolveName} />
       ))}
     </div>
   )
@@ -824,14 +827,14 @@ function ThreadList({
 
 function ThreadEntryView({
   e,
-  meKey,
+  keys,
   lang,
   isRtl,
   t,
   resolveName,
 }: {
   e: NoteThreadEntry
-  meKey: string
+  keys: Set<string>
   lang: 'en' | 'ar'
   isRtl: boolean
   t: (k: string) => string
@@ -853,7 +856,7 @@ function ThreadEntryView({
       </div>
     )
   }
-  const mine = actorKey(e.by) === meKey
+  const mine = keys.has(actorKey(e.by))
   return (
     <div className={cx('flex', mine ? 'justify-end' : 'justify-start')}>
       <div
