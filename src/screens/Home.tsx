@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Heart, MessageCircle, Forward, Bookmark, Send } from 'lucide-react'
+import { Heart, MessageCircle, Forward, Bookmark, Send, ChevronDown, Globe, UsersRound, Check } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime } from '@/lib/identity'
-import { ActorLine, useResolveActor } from '@/components/identity'
+import { ActorLine } from '@/components/identity'
 import { useDirectory, useMyInbox } from '@/lib/userScope'
-import { RecipientPicker } from '@/components/RecipientPicker'
-import type { PickerGroup } from '@/components/RecipientPicker'
 
 import type { ActorRef, Post } from '@/types'
 import {
@@ -77,19 +75,18 @@ export function Home() {
   const reactPost = useStore((s) => s.reactPost)
   const savePost = useStore((s) => s.savePost)
   const groupRecipients = useStore((s) => s.groupRecipients)
-  const resolve = useResolveActor()
   const dir = useDirectory()
   const inbox = useMyInbox()
 
   const canSend = can('post.send')
 
   const [body, setBody] = useState('')
-  const [toRefs, setToRefs] = useState<ActorRef[]>([])
-  const [toGroups, setToGroups] = useState<string[]>([])
+  // Audience is a single choice: null = everyone in the directory, or one group id.
+  const [toGroup, setToGroup] = useState<string | null>(null)
 
   const meKey = active ? actorKey(active) : ''
 
-  const pickerGroups = useMemo<PickerGroup[]>(
+  const audienceGroups = useMemo(
     () => dir.groups.map((g) => ({ id: g.id, name: g.name, count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length })),
     [dir.groups, groupRecipients, meKey],
   )
@@ -106,23 +103,14 @@ export function Home() {
   const submit = () => {
     const text = body.trim()
     if (!text || !canSend) return
-    // Audience = the chosen people/groups (expanded), or the whole directory by default.
+    // Audience = the chosen group (expanded), or the whole directory by default.
     // Always include the author so the audience is never empty — an empty audience
     // would collapse to undefined and be treated as a legacy broadcast (leak).
-    const seen = new Set<string>()
-    const explicit: ActorRef[] = []
-    for (const r of [...toRefs, ...toGroups.flatMap(expandGroup)]) {
-      const k = actorKey(r)
-      if (!seen.has(k)) {
-        seen.add(k)
-        explicit.push(r)
-      }
-    }
-    const audienceKeys = Array.from(new Set([...(explicit.length ? explicit : dir.people).map(actorKey), meKey].filter(Boolean)))
+    const recipients = toGroup ? expandGroup(toGroup) : dir.people
+    const audienceKeys = Array.from(new Set([...recipients.map(actorKey), meKey].filter(Boolean)))
     addPost(text, 'friend', audienceKeys)
     setBody('')
-    setToRefs([])
-    setToGroups([])
+    setToGroup(null)
   }
 
   return (
@@ -136,32 +124,20 @@ export function Home() {
           rows={3}
           disabled={!canSend}
         />
-        {canSend && (
-          <RecipientPicker
-            label={L('Audience (from your directory)', 'الجمهور (من دليلك)')}
-            options={dir.people}
-            groups={pickerGroups}
-            refs={toRefs}
-            groupIds={toGroups}
-            onChangeRefs={setToRefs}
-            onChangeGroupIds={setToGroups}
-            resolveName={(r) => resolve(r).displayName}
-            resolveLabel={(r) => resolve(r).displayName}
-            placeholder={L('Everyone in your directory…', 'كل من في دليلك…')}
-            isRtl={isRtl}
-          />
-        )}
-        <div className="flex items-center gap-2">
-          <div className="flex-1" />
-          <Button
-            variant="primary"
-            onClick={submit}
-            disabled={!canSend || !body.trim()}
-          >
-            {t('send')}
-          </Button>
-        </div>
-        {!canSend && (
+        {canSend ? (
+          <div className="flex items-center justify-end">
+            <AudienceSend
+              disabled={!body.trim()}
+              groups={audienceGroups}
+              value={toGroup}
+              onChange={setToGroup}
+              onSend={submit}
+              sendLabel={t('send')}
+              L={L}
+              isRtl={isRtl}
+            />
+          </div>
+        ) : (
           <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
         )}
       </Card>
@@ -190,6 +166,139 @@ export function Home() {
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Split "Send" button: the primary action posts, while the attached caret opens
+ * a compact menu to pick the audience — everyone in the directory (default) or
+ * a single group. Uses the blur-timer dismissal pattern shared with the app.
+ */
+function AudienceSend({
+  disabled,
+  groups,
+  value,
+  onChange,
+  onSend,
+  sendLabel,
+  L,
+  isRtl,
+}: {
+  disabled: boolean
+  groups: { id: string; name: string; count: number }[]
+  value: string | null
+  onChange: (id: string | null) => void
+  onSend: () => void
+  sendLabel: string
+  L: (en: string, ar: string) => string
+  isRtl: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const everyone = L('Everyone in your directory', 'كل من في دليلك')
+  const selectedGroup = value ? groups.find((g) => g.id === value) : undefined
+  const chip = selectedGroup ? selectedGroup.name : L('Everyone', 'الجميع')
+
+  const choose = (id: string | null) => {
+    onChange(id)
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative inline-flex items-center gap-2">
+      <span className="max-w-[10rem] truncate text-xs text-slate-500">
+        {L('To', 'إلى')}: <span className="font-medium text-slate-600">{chip}</span>
+      </span>
+
+      <div className="inline-flex overflow-hidden rounded-2xl shadow-sm">
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={disabled}
+          className="bg-gate-600 px-4 py-2.5 text-sm font-medium text-light transition-all hover:bg-gate-700 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+        >
+          {sendLabel}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          onFocus={() => {
+            if (blurTimer.current) clearTimeout(blurTimer.current)
+          }}
+          onBlur={() => {
+            blurTimer.current = setTimeout(() => setOpen(false), 150)
+          }}
+          aria-label={L('Choose audience', 'اختر الجمهور')}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex items-center border-s border-gate-500/40 bg-gate-600 ps-1.5 pe-2.5 text-light transition-all hover:bg-gate-700 active:scale-[0.97]"
+        >
+          <ChevronDown size={16} className={cx('transition-transform', open && 'rotate-180')} />
+        </button>
+      </div>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute end-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto thin-scroll rounded-2xl border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          <AudienceOption
+            icon={<Globe size={15} className="shrink-0 text-gate-500" />}
+            label={everyone}
+            selected={!value}
+            onSelect={() => choose(null)}
+            isRtl={isRtl}
+          />
+          {groups.map((g) => (
+            <AudienceOption
+              key={g.id}
+              icon={<UsersRound size={15} className="shrink-0 text-teal-500" />}
+              label={g.name}
+              count={g.count}
+              selected={value === g.id}
+              onSelect={() => choose(g.id)}
+              isRtl={isRtl}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AudienceOption({
+  icon,
+  label,
+  count,
+  selected,
+  onSelect,
+  isRtl,
+}: {
+  icon: ReactNode
+  label: string
+  count?: number
+  selected: boolean
+  onSelect: () => void
+  isRtl: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onSelect}
+      className={cx(
+        'flex w-full items-center gap-2 px-3 py-2 text-start text-sm transition hover:bg-slate-50',
+        selected ? 'text-gate-700' : 'text-slate-700',
+      )}
+    >
+      {icon}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {count != null && <span className="shrink-0 text-[11px] text-slate-400">{count}</span>}
+      {selected && <Check size={15} className={cx('shrink-0 text-gate-600', isRtl ? 'me-0' : 'ms-0')} />}
+    </button>
   )
 }
 
