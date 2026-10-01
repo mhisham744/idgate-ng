@@ -6,12 +6,12 @@
     <title>IDGate — One platform, two sides</title>
     <meta
       name="description"
-      content="IDGate is one identity platform with two sides. Carry your identities and communicate on mobile; Command the organization behind them on the web."
+      content="IDGate is one identity platform with two sides. Be your identities and communicate on Mobile; run the organization behind them on the Web."
     />
     <meta name="theme-color" content="#0a1030" />
     <link rel="icon" type="image/svg+xml" href="../gate.svg" />
     <meta property="og:title" content="IDGate — One platform, two sides" />
-    <meta property="og:description" content="Carry your identities. Command your organization." />
+    <meta property="og:description" content="One identity platform, two sides — Mobile and Web." />
     <meta property="og:type" content="website" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -227,7 +227,8 @@
       .demo-prog { display: flex; gap: 5px; margin-top: 12px; }
       .demo-prog span { height: 4px; flex: 1; border-radius: 3px; background: #1b2450; overflow: hidden; position: relative; }
       .demo-prog span.done { background: var(--teal); }
-      .demo-prog span.active::after { content: ''; position: absolute; inset: 0; background: var(--teal); transform-origin: left; animation: fill linear forwards; animation-duration: var(--d, 3000ms); }
+      .demo-prog span.active::after { content: ''; position: absolute; inset: 0; background: var(--teal); transform-origin: left; transform: scaleX(0); animation: fill linear forwards; animation-duration: var(--d, 3000ms); animation-play-state: paused; }
+      .demo.playing .demo-prog span.active::after { animation-play-state: running; }
       @keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
       .demo-step-no { font-family: 'Space Grotesk', monospace; font-size: 11px; color: var(--muted); margin-left: auto; }
 
@@ -245,12 +246,12 @@
       @media (max-width: 860px) { .split-grid { grid-template-columns: 1fr; } }
       .xp { position: relative; border-radius: var(--radius); padding: 34px; overflow: hidden; border: 1px solid var(--line);
         background: linear-gradient(165deg, rgba(32,42,94,0.85), rgba(22,30,70,0.9)); }
-      .xp.carry::after, .xp.command::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-      .xp.carry::after { background: linear-gradient(90deg, var(--teal), transparent); }
-      .xp.command::after { background: linear-gradient(90deg, var(--blue), transparent); }
+      .xp.mob::after, .xp.web::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+      .xp.mob::after { background: linear-gradient(90deg, var(--teal), transparent); }
+      .xp.web::after { background: linear-gradient(90deg, var(--blue), transparent); }
       .xp .tag { font-family: 'Space Grotesk', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
-      .xp.carry .tag { color: var(--teal); }
-      .xp.command .tag { color: var(--blue); }
+      .xp.mob .tag { color: var(--teal); }
+      .xp.web .tag { color: var(--blue); }
       .xp h3 { font-size: 27px; margin: 12px 0 4px; color: #fff; }
       .xp .who { font-size: 14px; color: var(--muted); font-weight: 600; }
       .xp p { color: var(--muted); font-size: 14.5px; margin-top: 15px; }
@@ -264,8 +265,8 @@
       @media (max-width: 900px) { .persona { grid-template-columns: 1fr; } .persona.rev .art { order: 0; } }
       .feat { display: flex; gap: 14px; margin-top: 20px; }
       .feat .ic { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; border: 1px solid var(--line); }
-      .carry-sec .feat .ic { background: rgba(45,212,191,0.1); color: var(--teal); }
-      .command-sec .feat .ic { background: rgba(89,141,255,0.1); color: var(--blue); }
+      .mob-sec .feat .ic { background: rgba(45,212,191,0.1); color: var(--teal); }
+      .web-sec .feat .ic { background: rgba(89,141,255,0.1); color: var(--blue); }
       .feat h4 { font-size: 15.5px; font-weight: 700; color: #fff; }
       .feat p { font-size: 14px; color: var(--muted); margin-top: 3px; }
 
@@ -332,8 +333,8 @@
         </a>
         <div class="nav-links">
           <a href="#sides">Two sides</a>
-          <a href="#carry">Carry</a>
-          <a href="#command">Command</a>
+          <a href="#mobile">Mobile</a>
+          <a href="#web">Web</a>
           <a href="#matrix">Features</a>
           <a class="nav-cta" href="https://mhisham744.github.io/idgate-ng/#/home" target="_blank" rel="noopener">Launch IDGate →</a>
         </div>
@@ -345,13 +346,13 @@
       <div class="wrap hero-grid">
         <div>
           <span class="pill-top"><span class="dot"></span> One platform · <b>two sides</b></span>
-          <h1>Carry your identity.<br /><span class="grad">Command</span> your organization.</h1>
+          <h1>Be your identities on <span class="grad">Mobile</span>.<br />Run your organization on the <span class="grad">Web</span>.</h1>
           <p class="lede">
-            IDGate is a single identity &amp; official-communication platform with two sides that work as one. <strong>Carry</strong> is the phone in your pocket — you <em>are</em> your identities. <strong>Command</strong> is the web workspace — you <em>build and govern</em> the organization behind them.
+            IDGate is a single identity &amp; official-communication platform with two sides that work as one. <strong>Mobile</strong> is the app in your pocket — you <em>are</em> your identities. <strong>Web</strong> is the workspace in your browser — you <em>build and govern</em> the organization behind them.
           </p>
           <p class="arabic">منصّة واحدة بجانبين — هويّتك في جيبك، ومؤسستك تحت سيطرتك.</p>
           <div class="hero-cta">
-            <a class="btn btn-primary" href="#carry">
+            <a class="btn btn-primary" href="#mobile">
               Watch it work
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </a>
@@ -367,7 +368,7 @@
         <div class="hero-art">
           <div class="glowframe">
             <div class="browser" aria-hidden="true">
-              <div class="browser-bar"><i></i><i></i><i></i><span class="url">idgate · command</span></div>
+              <div class="browser-bar"><i></i><i></i><i></i><span class="url">idgate · web</span></div>
               <div class="web-screen" style="padding:14px;">
                 <div class="wiz-top">Nestlé Egypt · structure</div>
                 <div class="org" style="margin-top:12px;">
@@ -408,11 +409,11 @@
         <div class="sec-head reveal">
           <span class="eyebrow">One solution, two sides</span>
           <h2>Not two apps. One platform, split by what you're doing.</h2>
-          <p>IDGate's account model draws the line for you. When you're <em>living</em> your identities, you're on Carry. When you're <em>building</em> the organization behind them, you're on Command. Same data, same identities — two surfaces tuned to two jobs.</p>
+          <p>IDGate's account model draws the line for you. When you're <em>living</em> your identities, you're on Mobile. When you're <em>building</em> the organization behind them, you're on Web. Same data, same identities — two surfaces tuned to two jobs.</p>
         </div>
         <div class="split-grid reveal">
-          <div class="xp carry">
-            <span class="tag">◆ Carry · the mobile side</span>
+          <div class="xp mob">
+            <span class="tag">◆ Mobile · the app you carry</span>
             <h3>Be your identities</h3>
             <div class="who">The citizen &amp; the position-holder</div>
             <p>Sign in once, then switch between your personal self and any organization seat you hold — communicating and proving who you are, all from your phone.</p>
@@ -423,8 +424,8 @@
               <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg> Switch between personal &amp; position identities</li>
             </ul>
           </div>
-          <div class="xp command">
-            <span class="tag">◆ Command · the web side</span>
+          <div class="xp web">
+            <span class="tag">◆ Web · the organization workspace</span>
             <h3>Run your organization</h3>
             <div class="who">The organization-maintainer</div>
             <p>A data-dense workspace for the person who owns or directs an entity: build the structures, positions and permissions that make a person a position-holder.</p>
@@ -439,17 +440,17 @@
       </div>
     </section>
 
-    <!-- ───────────── Carry demo ───────────── -->
-    <section class="carry-sec" id="carry">
+    <!-- ───────────── Mobile demo ───────────── -->
+    <section class="mob-sec" id="mobile">
       <div class="wrap">
         <div class="sec-head reveal">
-          <span class="eyebrow">▶ The Carry side · live walkthrough</span>
-          <h2>Watch a day on Carry</h2>
+          <span class="eyebrow">▶ Mobile · live walkthrough</span>
+          <h2>A day on the mobile app</h2>
           <p>Press play. This is the real end-user flow — respond to an official notification, switch identity, and show your QR badge.</p>
         </div>
         <div class="persona reveal">
           <div class="art">
-            <div class="demo" id="demo-carry">
+            <div class="demo" id="demo-mobile">
               <div class="glowframe">
                 <div class="phone"><div class="phone-screen" data-screen></div></div>
               </div>
@@ -481,20 +482,20 @@
       </div>
     </section>
 
-    <!-- ───────────── Command demo ───────────── -->
-    <section class="command-sec" id="command">
+    <!-- ───────────── Web demo ───────────── -->
+    <section class="web-sec" id="web">
       <div class="wrap">
         <div class="sec-head reveal">
-          <span class="eyebrow">▶ The Command side · live walkthrough</span>
+          <span class="eyebrow">▶ Web · live walkthrough</span>
           <h2>Watch an organization get built</h2>
           <p>Press play. This is the maintainer flow — register an entity, draw its structure, grant permissions, and link a position to a real person.</p>
         </div>
         <div class="persona rev reveal">
           <div class="art">
-            <div class="demo" id="demo-command">
+            <div class="demo" id="demo-web">
               <div class="glowframe">
                 <div class="browser">
-                  <div class="browser-bar"><i></i><i></i><i></i><span class="url" data-url>idgate · command</span></div>
+                  <div class="browser-bar"><i></i><i></i><i></i><span class="url" data-url>idgate · web</span></div>
                   <div class="web-screen" data-screen></div>
                 </div>
               </div>
@@ -532,7 +533,7 @@
         <div class="sec-head reveal">
           <span class="eyebrow">What makes it IDGate</span>
           <h2>Capabilities that span both sides</h2>
-          <p>Issued on Command, carried on Carry — a handful of features define the platform.</p>
+          <p>Issued on Web, carried on Mobile — a handful of features define the platform.</p>
         </div>
         <div class="cap-grid reveal">
           <div class="cap teal">
@@ -580,13 +581,13 @@
       <div class="wrap">
         <div class="sec-head reveal">
           <span class="eyebrow">Every feature, placed</span>
-          <h2>Carry vs. Command, at a glance</h2>
+          <h2>Mobile vs. Web, at a glance</h2>
           <p>The same codebase renders both. Here's where each capability primarily lives.</p>
         </div>
         <div class="reveal">
         <table class="mtable">
           <thead>
-            <tr><th>Capability</th><th>◆ Carry</th><th>◆ Command</th></tr>
+            <tr><th>Capability</th><th>◆ Mobile</th><th>◆ Web</th></tr>
           </thead>
           <tbody>
             <tr class="grp"><td colspan="3">Communicate &amp; participate</td></tr>
@@ -635,12 +636,12 @@
           <div class="dim">
             <div class="n">DIMENSION 01</div>
             <h3>Natural person</h3>
-            <p>A KYC'd human — your personal account. Ungoverned by profiles: you own your own data, contacts and communication. This is who signs in on Carry.</p>
+            <p>A KYC'd human — your personal account. Ungoverned by profiles: you own your own data, contacts and communication. This is who signs in on Mobile.</p>
           </div>
           <div class="dim">
             <div class="n">DIMENSION 02</div>
             <h3>Legal entity</h3>
-            <p>An organization: its legal data, four communication structures, positions and authorization profiles. Built and governed on Command.</p>
+            <p>An organization: its legal data, four communication structures, positions and authorization profiles. Built and governed on Web.</p>
           </div>
           <div class="dim">
             <div class="n">DIMENSION 03</div>
@@ -656,7 +657,7 @@
       <div class="wrap reveal">
         <div class="cta-box">
           <h2>Experience both sides for yourself</h2>
-          <p>Open IDGate on your phone to Carry your identities — or on a desktop browser to Command an organization.</p>
+          <p>Open IDGate on your phone to be your identities — or on a desktop browser to run an organization.</p>
           <div class="hero-cta">
             <a class="btn btn-primary" href="https://mhisham744.github.io/idgate-ng/#/home" target="_blank" rel="noopener">
               Launch IDGate
@@ -684,8 +685,8 @@
         var PLAY = '<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
         var PAUSE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
 
-        // ── Carry (mobile) flow ──
-        var CARRY = [
+        // ── Mobile flow ──
+        var MOBILE = [
           { dur: 3400, cap: 'Mohamed signs in to his <b>personal account</b> — feed, inbox and duties in one place.',
             html: '<div class="scr-head m"><div class="scr-title">Home</div><div class="scr-sub">Mohamed · personal</div></div>'
               + '<div class="scr-body">'
@@ -719,8 +720,8 @@
               + '<div class="ui-tabbar"><i></i><i></i><i></i><i class="on"></i><i></i></div>' },
         ];
 
-        // ── Command (web) flow ──
-        var COMMAND = [
+        // ── Web flow ──
+        var WEB = [
           { dur: 3600, url: 'idgate · /settings/entities/new', cap: 'Register a <b>legal entity</b> — the 8-step setup wizard.',
             html: '<div style="padding:16px;">'
               + '<div class="wiz-top">Register organization · Step 1 of 8</div>'
@@ -755,11 +756,11 @@
               + '<div class="ui-card rise"><div class="ui-row" style="margin-bottom:10px;"><div class="ui-av"></div><div><div style="font-size:11px;color:#fff;font-weight:700;">Mohamed Hisham</div><div style="font-size:9px;color:var(--muted);">verified · personal</div></div></div>'
               + '<div style="display:flex;gap:8px;margin-bottom:10px;"><div style="flex:1;"><div style="font-size:9px;color:var(--muted);margin-bottom:4px;">Valid from</div><div class="field"></div></div><div style="flex:1;"><div style="font-size:9px;color:var(--muted);margin-bottom:4px;">Valid to</div><div class="field"></div></div></div>'
               + '<div class="bmini cla pulse" style="padding:9px;">Send link request</div></div></div>' },
-          { dur: 4000, url: 'idgate · command', cap: '<b>Activated.</b> The seat goes live — and appears on Mohamed\'s phone.',
+          { dur: 4000, url: 'idgate · web', cap: '<b>Activated.</b> The seat goes live — and appears on Mohamed\'s phone.',
             html: '<div style="padding:16px;" class="scr-body center">'
               + '<div class="okwrap rise"><div class="okring"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div>'
               + '<div style="font-size:13px;font-weight:800;color:#fff;">Entity activated</div>'
-              + '<div style="font-size:11px;color:var(--muted);text-align:center;">Administrator provisioned · Commercial Manager seat is now live on Carry</div>'
+              + '<div style="font-size:11px;color:var(--muted);text-align:center;">Administrator provisioned · Commercial Manager seat is now live on mobile</div>'
               + '<div class="org" style="margin-top:4px;"><div class="node seat">◆ Commercial Manager → Mohamed</div></div></div></div>' },
         ];
 
@@ -772,49 +773,71 @@
           var btn = root.querySelector('[data-play]');
           var stepno = root.querySelector('[data-stepno]');
           var urlEl = root.querySelector('[data-url]');
-          var i = 0, timer = null, playing = false;
+          var i = 0, timer = null, fade = null, playing = false, userPaused = false;
 
           prog.innerHTML = steps.map(function () { return '<span></span>'; }).join('');
-          var segs = prog.querySelectorAll('span');
+          var segs = Array.prototype.slice.call(prog.querySelectorAll('span'));
 
+          // Render step n. The progress bar's fill is a CSS animation that only
+          // runs while the root carries .playing, and we force it to restart from
+          // zero on every step (remove 'active' → reflow → re-add). The step timer
+          // is (re)armed here too, so bar and advance stay perfectly in sync.
           function render(n) {
+            clearTimeout(fade);
             screen.style.opacity = '0';
-            setTimeout(function () {
+            fade = setTimeout(function () {
               screen.innerHTML = steps[n].html;
               screen.style.opacity = '1';
               cap.innerHTML = steps[n].cap;
               if (urlEl && steps[n].url) urlEl.textContent = steps[n].url;
               stepno.textContent = (n + 1) + ' / ' + steps.length;
               segs.forEach(function (s, k) {
+                s.classList.remove('active', 'done');
                 s.style.removeProperty('--d');
-                s.className = k < n ? 'done' : (k === n ? 'active' : '');
-                // custom props inherit into ::after, so this drives the fill timing
-                if (k === n) s.style.setProperty('--d', steps[n].dur + 'ms');
+                if (k < n) s.classList.add('done');
               });
+              void prog.offsetWidth; // reflow so the fill animation restarts cleanly
+              var cur = segs[n];
+              if (cur) { cur.style.setProperty('--d', steps[n].dur + 'ms'); cur.classList.add('active'); }
+              if (playing) {
+                clearTimeout(timer);
+                timer = setTimeout(function () { render(i = (n + 1) % steps.length); }, steps[n].dur);
+              }
             }, 170);
-          } { clearTimeout(timer); timer = setTimeout(next, steps[i].dur); }
-          function next() { i = (i + 1) % steps.length; render(i); if (playing) schedule(); }
-          function play() { playing = true; btn.classList.add('on'); btn.innerHTML = PAUSE; btn.setAttribute('aria-label', 'Pause'); schedule(); }
-          function pause() { playing = false; btn.classList.remove('on'); btn.innerHTML = PLAY; btn.setAttribute('aria-label', 'Play'); clearTimeout(timer); }
+          }
+          function play() {
+            if (playing) return;
+            playing = true; root.classList.add('playing');
+            btn.classList.add('on'); btn.innerHTML = PAUSE; btn.setAttribute('aria-label', 'Pause');
+            render(i); // restart current step so bar + timer begin together
+          }
+          function pause() {
+            if (!playing) return;
+            playing = false; root.classList.remove('playing');
+            btn.classList.remove('on'); btn.innerHTML = PLAY; btn.setAttribute('aria-label', 'Play');
+            clearTimeout(timer); clearTimeout(fade);
+          }
 
-          btn.addEventListener('click', function () { playing ? pause() : play(); });
+          btn.addEventListener('click', function () {
+            if (playing) { pause(); userPaused = true; }
+            else { userPaused = false; play(); }
+          });
           btn.innerHTML = PLAY;
-          render(0);
+          render(0); // show the first frame (bar idle until play)
 
-          var started = false;
           if ('IntersectionObserver' in window) {
             var io = new IntersectionObserver(function (entries) {
               entries.forEach(function (e) {
-                if (e.isIntersecting && !started) { started = true; if (!reduced) play(); }
-                else if (!e.isIntersecting && playing) pause();
+                if (e.isIntersecting) { if (!playing && !userPaused && !reduced) play(); }
+                else if (playing) pause();
               });
-            }, { threshold: 0.45 });
+            }, { threshold: 0.4 });
             io.observe(root);
           }
         }
 
-        initPlayer('carry', CARRY);
-        initPlayer('command', COMMAND);
+        initPlayer('mobile', MOBILE);
+        initPlayer('web', WEB);
 
         // ── scroll reveal ──
         if ('IntersectionObserver' in window) {
