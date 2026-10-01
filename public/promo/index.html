@@ -73,7 +73,7 @@
         --mesh-op: 0.5;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html { scroll-behavior: smooth; }
+      html { scroll-behavior: smooth; overflow-x: clip; }
       body {
         font-family: 'Inter', system-ui, sans-serif;
         color: var(--ink);
@@ -172,7 +172,7 @@
 
       /* ───────────── Device frames ───────────── */
       .hero-art { display: flex; justify-content: center; align-items: center; gap: 20px; }
-      .glowframe { position: relative; }
+      .glowframe { position: relative; max-width: 100%; }
       .glowframe::before {
         content: ''; position: absolute; inset: -14px; border-radius: 44px; z-index: 0;
         background: conic-gradient(from 0deg, transparent, var(--teal), transparent 25%, var(--blue), transparent 55%, var(--violet), transparent 80%);
@@ -181,7 +181,7 @@
       @keyframes spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) { .glowframe::before, .mesh { animation: none; } }
 
-      .phone { position: relative; z-index: 1; width: 236px; aspect-ratio: 236 / 486; background: #0e1636;
+      .phone { position: relative; z-index: 1; width: 236px; max-width: 100%; aspect-ratio: 236 / 486; background: #0e1636;
         border-radius: 36px; padding: 9px; border: 1px solid rgba(140,160,230,0.25);
         box-shadow: 0 30px 70px -20px rgba(0,0,0,0.7), inset 0 0 0 2px rgba(255,255,255,0.03); flex: none; }
       .phone::before { content: ''; position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
@@ -189,7 +189,7 @@
       .phone-screen { height: 100%; border-radius: 28px; background: #141d44; overflow: hidden;
         display: flex; flex-direction: column; transition: opacity 0.18s ease; }
 
-      .browser { position: relative; z-index: 1; width: 340px; background: #141d44; border-radius: 16px;
+      .browser { position: relative; z-index: 1; width: min(340px, 100%); background: #141d44; border-radius: 16px;
         border: 1px solid rgba(140,160,230,0.22); box-shadow: 0 30px 70px -20px rgba(0,0,0,0.7); overflow: hidden; flex: none; }
       .browser-bar { height: 36px; background: #1b2552; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--line); }
       .browser-bar i { width: 10px; height: 10px; border-radius: 50%; background: #2a3566; display: block; }
@@ -261,7 +261,7 @@
       @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
       /* ───────────── Player controls ───────────── */
-      .demo { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      .demo { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
       .demo-ctl { width: min(360px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
       .demo-ctl-top { display: flex; align-items: center; gap: 13px; }
       .play-btn { width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer; flex: none;
@@ -341,7 +341,8 @@
       .yes { color: var(--teal); font-weight: 800; }
       .no { color: var(--no); }
       .part { color: var(--blue); font-weight: 700; font-size: 12px; }
-      @media (max-width: 720px) { .mtable { font-size: 12.5px; } .mtable th, .mtable td { padding: 10px; } }
+      @media (max-width: 720px) { .mtable { font-size: 12.5px; } .mtable th, .mtable td { padding: 10px; }
+        .mtable thead th:nth-child(2), .mtable thead th:nth-child(3) { width: 48px; } }
 
       /* identity model */
       .model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -365,6 +366,23 @@
 
       footer { border-top: 1px solid var(--line); padding: 40px 0; font-size: 13px; color: var(--muted); }
       .foot-in { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+      /* ───────────── Phone-sized screens ───────────── */
+      @media (max-width: 560px) {
+        .wrap { width: 90vw; }
+        section { padding: 60px 0; }
+        .hero { padding: 56px 0 70px; }
+        .hero-grid { gap: 32px; }
+        .hero-stats { gap: 20px 26px; margin-top: 32px; }
+        .hero-cta { gap: 10px; }
+        .hero-cta .btn { flex: 1 1 auto; justify-content: center; }
+        .persona { gap: 30px; }
+        .sec-head { margin-bottom: 40px; }
+        .cap, .dim, .xp { padding: 24px; }
+        .demo-ctl, .browser, .demo { width: 100%; }
+        .theme-toggle { width: 34px; height: 34px; }
+        .nav-links { gap: 14px; }
+      }
     </style>
     <script>
       // Set the saved/system theme before first paint to avoid a flash.
