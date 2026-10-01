@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, Wallet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { personalAddress, virtualAddress } from '@/lib/identity'
+import { addToWallet, walletEnabled } from '@/lib/wallet'
 import { Button, Card, EmptyState } from '@/ui/primitives'
 
 /**
@@ -45,6 +47,30 @@ export function IDGateCodeCard() {
   const address = virtualAddress(vc!, ent!, host)
   const accent = ent!.logoColor
 
+  const showWallet = walletEnabled && can('tool.idgatePass')
+  const [adding, setAdding] = useState(false)
+  const [walletErr, setWalletErr] = useState<string | null>(null)
+
+  const onAddToWallet = async () => {
+    setWalletErr(null)
+    setAdding(true)
+    try {
+      await addToWallet({
+        address,
+        name: host?.fullName ?? ent!.commercialName,
+        position: vc!.positionName,
+        org: ent!.commercialName,
+        color: accent,
+        code: vc!.positionCode,
+        serial: `idgate-${vc!.id}`,
+      })
+    } catch (e) {
+      setWalletErr((e as Error).message)
+    } finally {
+      setAdding(false)
+    }
+  }
+
   return (
     <Card className="overflow-hidden">
       <div className="px-5 py-4 text-light" style={{ backgroundColor: accent }}>
@@ -61,6 +87,25 @@ export function IDGateCodeCard() {
           {address}
         </div>
         <div className="text-xs text-slate-400">{t('scanToVerify')}</div>
+
+        {showWallet && (
+          <div className="flex flex-col items-center gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={onAddToWallet}
+              disabled={adding}
+              className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.97] disabled:opacity-50"
+            >
+              <Wallet size={18} />
+              {adding
+                ? L('Preparing…', 'جارٍ التحضير…')
+                : L('Add to Apple Wallet', 'أضف إلى Apple Wallet')}
+            </button>
+            {walletErr && (
+              <p className="max-w-[16rem] text-center text-xs text-rose-500">{walletErr}</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="divide-y divide-slate-100 border-t border-slate-100 text-sm">
