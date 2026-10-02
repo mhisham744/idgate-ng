@@ -1,17 +1,18 @@
 import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { ArrowLeft, ShieldCheck, Wallet } from 'lucide-react'
+import { ArrowLeft, Wallet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { personalAddress, virtualAddress } from '@/lib/identity'
 import { addToWallet, walletEnabled } from '@/lib/wallet'
-import { Button, Card, EmptyState } from '@/ui/primitives'
+import { Button, Card } from '@/ui/primitives'
 
 /**
  * The IDGate Code content as a standalone card — the QR badge for an active
- * virtual (position) identity, or a receive-only note otherwise. Reused both by
- * the /tools/idgate screen and embedded at the top of the Tools page.
+ * virtual (position) identity that is LINKED (status 'active') to a personal
+ * account. For a personal account, or an unlinked/blocked virtual, it renders
+ * nothing. Reused by the /tools/idgate screen and embedded at the top of Tools.
  */
 export function IDGateCodeCard() {
   const { t, isRtl } = useLang()
@@ -26,23 +27,11 @@ export function IDGateCodeCard() {
   const vc = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
   const ent = vc ? entity(vc.entityId) : undefined
   const host = vc?.linkedNormalId ? normals.find((n) => n.id === vc.linkedNormalId) : undefined
-  const eligible = active?.kind === 'virtual' && can('tool.idgateCode') && !!vc && !!ent
+  const eligible =
+    active?.kind === 'virtual' && vc?.status === 'active' && can('tool.idgateCode') && !!vc && !!ent
 
-  if (!eligible) {
-    return (
-      <div className="space-y-2">
-        <EmptyState
-          icon={<ShieldCheck size={28} />}
-          title={t('idgateCode')}
-          subtitle={L(
-            'An IDGate Code is issued to a virtual (position) identity — it is your membership / employee badge. Personal accounts can receive one but cannot issue it. Switch to an active virtual account to view your code.',
-            'يُصدر كود IDGate لهوية افتراضية (منصب) كبطاقة عضوية/موظف. الحسابات الشخصية تستقبله فقط ولا تُصدره. بدّل إلى حساب افتراضي نشط لعرض الكود.',
-          )}
-        />
-        <p className="text-center text-xs text-slate-400">{t('canReceiveOnly')}</p>
-      </div>
-    )
-  }
+  // Personal accounts, and unlinked/blocked virtuals, show nothing here.
+  if (!eligible) return null
 
   const address = virtualAddress(vc!, ent!, host)
   const accent = ent!.logoColor

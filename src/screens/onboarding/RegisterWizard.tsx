@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   BadgeCheck,
+  Camera,
   Check,
   FileText,
   Landmark,
   ScanFace,
   Smartphone,
   UserRound,
+  X,
 } from 'lucide-react'
 import { useStore } from '@/store'
 import type { NewNormalInput } from '@/store'
@@ -41,6 +43,7 @@ const maskMobile = (m: string) => {
 interface Claim {
   firstName: string
   surname: string
+  photo?: string
   gender: 'Male' | 'Female'
   dateOfBirth: string
   nationality: Country
@@ -97,6 +100,13 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
 
   const [step, setStep] = useState(0) // 0..5
   const [form, setForm] = useState<Claim>(EMPTY)
+  const onPhoto = (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    const reader = new FileReader()
+    reader.onload = () => set('photo', reader.result as string)
+    reader.readAsDataURL(f)
+  }
   const set = <K extends keyof Claim>(k: K, v: Claim[K]) => {
     setForm((f) => ({ ...f, [k]: v }))
     // Editing a claim field invalidates any proof that was tied to its old
@@ -198,6 +208,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
     const input: NewNormalInput = {
       firstName: form.firstName,
       surname: form.surname,
+      photo: form.photo,
       gender: form.gender,
       dateOfBirth: form.dateOfBirth || undefined,
       nationality: form.nationality,
@@ -260,7 +271,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
           </p>
         </div>
         <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 text-start">
-          <Avatar name={`${form.firstName} ${form.surname}`} color={colorFor(`${form.firstName} ${form.surname}`.trim())} size={44} />
+          <Avatar name={`${form.firstName} ${form.surname}`} color={colorFor(`${form.firstName} ${form.surname}`.trim())} photo={form.photo} size={44} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-slate-800">
               {form.firstName} {form.surname}
@@ -309,6 +320,31 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
       {/* ── Step bodies ─────────────────────────────────────────────────────── */}
       {step === 0 && (
         <div className="space-y-3">
+          <Field label={t('photo')} hint={t('optional')}>
+            <div className="flex items-center gap-3">
+              <Avatar
+                name={`${form.firstName} ${form.surname}`.trim()}
+                color={colorFor(`${form.firstName} ${form.surname}`.trim())}
+                photo={form.photo}
+                size={56}
+              />
+              <div className="flex flex-wrap gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50">
+                  <Camera size={14} /> {form.photo ? L('Change', 'تغيير') : t('addPhoto')}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { onPhoto(e.target.files); e.target.value = '' }} />
+                </label>
+                {form.photo && (
+                  <button
+                    type="button"
+                    onClick={() => set('photo', undefined)}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
+                  >
+                    <X size={13} /> {t('removeImage')}
+                  </button>
+                )}
+              </div>
+            </div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={L('First name', 'الاسم الأول')} required>
               <Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />

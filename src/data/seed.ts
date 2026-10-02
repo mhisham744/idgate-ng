@@ -2,7 +2,9 @@ import type {
   CommunicationArea,
   ContactRequest,
   DelegationItem,
+  Draft,
   Group,
+  Label,
   LegalEntity,
   Message,
   NormalCharacter,
@@ -10,6 +12,7 @@ import type {
   Position,
   Post,
   Profile,
+  ReactionKind,
   StructureKind,
   StructureNode,
   TransactionKey,
@@ -31,6 +34,8 @@ export interface AppData {
   groups: Group[]
   posts: Post[]
   messages: Message[]
+  labels: Label[]
+  drafts: Draft[]
   notifications: Notification[]
   vacancies: Vacancy[]
   contactRequests: ContactRequest[]
@@ -39,6 +44,24 @@ export interface AppData {
 
 // time helpers (runtime app code — Date is fine here)
 const ago = (mins: number) => new Date(Date.now() - mins * 60000).toISOString()
+
+// Build a seed reaction map with synthetic reactor keys (so counts render; real
+// accounts still add their own reaction on top under their `n:`/`v:` key).
+function rx(counts: Partial<Record<ReactionKind, number>>): Record<string, ReactionKind> {
+  const out: Record<string, ReactionKind> = {}
+  let i = 0
+  for (const [kind, n] of Object.entries(counts)) {
+    for (let j = 0; j < (n ?? 0); j++) out[`seed:${kind}:${i++}`] = kind as ReactionKind
+  }
+  return out
+}
+
+// A lightweight inline sample image for the demo "post a picture" feature.
+const SAMPLE_IMG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#166534"/><stop offset="1" stop-color="#22c55e"/></linearGradient></defs><rect width="640" height="360" fill="url(#g)"/><text x="320" y="195" font-family="sans-serif" font-size="44" fill="white" text-anchor="middle">⚽ Zamalek Tryouts</text></svg>',
+  )
 
 // ── Structure tree DSL ───────────────────────────────────────────────────────
 type TreeSpec = { [name: string]: TreeSpec } | string[]
@@ -546,19 +569,30 @@ export function buildSeed(): AppData {
 
   // ── Feed posts ───────────────────────────────────────────────────────────────
   const posts: Post[] = [
-    { id: 'post_1', author: { kind: 'virtual', virtualId: nestleCEO.id }, category: 'news', body: 'Nestle Egypt reports 12% growth in the North Africa region this quarter. Proud of every team across our legal entities. 📈', createdAt: ago(45), reactions: 34, reactedBy: [], savedBy: [], comments: [{ id: 'c1', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.positionName === 'Finance Director' && v.entityId === 'e_nestle')!.id }, body: 'Great numbers — Tunisia contributed strongly.', createdAt: ago(40) }] },
-    { id: 'post_2', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_moe' && v.positionName === 'Operations Sector Head')!.id }, category: 'report', body: 'Scheduled maintenance on the Cairo grid this Friday 2–5 AM. Prepaid & current-account subscribers in 6 October and Mohandessin may notice brief interruptions.', createdAt: ago(120), reactions: 8, reactedBy: [], savedBy: [], comments: [] },
-    { id: 'post_3', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Football Manager')!.id }, category: 'event', body: '⚽ Junior football tryouts open at the Zamalek branch this weekend. Working & athletic members welcome to register their kids.', createdAt: ago(200), reactions: 51, reactedBy: [], savedBy: [], comments: [] },
-    { id: 'post_4', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!.id }, category: 'data', body: 'Registration for the new AI in Medicine elective is now open for Masters and PhD students at the Faculty of Medicine.', createdAt: ago(300), reactions: 22, reactedBy: [], savedBy: [], comments: [] },
-    { id: 'post_5', author: { kind: 'normal', normalId: 'n_sara' }, category: 'friend', body: 'Just finished my first data-analysis project at Cairo University — looking for opportunities in the education sector! 🎓', createdAt: ago(500), reactions: 15, reactedBy: [], savedBy: [], comments: [] },
-    { id: 'post_6', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Human Resources Specialist')!.id }, category: 'advertising', body: 'We are hiring! Supply Chain Analyst roles now open across our Egypt and USA legal entities. Check the Vacancies tab. 🚀', createdAt: ago(700), reactions: 40, reactedBy: [], savedBy: [], comments: [] },
+    { id: 'post_1', author: { kind: 'virtual', virtualId: nestleCEO.id }, category: 'news', body: 'Nestle Egypt reports 12% growth in the North Africa region this quarter. Proud of every team across our legal entities. 📈', createdAt: ago(45), reactionsBy: rx({ up: 28, happy: 6 }), savedBy: [], comments: [{ id: 'c1', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.positionName === 'Finance Director' && v.entityId === 'e_nestle')!.id }, body: 'Great numbers — Tunisia contributed strongly.', createdAt: ago(40), reactionsBy: rx({ up: 3 }) }] },
+    { id: 'post_2', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_moe' && v.positionName === 'Operations Sector Head')!.id }, category: 'report', body: 'Scheduled maintenance on the Cairo grid this Friday 2–5 AM. Prepaid & current-account subscribers in 6 October and Mohandessin may notice brief interruptions.', createdAt: ago(120), reactionsBy: rx({ up: 6, sad: 2 }), savedBy: [], comments: [] },
+    { id: 'post_3', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Football Manager')!.id }, category: 'event', body: '⚽ Junior football tryouts open at the Zamalek branch this weekend. Working & athletic members welcome to register their kids.', image: SAMPLE_IMG, createdAt: ago(200), reactionsBy: rx({ up: 40, happy: 11 }), savedBy: [], comments: [] },
+    { id: 'post_4', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!.id }, category: 'data', body: 'Registration for the new AI in Medicine elective is now open for Masters and PhD students at the Faculty of Medicine.', createdAt: ago(300), reactionsBy: rx({ up: 22 }), savedBy: [], comments: [] },
+    { id: 'post_5', author: { kind: 'normal', normalId: 'n_sara' }, category: 'friend', body: 'Just finished my first data-analysis project at Cairo University — looking for opportunities in the education sector! 🎓', createdAt: ago(500), reactionsBy: rx({ up: 12, happy: 3 }), savedBy: [], comments: [] },
+    { id: 'post_6', author: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Human Resources Specialist')!.id }, category: 'advertising', body: 'We are hiring! Supply Chain Analyst roles now open across our Egypt and USA legal entities. Check the Vacancies tab. 🚀', createdAt: ago(700), reactionsBy: rx({ up: 34, happy: 6 }), savedBy: [], comments: [] },
   ]
 
   // ── Messages ────────────────────────────────────────────────────────────────
+  const financeDirNestle = virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Finance Director')!
   const messages: Message[] = [
-    { id: 'm_1', threadId: 't_1', from: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Finance Director')!.id }, to: [{ kind: 'virtual', virtualId: nestleCEO.id }], subject: 'Q3 Budget review', body: 'Hi Hossam, attaching the Q3 numbers for your review before the board meeting. The Tunisia entity is ahead of plan.', createdAt: ago(90), readBy: [], savedBy: [] },
-    { id: 'm_2', threadId: 't_1', from: { kind: 'virtual', virtualId: nestleCEO.id }, to: [{ kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Finance Director')!.id }], subject: 'Re: Q3 Budget review', body: 'Thanks Mohamed — looks solid. Let us present this Thursday.', createdAt: ago(80), readBy: [], savedBy: [] },
+    { id: 'm_1', threadId: 't_1', from: { kind: 'virtual', virtualId: financeDirNestle.id }, to: [{ kind: 'virtual', virtualId: nestleCEO.id }], subject: 'Q3 Budget review', body: 'Hi Hossam, attaching the Q3 numbers for your review before the board meeting. The Tunisia entity is ahead of plan.', createdAt: ago(90), readBy: [], savedBy: [], starredBy: [`v:${nestleCEO.id}`], labelIds: ['lbl_finance'] },
+    { id: 'm_2', threadId: 't_1', from: { kind: 'virtual', virtualId: nestleCEO.id }, to: [{ kind: 'virtual', virtualId: financeDirNestle.id }], subject: 'Re: Q3 Budget review', body: 'Thanks Mohamed — looks solid. Let us present this Thursday.', createdAt: ago(80), readBy: [], savedBy: [] },
     { id: 'm_3', threadId: 't_2', from: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Subscriptions Head')!.id }, to: [{ kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Working Member')!.id }], subject: 'Membership renewal', body: 'Dear member, your working membership at the Zamalek branch is due for renewal next month.', createdAt: ago(400), readBy: [], savedBy: [] },
+  ]
+
+  // ── Message labels (multi-level) + a draft ────────────────────────────────────
+  const labels: Label[] = [
+    { id: 'lbl_finance', ownerNormalId: 'n_hossam', name: 'Finance', color: '#0d5eaf' },
+    { id: 'lbl_budgets', ownerNormalId: 'n_hossam', name: 'Budgets', parentId: 'lbl_finance' },
+    { id: 'lbl_hr', ownerNormalId: 'n_hossam', name: 'HR', color: '#166534' },
+  ]
+  const drafts: Draft[] = [
+    { id: 'dr_1', owner: { kind: 'virtual', virtualId: nestleCEO.id }, to: [{ kind: 'virtual', virtualId: financeDirNestle.id }], subject: 'Q4 planning agenda', body: 'Draft agenda for the Q4 planning session — to be finalized before I send it.', updatedAt: ago(30) },
   ]
 
   // ── Notifications (tools) ─────────────────────────────────────────────────────
@@ -589,6 +623,6 @@ export function buildSeed(): AppData {
 
   return {
     normals, communicationAreas, entities, structures, profiles, delegations, positions, virtuals, groups,
-    posts, messages, notifications, vacancies, contactRequests, linkRequests: [],
+    posts, messages, labels, drafts, notifications, vacancies, contactRequests, linkRequests: [],
   }
 }

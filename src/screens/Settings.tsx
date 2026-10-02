@@ -133,63 +133,54 @@ export function Settings() {
         <Row
           leading={<User size={20} className="text-gate-600" />}
           title={t('personalMasterData')}
-          subtitle={L('Your natural-person master data', 'البيانات الرئيسية للشخص الطبيعي')}
           trailing={Chevron}
           onClick={() => nav('/settings/personal')}
         />
         <Row
           leading={<Network size={20} className="text-gate-600" />}
           title={L('Communication Area', 'منطقة التواصل')}
-          subtitle={L('Areas that let organizations interoperate', 'مناطق تتيح تواصل المؤسسات')}
           trailing={Chevron}
           onClick={() => nav('/settings/communication-areas')}
         />
         <Row
           leading={<Building2 size={20} className="text-gate-600" />}
           title={t('myEntities')}
-          subtitle={L('Legal entities you administer', 'الكيانات القانونية التي تديرها')}
           trailing={Chevron}
           onClick={() => nav('/settings/entities')}
         />
         <Row
           leading={<Link2 size={20} className="text-gate-600" />}
           title={L('Link Request', 'طلب ربط')}
-          subtitle={L('Link a position to a person', 'ربط منصب بشخص')}
           trailing={Chevron}
           onClick={() => nav('/settings/link-position')}
         />
         <Row
           leading={<UserPlus size={20} className="text-gate-600" />}
           title={t('contactRequest')}
-          subtitle={L('Ask to connect with a person or entity', 'اطلب التواصل مع شخص أو جهة')}
           trailing={Chevron}
           onClick={() => openSheet('contact')}
         />
         <Row
           leading={<Users size={20} className="text-gate-600" />}
           title={t('directory')}
-          subtitle={L('Browse people & entities', 'تصفح الأشخاص والكيانات')}
           trailing={Chevron}
           onClick={() => nav('/directory')}
         />
         <Row
           leading={<UsersRound size={20} className="text-gate-600" />}
           title={t('groups')}
-          subtitle={L('Build communication groups', 'إنشاء مجموعات تواصل')}
           trailing={Chevron}
           onClick={() => nav('/settings/groups')}
         />
         <Row
           leading={<ShieldCheck size={20} className="text-gate-600" />}
           title={L('Delegation Show', 'عرض التفويض')}
-          subtitle={L('Share a delegation with an account', 'مشاركة تفويض مع حساب')}
           trailing={Chevron}
           onClick={() => nav('/settings/delegation-show')}
         />
         <Row
           leading={<Info size={20} className="text-gate-600" />}
           title={t('aboutConcept')}
-          subtitle={L('How IDGate works', 'كيف تعمل IDGate')}
           trailing={Chevron}
           onClick={() => nav('/settings/about')}
         />
@@ -228,17 +219,9 @@ export function Settings() {
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <div className="flex items-start gap-2 text-sm text-slate-600">
-              <Inbox size={18} className="mt-0.5 shrink-0 text-slate-400" />
-              <div className="min-w-0">
-                <div>{L('Unified inbox', 'صندوق موحّد')}</div>
-                <div className="text-[11px] leading-snug text-slate-400">
-                  {L(
-                    'Show messages & notifications across all my identities. Off: only the active one.',
-                    'إظهار الرسائل والتنبيهات عبر جميع هوياتي. إيقاف: الهوية النشطة فقط.',
-                  )}
-                </div>
-              </div>
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Inbox size={18} className="shrink-0 text-slate-400" />
+              {L('Unified inbox', 'صندوق موحّد')}
             </div>
             <Toggle checked={inboxScope === 'unified'} onChange={(v) => setInboxScope(v ? 'unified' : 'active')} />
           </div>
@@ -252,7 +235,6 @@ export function Settings() {
           <Row
             leading={<RotateCcw size={20} className="text-red-500" />}
             title={<span className="text-red-600">{L('Clear all data', 'مسح كل البيانات')}</span>}
-            subtitle={L('Erase all accounts, organizations & communications', 'مسح كل الحسابات والمؤسسات والمراسلات')}
             onClick={() => setConfirmReset(true)}
           />
         </Card>

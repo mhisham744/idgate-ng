@@ -10,6 +10,8 @@ export interface Resolved {
   isVirtual: boolean
   positionName?: string
   entityName?: string
+  /** Profile photo (personal accounts; host photo for virtuals), if set. */
+  photo?: string
 }
 
 /** Resolve any actor/account reference into display fields. */
@@ -23,7 +25,7 @@ export function useResolveActor() {
     if (ref.kind === 'normal') {
       const n = normals.find((x) => x.id === ref.normalId)
       if (!n) return { displayName: '—', address: '', color: '#94a3b8', isVirtual: false }
-      return { displayName: n.fullName, address: personalAddress(n), color: n.avatarColor, isVirtual: false }
+      return { displayName: n.fullName, address: personalAddress(n), color: n.avatarColor, isVirtual: false, photo: n.photo }
     }
     const v = virtuals.find((x) => x.id === ref.virtualId)
     if (!v) return { displayName: '—', address: '', color: '#94a3b8', isVirtual: true }
@@ -57,7 +59,7 @@ export function ActorLine({
   const r = resolve(actor)
   return (
     <div className="flex items-center gap-2.5 min-w-0">
-      <Avatar name={r.displayName} color={r.color} size={size} square={r.isVirtual} />
+      <Avatar name={r.displayName} color={r.color} size={size} square={r.isVirtual} photo={r.photo} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-slate-800 leading-tight">{r.displayName}</div>
         {showAddress && r.address && (

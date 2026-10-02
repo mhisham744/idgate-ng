@@ -17,7 +17,7 @@ export const STRINGS: Dict = {
   // nav / areas
   home: { en: 'Home', ar: 'الرئيسية' },
   messages: { en: 'Messages', ar: 'الرسائل' },
-  notification: { en: 'Notifications', ar: 'التنبيهات' },
+  notification: { en: 'Statements', ar: 'الإفادات' },
   tools: { en: 'Tools', ar: 'الأدوات' },
   settings: { en: 'Settings', ar: 'الإعدادات' },
   directory: { en: 'Directory', ar: 'الدليل' },
@@ -186,6 +186,51 @@ export const STRINGS: Dict = {
   entityStatusPending: { en: 'Pending verification', ar: 'قيد التحقق' },
   entityStatusActive: { en: 'Active', ar: 'مفعّل' },
   activate: { en: 'Verify & Activate', ar: 'تحقق وتفعيل' },
+
+  // ── Final-test additions ──────────────────────────────────────────────────────
+  // home — reactions, images, identity photo
+  react: { en: 'React', ar: 'تفاعل' },
+  reactLike: { en: 'Like', ar: 'إعجاب' },
+  reactDislike: { en: 'Dislike', ar: 'عدم إعجاب' },
+  reactHappy: { en: 'Happy', ar: 'سعيد' },
+  reactSad: { en: 'Sad', ar: 'حزين' },
+  addImage: { en: 'Add image', ar: 'إضافة صورة' },
+  removeImage: { en: 'Remove image', ar: 'إزالة الصورة' },
+  addPhoto: { en: 'Add photo', ar: 'إضافة صورة' },
+  photo: { en: 'Photo', ar: 'صورة' },
+
+  // messages — folders, star, labels, drafts, move, search
+  allMessages: { en: 'All messages', ar: 'كل الرسائل' },
+  starred: { en: 'Starred', ar: 'المميّزة' },
+  drafts: { en: 'Drafts', ar: 'المسودات' },
+  draft: { en: 'Draft', ar: 'مسودة' },
+  labels: { en: 'Labels', ar: 'التصنيفات' },
+  star: { en: 'Star', ar: 'تمييز بنجمة' },
+  unstar: { en: 'Unstar', ar: 'إلغاء التمييز' },
+  move: { en: 'Move', ar: 'نقل' },
+  moveToLabel: { en: 'Move to label', ar: 'نقل إلى تصنيف' },
+  newLabel: { en: 'New label', ar: 'تصنيف جديد' },
+  labelName: { en: 'Label name', ar: 'اسم التصنيف' },
+  parentLabel: { en: 'Parent label', ar: 'التصنيف الأعلى' },
+  noLabels: { en: 'No labels yet.', ar: 'لا توجد تصنيفات بعد.' },
+  saveDraft: { en: 'Save draft', ar: 'حفظ كمسودة' },
+  advancedSearch: { en: 'Advanced search', ar: 'بحث متقدم' },
+  searchFrom: { en: 'From', ar: 'من' },
+  searchTo: { en: 'To', ar: 'إلى' },
+  dateFrom: { en: 'From date', ar: 'من تاريخ' },
+  dateTo: { en: 'To date', ar: 'إلى تاريخ' },
+  openAttachment: { en: 'Open', ar: 'فتح' },
+  download: { en: 'Download', ar: 'تنزيل' },
+
+  // statements (notifications) — folders, states, search, unfreeze
+  statements: { en: 'Statements', ar: 'الإفادات' },
+  accepted: { en: 'Accepted', ar: 'مقبول' },
+  rejected: { en: 'Rejected', ar: 'مرفوض' },
+  unfreeze: { en: 'Unfreeze', ar: 'إلغاء التجميد' },
+  tool: { en: 'Tool', ar: 'الأداة' },
+  toolType: { en: 'Tool type', ar: 'نوع الأداة' },
+  notificationTool: { en: 'Notification', ar: 'تنبيه' },
+  allItems: { en: 'All', ar: 'الكل' },
 }
 
 export function tr(key: keyof typeof STRINGS | string, lang: Lang): string {

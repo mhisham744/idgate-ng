@@ -102,7 +102,7 @@ export const STRUCTURE_LABELS: Record<StructureKind, BL> = {
 export const APP_AREA_LABELS: Record<AppArea, BL> = {
   home: { en: 'Home', ar: 'الرئيسية' },
   messages: { en: 'Messages', ar: 'الرسائل' },
-  notification: { en: 'Notifications', ar: 'التنبيهات' },
+  notification: { en: 'Statements', ar: 'الإفادات' },
   tools: { en: 'Tools', ar: 'الأدوات' },
   settings: { en: 'Settings', ar: 'الإعدادات' },
 }

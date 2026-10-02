@@ -18,7 +18,7 @@ import {
   cx,
 } from '@/ui/primitives'
 import type { AttachmentMeta, Country, Language, NormalCharacter, PrivacyLevel } from '@/types'
-import { ChevronLeft, Pencil, X, User, Phone, GraduationCap, Briefcase, ShieldCheck, Paperclip, FileText } from 'lucide-react'
+import { ChevronLeft, Pencil, X, User, Phone, GraduationCap, Briefcase, ShieldCheck, Paperclip, FileText, Camera } from 'lucide-react'
 
 type Fluency = 'Basic' | 'Average' | 'Fluent'
 const COUNTRIES: Country[] = ['Egypt', 'USA', 'France', 'Germany', 'India']
@@ -27,6 +27,7 @@ const FLUENCY: Fluency[] = ['Basic', 'Average', 'Fluent']
 
 type Form = {
   fullName: string
+  photo?: string
   gender: '' | 'Male' | 'Female'
   dateOfBirth: string
   nat1: '' | Country
@@ -67,6 +68,7 @@ function toForm(n: NormalCharacter): Form {
   const motherLevel = (n.languages ?? []).find((l) => l.language === n.motherTongue)?.level
   return {
     fullName: n.fullName,
+    photo: n.photo,
     gender: n.gender,
     dateOfBirth: n.dateOfBirth ? n.dateOfBirth.slice(0, 10) : '',
     nat1: n.nationalities[0] ?? '',
@@ -148,6 +150,14 @@ export function PersonalMasterData() {
     setEditing(false)
   }
 
+  const onPhoto = (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    const reader = new FileReader()
+    reader.onload = () => set('photo', reader.result as string)
+    reader.readAsDataURL(f)
+  }
+
   const onCv = (files: FileList | null) => {
     const f = files?.[0]
     if (!f) return
@@ -187,6 +197,7 @@ export function PersonalMasterData() {
     pushLang(form.lang2, (form.lang2Fluency || 'Average') as Fluency)
     updateNormal(me.id, {
       fullName: form.fullName.trim(),
+      photo: form.photo,
       gender: form.gender as 'Male' | 'Female',
       dateOfBirth: form.dateOfBirth || undefined,
       nationalities: nationalities.length ? Array.from(new Set(nationalities)) : ['Egypt'],
@@ -256,7 +267,7 @@ export function PersonalMasterData() {
       {/* header */}
       <Card className="p-4">
         <div className="flex items-center gap-3">
-          <Avatar name={me.fullName} color={me.avatarColor} size={52} />
+          <Avatar name={me.fullName} color={me.avatarColor} photo={me.photo} size={52} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className="min-w-0 truncate text-base font-bold text-slate-800">{me.fullName}</div>
@@ -281,6 +292,26 @@ export function PersonalMasterData() {
         <Card className="p-4">
           {editing ? (
             <div className="space-y-3">
+              <Field label={t('photo')} hint={t('optional')}>
+                <div className="flex items-center gap-3">
+                  <Avatar name={form.fullName} color={me.avatarColor} photo={form.photo} size={56} />
+                  <div className="flex flex-wrap gap-2">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50">
+                      <Camera size={14} /> {form.photo ? L('Change', 'تغيير') : t('addPhoto')}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => { onPhoto(e.target.files); e.target.value = '' }} />
+                    </label>
+                    {form.photo && (
+                      <button
+                        type="button"
+                        onClick={() => set('photo', undefined)}
+                        className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
+                      >
+                        <X size={13} /> {t('removeImage')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Field>
               <Field label={L('Full name', 'الاسم الكامل')} required>
                 <Input value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
               </Field>

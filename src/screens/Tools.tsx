@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Send, Info, Plus, X as XIcon } from 'lucide-react'
+import { ChevronRight, Send, Info, Plus, X as XIcon, Bell } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey } from '@/lib/identity'
@@ -7,6 +7,7 @@ import { useResolveActor } from '@/components/identity'
 import { useDirectory } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
+import { CreateNotificationSheet } from '@/components/CreateNotificationSheet'
 import {
   Button,
   Card,
@@ -45,6 +46,7 @@ export function Tools() {
 
   const [assessKey, setAssessKey] = useState<TransactionKey | null>(null)
   const [demoKey, setDemoKey] = useState<TransactionKey | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
 
   const meKey = active ? actorKey(active) : ''
 
@@ -75,14 +77,25 @@ export function Tools() {
 
   return (
     <div className="p-4 space-y-6 pb-8">
-      <SectionHeader title={t('tools')} />
-
       {/* IDGate Code — embedded box at the top of the page */}
       <IDGateCodeCard />
 
       <div className="space-y-2">
         <SectionHeader title={t('supportingTools')} />
         <Card className="divide-y divide-slate-100 overflow-hidden">
+          {/* Notification — the moved "Create Notification" composer. */}
+          <Row
+            onClick={() => setCreateOpen(true)}
+            leading={
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                <Bell size={16} />
+              </div>
+            }
+            title={t('notificationTool')}
+            trailing={
+              <ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />
+            }
+          />
           {toolTx.map((def) => {
             const allowed = can(def.key)
             const interactive = INTERACTIVE_TOOLS.includes(def.key)
@@ -98,7 +111,6 @@ export function Tools() {
                   </div>
                 }
                 title={bl(def.label, lang)}
-                subtitle={def.note ? bl(def.note, lang) : undefined}
                 trailing={
                   <ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />
                 }
@@ -110,8 +122,7 @@ export function Tools() {
 
       {/* Demo-only info sheet */}
       <Sheet
-        open={!!demoKey}
-        onClose={() => setDemoKey(null)}
+        open={!!demoKey}        onClose={() => setDemoKey(null)}
         title={demoDef ? bl(demoDef.label, lang) : undefined}
         footer={
           <Button full variant="secondary" onClick={() => setDemoKey(null)}>
@@ -139,6 +150,9 @@ export function Tools() {
         t={t}
         L={L}
       />
+
+      {/* Create Notification composer (moved here from the Statements page) */}
+      <CreateNotificationSheet open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   )
 }

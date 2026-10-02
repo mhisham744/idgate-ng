@@ -66,12 +66,15 @@ export function Avatar({
   size = 40,
   square,
   icon,
+  photo,
 }: {
   name: string
   color?: string
   size?: number
   square?: boolean
   icon?: ReactNode
+  /** Optional profile photo URL/dataUrl — rendered in place of initials when present. */
+  photo?: string
 }) {
   const initials = name
     .trim()
@@ -83,10 +86,14 @@ export function Avatar({
     .toUpperCase()
   return (
     <div
-      className={cx('flex items-center justify-center font-semibold text-light shrink-0', square ? 'rounded-xl' : 'rounded-full')}
+      className={cx('flex items-center justify-center overflow-hidden font-semibold text-light shrink-0', square ? 'rounded-xl' : 'rounded-full')}
       style={{ width: size, height: size, background: color ?? '#64748b', fontSize: size * 0.36 }}
     >
-      {icon ?? initials ?? '?'}
+      {photo ? (
+        <img src={photo} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        icon ?? initials ?? '?'
+      )}
     </div>
   )
 }

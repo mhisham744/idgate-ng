@@ -205,6 +205,8 @@ export interface NormalCharacter {
     career: PrivacyLevel
   }
   avatarColor: string // deterministic avatar tint
+  /** Optional profile photo (in-session dataUrl; stripped before persist). Added at creation (optional). */
+  photo?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,18 +384,46 @@ export type ActorRef =
   | { kind: 'normal'; normalId: string }
   | { kind: 'virtual'; virtualId: string }
 
-export interface Post {
+/** The reaction set offered on posts and replies: thumbs-up/down + happy/sad faces. */
+export type ReactionKind = 'up' | 'down' | 'happy' | 'sad'
+
+export const REACTION_EMOJI: Record<ReactionKind, string> = {
+  up: '👍',
+  down: '👎',
+  happy: '😊',
+  sad: '😢',
+}
+
+export const REACTION_ORDER: ReactionKind[] = ['up', 'down', 'happy', 'sad']
+
+/** A reply/comment on a post — now independently reactable. */
+export interface PostComment {
   id: string
   author: ActorRef
   body: string
   createdAt: string
+  /** actorKey → reaction kind. */
+  reactionsBy: Record<string, ReactionKind>
+}
+
+export interface Post {
+  id: string
+  author: ActorRef
+  body: string
+  /** Optional attached image (in-session dataUrl; stripped before persist like attachments). */
+  image?: string
+  createdAt: string
   category: 'friend' | 'news' | 'report' | 'event' | 'advertising' | 'data'
-  reactions: number
-  comments: { id: string; author: ActorRef; body: string; createdAt: string }[]
-  reactedBy: string[] // account keys
+  /** actorKey → reaction kind (👍👎😊😢). The source of truth for reaction counts. */
+  reactionsBy: Record<string, ReactionKind>
+  comments: PostComment[]
   savedBy: string[]
   /** Directory-scoped audience (actorKeys). Absent = legacy broadcast (visible to all). */
   audience?: string[]
+  /** @deprecated legacy single-heart counter — migrated into `reactionsBy`. */
+  reactions?: number
+  /** @deprecated legacy heart reactors — migrated into `reactionsBy`. */
+  reactedBy?: string[]
 }
 
 /** A file attached to a message. `dataUrl` is an in-session preview blob only — it
@@ -419,11 +449,45 @@ export interface Message {
   threadId: string
   readBy: string[]
   savedBy: string[]
+  /** actorKeys who flagged this message with a star (per-account importance flag). */
+  starredBy?: string[]
+  /** Label ids this message has been filed under (via the "Move" action). */
+  labelIds?: string[]
   attachments?: AttachmentMeta[]
   /** actorKeys who soft-deleted (hid) this message from their own view. */
   deletedBy?: string[]
   /** System-generated (auto-sent, non-editable) — e.g. delegation-share or admin hand-over notices. */
   system?: boolean
+}
+
+/**
+ * A user-defined Message label — can nest (parentId) to build multi-level
+ * classifications. Owned by a natural person (shared across their accounts).
+ */
+export interface Label {
+  id: string
+  ownerNormalId: string
+  name: string
+  /** Parent label id for nesting; null/undefined = top level. */
+  parentId?: string | null
+  /** Optional tint (hex). */
+  color?: string
+}
+
+/** A composed-but-unsent message, saved in the Drafts folder. */
+export interface Draft {
+  id: string
+  /** The identity composing the draft. */
+  owner: ActorRef
+  to: ActorRef[]
+  cc?: ActorRef[]
+  bcc?: ActorRef[]
+  subject: string
+  body: string
+  attachments?: AttachmentMeta[]
+  /** Thread being replied to, if any. */
+  threadId?: string
+  updatedAt: string
 }
 
 export type NoteKind =

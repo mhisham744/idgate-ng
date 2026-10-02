@@ -1,30 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Plus,
   Check,
   X as XIcon,
   HelpCircle,
   CheckCheck,
   Lock,
+  LockOpen,
   Pencil,
   Search,
-  Paperclip,
+  SlidersHorizontal,
   FileText,
   Send,
 } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
-import { actorKey, formatDate, relativeTime, uid } from '@/lib/identity'
+import { actorKey, formatDate, relativeTime } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS } from '@/data/reference'
 import type { EvalType } from '@/data/reference'
-import { RecipientPicker } from '@/components/RecipientPicker'
-import { useDirectory, useInboxScopeKeys } from '@/lib/userScope'
-import type { PickerGroup } from '@/components/RecipientPicker'
+import { useInboxScopeKeys, myRecipientOf } from '@/lib/userScope'
 import {
   Button,
   Card,
   Badge,
+  Chip,
   Field,
   Input,
   Textarea,
@@ -43,7 +42,6 @@ import type {
   NoteThreadEntry,
   Notification,
   RatingKey,
-  TransactionKey,
 } from '@/types'
 
 const L = (isRtl: boolean, en: string, ar: string) => (isRtl ? ar : en)
@@ -83,18 +81,6 @@ function statusLabel(s: NoteStatus, isRtl: boolean): string {
   return L(isRtl, en, ar)
 }
 
-// Notification kinds the create sheet offers, each with the permission key that gates it.
-// (Voting and IDGate notes are intentionally not creatable.)
-const CREATABLE_KINDS: { kind: NoteKind; permission: TransactionKey }[] = [
-  { kind: 'task', permission: 'note.task' },
-  { kind: 'calendar', permission: 'note.calendar' },
-  { kind: 'offer', permission: 'note.offer' },
-  { kind: 'event', permission: 'note.event' },
-  { kind: 'training', permission: 'note.training' },
-  { kind: 'tender', permission: 'note.tender' },
-  { kind: 'other', permission: 'note.other' },
-]
-
 /** Newest activity timestamp across the envelope and all threads (for sorting). */
 function lastActivity(n: Notification): string {
   let t = n.createdAt
@@ -108,112 +94,215 @@ function hasUnseen(threads: NoteThreadEntry[], keys: Set<string>): boolean {
   return threads.some((e) => !keys.has(actorKey(e.by)) && !(e.readBy ?? []).some((k) => keys.has(k)))
 }
 
+// ── Classification folders (left rail) ──────────────────────────────────────────
+type Folder = 'inbox' | 'sent' | 'received' | 'pending' | 'accepted' | 'rejected' | 'closed' | 'freeze'
+const FOLDERS: { key: Folder; labelKey: string }[] = [
+  { key: 'inbox', labelKey: 'inbox' },
+  { key: 'sent', labelKey: 'sent' },
+  { key: 'received', labelKey: 'received' },
+  { key: 'pending', labelKey: 'pending' },
+  { key: 'accepted', labelKey: 'accepted' },
+  { key: 'rejected', labelKey: 'rejected' },
+  { key: 'closed', labelKey: 'closed' },
+  { key: 'freeze', labelKey: 'freeze' },
+]
+const STATUS_FOLDERS: Record<string, NoteStatus> = {
+  pending: 'pending',
+  accepted: 'accepted',
+  rejected: 'rejected',
+  closed: 'closed',
+}
+
+/** The empty advanced-search criteria. */
+interface AdvCriteria {
+  tool: '' | 'notification' | 'valuation' | 'voting' | 'election'
+  toolType: string // '' | `kind:<NoteKind>` | `eval:<EvalType>`
+  from: string
+  to: string
+  subject: string
+  targetDate: string
+  dateFrom: string
+  dateTo: string
+  venue: string
+}
+const EMPTY_ADV: AdvCriteria = {
+  tool: '',
+  toolType: '',
+  from: '',
+  to: '',
+  subject: '',
+  targetDate: '',
+  dateFrom: '',
+  dateTo: '',
+  venue: '',
+}
+const advActive = (c: AdvCriteria) => Object.values(c).some((v) => v !== '')
+
 export function Notifications() {
   const { t, lang, isRtl } = useLang()
   const resolve = useResolveActor()
 
   const active = useStore((s) => s.active)
   const notifications = useStore((s) => s.notifications)
-  const normals = useStore((s) => s.normals)
-  const virtuals = useStore((s) => s.virtuals)
-  const groups = useStore((s) => s.groups)
-  const virtual = useStore((s) => s.virtual)
-  const groupRecipients = useStore((s) => s.groupRecipients)
-  const can = useStore((s) => s.can)
-  const canCommunicate = useStore((s) => s.canCommunicate)
-  const createNotification = useStore((s) => s.createNotification)
 
-  const [createOpen, setCreateOpen] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [folder, setFolder] = useState<Folder>('inbox')
+  const [advOpen, setAdvOpen] = useState(false)
+  const [adv, setAdv] = useState<AdvCriteria>(EMPTY_ADV)
 
-  // Active account key — used only for the active-scoped Directory / recipient picker.
-  const meKey = active ? actorKey(active) : ''
   // The set of identities that count as "me" for the inbox (per the scope setting).
   const keys = useInboxScopeKeys()
 
-  // Sent + received across my in-scope identities, newest activity first.
-  const mine = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return notifications
-      .filter(
-        (n) =>
-          keys.has(actorKey(n.from)) ||
-          (n.recipients ?? []).some((rc) => keys.has(actorKey(rc.ref))),
-      )
-      .filter((n) => !q || n.subject.toLowerCase().includes(q))
-      .sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)))
-  }, [notifications, keys, query])
+  // Resolved name + address of an actor, lowercased, for substring matching.
+  const resolveText = (r: ActorRef) => {
+    const info = resolve(r)
+    return `${info.displayName} ${info.address ?? ''}`.toLowerCase()
+  }
 
-  const creatableKinds = useMemo(() => CREATABLE_KINDS.filter((c) => can(c.permission)), [can])
-  const canCreateAny = creatableKinds.length > 0
-
-  const dir = useDirectory()
-  const recipientOptions = dir.people
-
-  const pickerGroups = useMemo<PickerGroup[]>(
+  // Base set: notes I sent or received, newest activity first.
+  const mine = useMemo(
     () =>
-      dir.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
-      })),
-    [dir.groups, groupRecipients, meKey],
+      notifications
+        .filter((n) => keys.has(actorKey(n.from)) || (n.recipients ?? []).some((rc) => keys.has(actorKey(rc.ref))))
+        .sort((a, b) => lastActivity(b).localeCompare(lastActivity(a))),
+    [notifications, keys],
   )
 
-  const expandGroup = (id: string): ActorRef[] =>
-    groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+  // Notes needing a response that are still pending for me (Inbox counter badge).
+  const inboxPending = useMemo(
+    () =>
+      mine.filter((n) => {
+        const rc = myRecipientOf(n, keys)
+        return !!rc && n.needsResponse && rc.status === 'pending' && !n.frozen
+      }).length,
+    [mine, keys],
+  )
+
+  const matchesFolder = (n: Notification): boolean => {
+    const isSender = keys.has(actorKey(n.from))
+    const myRec = myRecipientOf(n, keys)
+    switch (folder) {
+      case 'inbox':
+      case 'received':
+        return !!myRec
+      case 'sent':
+        return isSender
+      case 'freeze':
+        return n.frozen === true
+      default: {
+        const s = STATUS_FOLDERS[folder]
+        const asRecipient = !!myRec && myRec.status === s
+        const asSender = isSender && (n.recipients ?? []).some((rc) => rc.status === s)
+        return asRecipient || asSender
+      }
+    }
+  }
+
+  const matchesAdvanced = (n: Notification): boolean => {
+    if (adv.tool) {
+      const assessment = n.kind === 'valuation' || n.kind === 'voting' || n.kind === 'election'
+      if (adv.tool === 'notification' ? assessment : n.kind !== adv.tool) return false
+    }
+    if (adv.toolType) {
+      if (adv.toolType.startsWith('kind:')) {
+        if (n.kind !== adv.toolType.slice(5)) return false
+      } else if (adv.toolType.startsWith('eval:')) {
+        if (n.evalType !== adv.toolType.slice(5)) return false
+      }
+    }
+    if (adv.from.trim() && !resolveText(n.from).includes(adv.from.trim().toLowerCase())) return false
+    if (adv.to.trim()) {
+      const q = adv.to.trim().toLowerCase()
+      if (!(n.recipients ?? []).some((rc) => resolveText(rc.ref).includes(q))) return false
+    }
+    if (adv.subject.trim() && !n.subject.toLowerCase().includes(adv.subject.trim().toLowerCase())) return false
+    if (adv.venue.trim() && !(n.targetVenue ?? '').toLowerCase().includes(adv.venue.trim().toLowerCase())) return false
+    const d = n.targetDate ? n.targetDate.slice(0, 10) : ''
+    if (adv.targetDate && d !== adv.targetDate) return false
+    if (adv.dateFrom && (!d || d < adv.dateFrom)) return false
+    if (adv.dateTo && (!d || d > adv.dateTo)) return false
+    return true
+  }
+
+  const list = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return mine
+      .filter(matchesFolder)
+      .filter(matchesAdvanced)
+      .filter((n) => !q || n.subject.toLowerCase().includes(q))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mine, folder, adv, query, keys])
 
   const openNote = openId ? notifications.find((n) => n.id === openId) ?? null : null
 
   if (!active) return null
 
   return (
-    <div className="p-4 space-y-4 pb-8">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="min-w-0 truncate text-xl font-bold text-slate-800">{t('notification')}</h1>
-        <Button size="sm" disabled={!canCreateAny} onClick={() => setCreateOpen(true)} className="shrink-0 whitespace-nowrap">
-          <Plus size={16} /> {t('createNotification')}
-        </Button>
-      </div>
+    <div className="p-4 pb-8">
+      <h1 className="mb-4 min-w-0 truncate text-xl font-bold text-slate-800">{t('notification')}</h1>
 
-      {!canCreateAny && (
-        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
-          {t('canReceiveOnly')}
-        </div>
-      )}
-
-      {/* Subject search */}
-      <div className="relative">
-        <Search size={16} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-slate-400" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('searchNotifications')}
-          className="ps-9"
-        />
-      </div>
-
-      {mine.length === 0 ? (
-        <EmptyState
-          title={t('notification')}
-          subtitle={L(isRtl, 'Nothing here yet.', 'لا يوجد شيء بعد.')}
-        />
-      ) : (
-        <div className="space-y-3">
-          {mine.map((n) => (
-            <NoteCard
-              key={n.id}
-              note={n}
-              keys={keys}
-              onOpen={() => setOpenId(n.id)}
-              isRtl={isRtl}
-              lang={lang}
-              t={t}
-            />
+      <div className="flex flex-col gap-4 md:flex-row md:items-start">
+        {/* Classification rail — vertical column on desktop, scrollable chip row on mobile */}
+        <nav className="-mx-4 flex shrink-0 gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:w-44 md:flex-col md:overflow-visible md:px-0 md:pb-0">
+          {FOLDERS.map((f) => (
+            <Chip key={f.key} active={folder === f.key} onClick={() => setFolder(f.key)}>
+              <span className="flex items-center gap-1.5">
+                {t(f.labelKey)}
+                {f.key === 'inbox' && inboxPending > 0 && (
+                  <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-4 text-white">
+                    {inboxPending}
+                  </span>
+                )}
+              </span>
+            </Chip>
           ))}
+        </nav>
+
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* Subject search + Advanced */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={16} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-slate-400" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('searchNotifications')}
+                className="ps-9"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant={advActive(adv) ? 'primary' : 'secondary'}
+              onClick={() => setAdvOpen(true)}
+              className="shrink-0 whitespace-nowrap"
+            >
+              <SlidersHorizontal size={14} /> {t('advancedSearch')}
+            </Button>
+          </div>
+
+          {list.length === 0 ? (
+            <EmptyState
+              title={t('notification')}
+              subtitle={L(isRtl, 'Nothing here yet.', 'لا يوجد شيء بعد.')}
+            />
+          ) : (
+            <div className="space-y-3">
+              {list.map((n) => (
+                <NoteCard
+                  key={n.id}
+                  note={n}
+                  keys={keys}
+                  onOpen={() => setOpenId(n.id)}
+                  isRtl={isRtl}
+                  lang={lang}
+                  t={t}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <NoteThreadSheet
         note={openNote}
@@ -225,27 +314,126 @@ export function Notifications() {
         t={t}
       />
 
-      <CreateSheet
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        kinds={creatableKinds.map((c) => c.kind)}
-        options={recipientOptions}
-        groups={pickerGroups}
-        expandGroup={expandGroup}
-        resolveName={(r) => resolve(r).displayName}
-        resolveLabel={(r) => {
-          const info = resolve(r)
-          return info.address ? `${info.displayName} — ${info.address}` : info.displayName
+      <AdvancedSearchSheet
+        open={advOpen}
+        onClose={() => setAdvOpen(false)}
+        value={adv}
+        onApply={(c) => {
+          setAdv(c)
+          setAdvOpen(false)
         }}
-        onCreate={(payload) => {
-          createNotification(payload)
-          setCreateOpen(false)
+        onReset={() => {
+          setAdv(EMPTY_ADV)
+          setAdvOpen(false)
         }}
         isRtl={isRtl}
         lang={lang}
         t={t}
       />
     </div>
+  )
+}
+
+// ── Advanced multi-field search sheet ───────────────────────────────────────────
+const ADV_KIND_OPTIONS: NoteKind[] = ['task', 'calendar', 'offer', 'event', 'training', 'tender', 'other']
+const ADV_EVAL_OPTIONS: EvalType[] = ['subject', 'event', 'performance', 'person', 'organization']
+
+function AdvancedSearchSheet({
+  open,
+  onClose,
+  value,
+  onApply,
+  onReset,
+  isRtl,
+  lang,
+  t,
+}: {
+  open: boolean
+  onClose: () => void
+  value: AdvCriteria
+  onApply: (c: AdvCriteria) => void
+  onReset: () => void
+  isRtl: boolean
+  lang: 'en' | 'ar'
+  t: (k: string) => string
+}) {
+  const [draft, setDraft] = useState<AdvCriteria>(value)
+
+  useEffect(() => {
+    if (open) setDraft(value)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const set = <K extends keyof AdvCriteria>(k: K, v: AdvCriteria[K]) => setDraft((d) => ({ ...d, [k]: v }))
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={t('advancedSearch')}
+      footer={
+        <div className="flex gap-2">
+          <Button full onClick={() => onApply(draft)}>
+            {t('search')}
+          </Button>
+          <Button variant="ghost" onClick={onReset}>
+            {t('cancel')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 py-2">
+        <Field label={t('tool')}>
+          <Select value={draft.tool} onChange={(e) => set('tool', e.target.value as AdvCriteria['tool'])}>
+            <option value="">{t('allItems')}</option>
+            <option value="notification">{t('notificationTool')}</option>
+            <option value="valuation">{t('valuation')}</option>
+            <option value="voting">{t('voting')}</option>
+            <option value="election">{t('election')}</option>
+          </Select>
+        </Field>
+
+        <Field label={t('toolType')}>
+          <Select value={draft.toolType} onChange={(e) => set('toolType', e.target.value)}>
+            <option value="">{t('allItems')}</option>
+            {ADV_KIND_OPTIONS.map((k) => (
+              <option key={`kind:${k}`} value={`kind:${k}`}>
+                {bl(NOTE_KIND_LABELS[k], lang)}
+              </option>
+            ))}
+            {ADV_EVAL_OPTIONS.map((e) => (
+              <option key={`eval:${e}`} value={`eval:${e}`}>
+                {bl(EVAL_TYPE_LABELS[e], lang)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field label={t('searchFrom')}>
+          <Input value={draft.from} onChange={(e) => set('from', e.target.value)} />
+        </Field>
+        <Field label={t('searchTo')}>
+          <Input value={draft.to} onChange={(e) => set('to', e.target.value)} />
+        </Field>
+        <Field label={t('subject')}>
+          <Input value={draft.subject} onChange={(e) => set('subject', e.target.value)} />
+        </Field>
+        <Field label={t('targetVenue')}>
+          <Input value={draft.venue} onChange={(e) => set('venue', e.target.value)} />
+        </Field>
+        <Field label={t('targetDate')}>
+          <Input type="date" value={draft.targetDate} onChange={(e) => set('targetDate', e.target.value)} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('dateFrom')}>
+            <Input type="date" value={draft.dateFrom} onChange={(e) => set('dateFrom', e.target.value)} />
+          </Field>
+          <Field label={t('dateTo')}>
+            <Input type="date" value={draft.dateTo} onChange={(e) => set('dateTo', e.target.value)} />
+          </Field>
+        </div>
+      </div>
+    </Sheet>
   )
 }
 
@@ -362,6 +550,7 @@ function NoteThreadSheet({
   const respondNotification = useStore((s) => s.respondNotification)
   const postNoteMessage = useStore((s) => s.postNoteMessage)
   const freezeNotification = useStore((s) => s.freezeNotification)
+  const unfreezeNotification = useStore((s) => s.unfreezeNotification)
   const editNotification = useStore((s) => s.editNotification)
   const markNoteThreadRead = useStore((s) => s.markNoteThreadRead)
   const rateNotification = useStore((s) => s.rateNotification)
@@ -435,6 +624,14 @@ function NoteThreadSheet({
             </Button>
             <Button size="sm" variant="danger" onClick={() => freezeNotification(note.id)}>
               <Lock size={14} /> {t('freeze')}
+            </Button>
+          </div>
+        )}
+
+        {isSender && note.frozen && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={() => unfreezeNotification(note.id)}>
+              <LockOpen size={14} /> {t('unfreeze')}
             </Button>
           </div>
         )}
@@ -915,23 +1112,33 @@ function Composer({
 function AttachmentList({ items, onBubble }: { items: AttachmentMeta[]; onBubble?: boolean }) {
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
-      {items.map((a) => (
-        <span
-          key={a.id}
-          className={cx(
-            'inline-flex items-center gap-1.5 rounded-xl py-1 ps-2 pe-2 text-[11px] font-medium',
-            onBubble ? 'bg-light/20 text-light' : 'bg-slate-100 text-slate-600',
-          )}
-        >
-          {a.dataUrl && a.type.startsWith('image/') ? (
-            <img src={a.dataUrl} alt="" className="h-4 w-4 rounded object-cover" />
-          ) : (
-            <FileText size={12} />
-          )}
-          <span className="max-w-[9rem] truncate">{a.name}</span>
-          <span className={onBubble ? 'text-light/70' : 'text-slate-400'}>{humanSize(a.size)}</span>
-        </span>
-      ))}
+      {items.map((a) => {
+        const cls = cx(
+          'inline-flex items-center gap-1.5 rounded-xl py-1 ps-2 pe-2 text-[11px] font-medium',
+          onBubble ? 'bg-light/20 text-light' : 'bg-slate-100 text-slate-600',
+          a.dataUrl && 'cursor-pointer transition hover:brightness-95',
+        )
+        const inner = (
+          <>
+            {a.dataUrl && a.type.startsWith('image/') ? (
+              <img src={a.dataUrl} alt="" className="h-4 w-4 rounded object-cover" />
+            ) : (
+              <FileText size={12} />
+            )}
+            <span className="max-w-[9rem] truncate">{a.name}</span>
+            <span className={onBubble ? 'text-light/70' : 'text-slate-400'}>{humanSize(a.size)}</span>
+          </>
+        )
+        return a.dataUrl ? (
+          <a key={a.id} href={a.dataUrl} download={a.name} target="_blank" rel="noopener noreferrer" className={cls}>
+            {inner}
+          </a>
+        ) : (
+          <span key={a.id} className={cls}>
+            {inner}
+          </span>
+        )
+      })}
     </div>
   )
 }
@@ -1001,223 +1208,5 @@ function EditForm({
         </Button>
       </div>
     </div>
-  )
-}
-
-// ── Create notification sheet ──────────────────────────────────────────────────
-function CreateSheet({
-  open,
-  onClose,
-  kinds,
-  options,
-  groups,
-  expandGroup,
-  resolveName,
-  resolveLabel,
-  onCreate,
-  isRtl,
-  lang,
-  t,
-}: {
-  open: boolean
-  onClose: () => void
-  kinds: NoteKind[]
-  options: ActorRef[]
-  groups: PickerGroup[]
-  expandGroup: (id: string) => ActorRef[]
-  resolveName: (r: ActorRef) => string
-  resolveLabel: (r: ActorRef) => string
-  onCreate: (payload: {
-    kind: NoteKind
-    to: ActorRef[]
-    subject: string
-    body: string
-    targetDate?: string
-    targetTime?: string
-    targetVenue?: string
-    attachments?: AttachmentMeta[]
-  }) => void
-  isRtl: boolean
-  lang: 'en' | 'ar'
-  t: (k: string) => string
-}) {
-  const [kind, setKind] = useState<NoteKind | ''>('')
-  const [toRefs, setToRefs] = useState<ActorRef[]>([])
-  const [toGroups, setToGroups] = useState<string[]>([])
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
-  const [targetDate, setTargetDate] = useState('')
-  const [targetTime, setTargetTime] = useState('')
-  const [targetVenue, setTargetVenue] = useState('')
-  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  const reset = () => {
-    setKind('')
-    setToRefs([])
-    setToGroups([])
-    setSubject('')
-    setBody('')
-    setTargetDate('')
-    setTargetTime('')
-    setTargetVenue('')
-    setAttachments([])
-  }
-
-  const to = useMemo(() => {
-    const seen = new Set<string>()
-    const out: ActorRef[] = []
-    for (const r of [...toRefs, ...toGroups.flatMap(expandGroup)]) {
-      const k = actorKey(r)
-      if (!seen.has(k)) {
-        seen.add(k)
-        out.push(r)
-      }
-    }
-    return out
-  }, [toRefs, toGroups, expandGroup])
-
-  const valid =
-    !!kind &&
-    to.length > 0 &&
-    subject.trim().length > 0 &&
-    body.trim().length > 0 &&
-    targetDate.length > 0
-
-  const onFiles = (files: FileList | null) => {
-    if (!files) return
-    Array.from(files).forEach((f) => {
-      const id = uid('att')
-      setAttachments((prev) => [...prev, { id, name: f.name, size: f.size, type: f.type }])
-      if (f.type.startsWith('image/')) {
-        const reader = new FileReader()
-        reader.onload = () =>
-          setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, dataUrl: reader.result as string } : a)))
-        reader.readAsDataURL(f)
-      }
-    })
-  }
-
-  return (
-    <Sheet
-      open={open}
-      onClose={() => {
-        reset()
-        onClose()
-      }}
-      title={t('createNotification')}
-      footer={
-        <Button
-          full
-          disabled={!valid}
-          onClick={() => {
-            if (!kind || to.length === 0) return
-            onCreate({
-              kind,
-              to,
-              subject: subject.trim(),
-              body: body.trim(),
-              targetDate: targetDate || undefined,
-              targetTime: targetTime || undefined,
-              targetVenue: targetVenue.trim() || undefined,
-              attachments: attachments.length ? attachments : undefined,
-            })
-            reset()
-          }}
-        >
-          {t('create')}
-        </Button>
-      }
-    >
-      <div className="space-y-4 py-2">
-        <Field label={t('type')} required>
-          <Select value={kind} onChange={(e) => setKind(e.target.value as NoteKind)}>
-            <option value="">{L(isRtl, 'Select type…', 'اختر النوع…')}</option>
-            {kinds.map((k) => (
-              <option key={k} value={k}>
-                {bl(NOTE_KIND_LABELS[k], lang)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <RecipientPicker
-          label={t('to')}
-          required
-          options={options}
-          groups={groups}
-          refs={toRefs}
-          groupIds={toGroups}
-          onChangeRefs={setToRefs}
-          onChangeGroupIds={setToGroups}
-          resolveName={resolveName}
-          resolveLabel={resolveLabel}
-          placeholder={t('searchRecipients')}
-          isRtl={isRtl}
-        />
-
-        <Field label={t('subject')} required>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-        </Field>
-        <Field label={t('body')} required>
-          <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
-        </Field>
-        <Field label={t('targetDate')} required>
-          <Input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-        </Field>
-        <Field label={t('targetTime')} hint={t('optional')}>
-          <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
-        </Field>
-        <Field label={t('targetVenue')} hint={t('optional')}>
-          <Input value={targetVenue} onChange={(e) => setTargetVenue(e.target.value)} />
-        </Field>
-
-        <div>
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              onFiles(e.target.files)
-              e.target.value = ''
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
-          >
-            <Paperclip size={14} /> {t('addAttachment')}
-          </button>
-          {attachments.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {attachments.map((a) => (
-                <span
-                  key={a.id}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 py-1.5 ps-2.5 pe-1 text-[11px] font-medium text-slate-600"
-                >
-                  {a.dataUrl && a.type.startsWith('image/') ? (
-                    <img src={a.dataUrl} alt="" className="h-4 w-4 rounded object-cover" />
-                  ) : (
-                    <FileText size={12} />
-                  )}
-                  <span className="max-w-[9rem] truncate">{a.name}</span>
-                  <span className="text-slate-400">{humanSize(a.size)}</span>
-                  <button
-                    type="button"
-                    onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-300 hover:text-slate-700"
-                    aria-label={L(isRtl, 'Remove', 'إزالة')}
-                  >
-                    <XIcon size={11} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </Sheet>
   )
 }

@@ -6,8 +6,10 @@ import type {
   CommunicationArea,
   ContactRequest,
   DelegationItem,
+  Draft,
   EntityStatus,
   Group,
+  Label,
   LegalEntity,
   LinkRequest,
   Message,
@@ -16,7 +18,9 @@ import type {
   Notification,
   Position,
   Post,
+  Presence,
   Profile,
+  ReactionKind,
   StructureNode,
   TransactionKey,
   Vacancy,
@@ -54,6 +58,8 @@ export interface NewNormalInput {
   languages?: { language: import('@/types').Language; level: 'Basic' | 'Average' | 'Fluent' }[]
   education?: { school?: string; university?: string; postgraduate?: string; phd?: string }
   career?: { title?: string; profession?: string; field?: string; industry?: string; history?: string }
+  /** Optional profile photo (dataUrl) captured at creation. */
+  photo?: string
   verification: import('@/types').VerificationInfo
 }
 
@@ -77,6 +83,8 @@ interface State extends AppData {
   myPresence: () => import('@/types').Presence
   /** The signed-in person's inbox scope (defaults to 'unified'). */
   inboxScope: () => 'unified' | 'active'
+  /** Presence for any actor — resolves the underlying person (host for virtuals). */
+  presenceOf: (ref: ActorRef) => Presence
   entity: (id: string) => LegalEntity | undefined
   virtual: (id: string) => VirtualCharacter | undefined
   profilesForVirtual: (v: VirtualCharacter) => Profile[]
@@ -103,8 +111,11 @@ interface State extends AppData {
   setInboxScope: (v: 'unified' | 'active') => void
 
   // ── posts ─────────────────────────────────────────────────────────────────────
-  addPost: (body: string, category: Post['category'], audience?: string[]) => void
-  reactPost: (postId: string) => void
+  addPost: (body: string, category: Post['category'], audience?: string[], image?: string) => void
+  /** Set/toggle the active account's reaction on a post (clicking the same kind clears it). */
+  reactPost: (postId: string, kind: ReactionKind) => void
+  /** Set/toggle the active account's reaction on a reply. */
+  reactComment: (postId: string, commentId: string, kind: ReactionKind) => void
   savePost: (postId: string) => void
   commentPost: (postId: string, body: string) => void
 
@@ -135,6 +146,32 @@ interface State extends AppData {
   deleteMessage: (messageId: string) => void
   /** Mark a message read by the given identity (defaults to the active account). */
   markRead: (messageId: string, as?: ActorRef) => void
+  /** Toggle the active account's star on a message. */
+  toggleStarMessage: (messageId: string) => void
+  /** Replace the set of labels a message is filed under. */
+  setMessageLabels: (messageId: string, labelIds: string[]) => void
+
+  // ── message labels ───────────────────────────────────────────────────────────
+  addLabel: (name: string, parentId?: string | null) => string
+  renameLabel: (id: string, name: string) => void
+  removeLabel: (id: string) => void
+
+  // ── drafts ───────────────────────────────────────────────────────────────────
+  /** Create or update a draft; returns its id. Pass an existing id to update. */
+  saveDraft: (input: {
+    id?: string
+    to: ActorRef[]
+    cc?: ActorRef[]
+    bcc?: ActorRef[]
+    subject: string
+    body: string
+    attachments?: import('@/types').AttachmentMeta[]
+    threadId?: string
+    as?: ActorRef
+  }) => string
+  deleteDraft: (id: string) => void
+  /** Send a draft (via sendMessage) and remove it from Drafts. */
+  sendDraft: (id: string) => void
 
   // ── notifications ─────────────────────────────────────────────────────────────
   createNotification: (n: {
@@ -171,6 +208,8 @@ interface State extends AppData {
   ) => void
   /** Sender freezes the note — locks all reactions/messages. */
   freezeNotification: (id: string) => void
+  /** Sender unfreezes the note — re-opens reactions/messages. */
+  unfreezeNotification: (id: string) => void
   voteNotification: (id: string, choice: 'accept' | 'reject') => void
   /** Mark a note read by the given identity (defaults to the active account). */
   markNotificationRead: (id: string, as?: ActorRef) => void
@@ -270,7 +309,7 @@ export const useStore = create<State>()(
       normalId: null,
       active: null,
       onboarded: false,
-      presenceByNormal: {},
+      presenceByNormal: { n_hossam: 'active', n_mohamed: 'busy', n_sara: 'away' },
       inboxScopeByNormal: {},
 
       // ── selectors ────────────────────────────────────────────────────────────
@@ -291,6 +330,10 @@ export const useStore = create<State>()(
       inboxScope: () => {
         const { normalId, inboxScopeByNormal } = get()
         return (normalId && inboxScopeByNormal[normalId]) || 'unified'
+      },
+      presenceOf: (ref) => {
+        const normalId = ref.kind === 'normal' ? ref.normalId : get().virtual(ref.virtualId)?.linkedNormalId
+        return (normalId && get().presenceByNormal[normalId]) || 'active'
       },
       entity: (id) => get().entities.find((e) => e.id === id),
       virtual: (id) => get().virtuals.find((v) => v.id === id),
@@ -449,6 +492,7 @@ export const useStore = create<State>()(
           verification: input.verification,
           privacy: { personalInfo: 'contacts', contactsInfo: 'contacts', education: 'public', career: 'public' },
           avatarColor: colorFor(fullName || id),
+          photo: input.photo,
         }
         set((s) => ({
           normals: [...s.normals, person],
@@ -475,35 +519,53 @@ export const useStore = create<State>()(
       },
 
       // ── posts ──────────────────────────────────────────────────────────────────
-      addPost: (body, category, audience) => {
+      addPost: (body, category, audience, image) => {
         const { active } = get()
         if (!active) return
         const post: Post = {
           id: uid('post'),
           author: active as ActorRef,
           body,
+          image,
           category,
           createdAt: new Date().toISOString(),
-          reactions: 0,
+          reactionsBy: {},
           comments: [],
-          reactedBy: [],
           savedBy: [],
           audience: audience && audience.length ? audience : undefined,
         }
         set((s) => ({ posts: [post, ...s.posts] }))
       },
-      reactPost: (postId) => {
+      reactPost: (postId, kind) => {
         const { active } = get()
         if (!active) return
         const k = actorKey(active)
         set((s) => ({
           posts: s.posts.map((p) => {
             if (p.id !== postId) return p
-            const has = p.reactedBy.includes(k)
+            const next = { ...(p.reactionsBy ?? {}) }
+            if (next[k] === kind) delete next[k]
+            else next[k] = kind
+            return { ...p, reactionsBy: next }
+          }),
+        }))
+      },
+      reactComment: (postId, commentId, kind) => {
+        const { active } = get()
+        if (!active) return
+        const k = actorKey(active)
+        set((s) => ({
+          posts: s.posts.map((p) => {
+            if (p.id !== postId) return p
             return {
               ...p,
-              reactedBy: has ? p.reactedBy.filter((x) => x !== k) : [...p.reactedBy, k],
-              reactions: p.reactions + (has ? -1 : 1),
+              comments: p.comments.map((c) => {
+                if (c.id !== commentId) return c
+                const next = { ...(c.reactionsBy ?? {}) }
+                if (next[k] === kind) delete next[k]
+                else next[k] = kind
+                return { ...c, reactionsBy: next }
+              }),
             }
           }),
         }))
@@ -530,7 +592,7 @@ export const useStore = create<State>()(
                   ...p,
                   comments: [
                     ...p.comments,
-                    { id: uid('c'), author: active as ActorRef, body, createdAt: new Date().toISOString() },
+                    { id: uid('c'), author: active as ActorRef, body, createdAt: new Date().toISOString(), reactionsBy: {} },
                   ],
                 }
               : p,
@@ -622,6 +684,94 @@ export const useStore = create<State>()(
             m.id === messageId && !m.readBy.includes(k) ? { ...m, readBy: [...m.readBy, k] } : m,
           ),
         }))
+      },
+      toggleStarMessage: (messageId) => {
+        const { active } = get()
+        if (!active) return
+        const k = actorKey(active)
+        set((s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id !== messageId) return m
+            const starred = (m.starredBy ?? []).includes(k)
+            return { ...m, starredBy: starred ? (m.starredBy ?? []).filter((x) => x !== k) : [...(m.starredBy ?? []), k] }
+          }),
+        }))
+      },
+      setMessageLabels: (messageId, labelIds) =>
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === messageId ? { ...m, labelIds: labelIds.length ? [...new Set(labelIds)] : undefined } : m,
+          ),
+        })),
+
+      // ── message labels ───────────────────────────────────────────────────────
+      addLabel: (name, parentId) => {
+        const id = uid('lbl')
+        const owner = get().normalId
+        if (!owner) return id
+        set((s) => ({ labels: [...s.labels, { id, ownerNormalId: owner, name: name.trim(), parentId: parentId ?? null }] }))
+        return id
+      },
+      renameLabel: (id, name) =>
+        set((s) => ({ labels: s.labels.map((l) => (l.id === id ? { ...l, name: name.trim() } : l)) })),
+      removeLabel: (id) =>
+        set((s) => {
+          // Remove the label and any descendants; detach them from messages.
+          const toRemove = new Set<string>([id])
+          let changed = true
+          while (changed) {
+            changed = false
+            for (const l of s.labels) {
+              if (l.parentId && toRemove.has(l.parentId) && !toRemove.has(l.id)) {
+                toRemove.add(l.id)
+                changed = true
+              }
+            }
+          }
+          return {
+            labels: s.labels.filter((l) => !toRemove.has(l.id)),
+            messages: s.messages.map((m) =>
+              m.labelIds?.some((x) => toRemove.has(x))
+                ? { ...m, labelIds: m.labelIds.filter((x) => !toRemove.has(x)) }
+                : m,
+            ),
+          }
+        }),
+
+      // ── drafts ─────────────────────────────────────────────────────────────────
+      saveDraft: ({ id, to, cc, bcc, subject, body, attachments, threadId, as }) => {
+        const { active } = get()
+        const owner = (as ?? active) as ActorRef | null
+        if (!owner) return id ?? ''
+        const now = new Date().toISOString()
+        if (id && get().drafts.some((d) => d.id === id)) {
+          set((s) => ({
+            drafts: s.drafts.map((d) =>
+              d.id === id ? { ...d, owner, to, cc, bcc, subject, body, attachments, threadId, updatedAt: now } : d,
+            ),
+          }))
+          return id
+        }
+        const newId = id ?? uid('dr')
+        const draft: Draft = { id: newId, owner, to, cc, bcc, subject, body, attachments, threadId, updatedAt: now }
+        set((s) => ({ drafts: [draft, ...s.drafts] }))
+        return newId
+      },
+      deleteDraft: (id) => set((s) => ({ drafts: s.drafts.filter((d) => d.id !== id) })),
+      sendDraft: (id) => {
+        const draft = get().drafts.find((d) => d.id === id)
+        if (!draft) return
+        get().sendMessage({
+          to: draft.to,
+          cc: draft.cc,
+          bcc: draft.bcc,
+          subject: draft.subject,
+          body: draft.body,
+          attachments: draft.attachments,
+          threadId: draft.threadId,
+          as: draft.owner,
+        })
+        set((s) => ({ drafts: s.drafts.filter((d) => d.id !== id) }))
       },
 
       // ── notifications ──────────────────────────────────────────────────────────
@@ -811,6 +961,31 @@ export const useStore = create<State>()(
               thread: [...rc.thread, sysEntry],
             }))
             return { ...n, frozen: true, recipients }
+          }),
+        }))
+      },
+      unfreezeNotification: (id) => {
+        const { active } = get()
+        if (!active) return
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || !n.frozen) return n
+            // Only the sender may unfreeze.
+            if (actorKey(n.from) !== actorKey(active)) return n
+            const sysEntry = {
+              id: uid('nte'),
+              at,
+              by: active as ActorRef,
+              type: 'system' as const,
+              text: 'unfrozen',
+              readBy: [actorKey(active)],
+            }
+            const recipients = (n.recipients ?? []).map((rc) => ({
+              ...rc,
+              thread: [...rc.thread, sysEntry],
+            }))
+            return { ...n, frozen: false, recipients }
           }),
         }))
       },
@@ -1129,6 +1304,8 @@ export const useStore = create<State>()(
           groups: [],
           posts: [],
           messages: [],
+          labels: [],
+          drafts: [],
           notifications: [],
           vacancies: [],
           contactRequests: [],
@@ -1142,7 +1319,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 5,
+      version: 6,
       // v2: notifications gained per-recipient status + private threads.
       // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
       // v4: structure node codes are strings (hierarchical); coerce any legacy numeric codes.
@@ -1182,16 +1359,37 @@ export const useStore = create<State>()(
               : { ...v, links: v.linkedNormalId ? [{ normalId: v.linkedNormalId, status: 'active', connectedAt: v.connectedAt }] : [] },
           )
         }
+        if (persisted && from < 6) {
+          if (!Array.isArray(persisted.labels)) persisted.labels = []
+          if (!Array.isArray(persisted.drafts)) persisted.drafts = []
+          if (Array.isArray(persisted.posts)) {
+            persisted.posts = persisted.posts.map((p: any) => {
+              if (p.reactionsBy) return p
+              const reactionsBy: Record<string, string> = {}
+              for (const k of p.reactedBy ?? []) reactionsBy[k] = 'up'
+              return {
+                ...p,
+                reactionsBy,
+                comments: (p.comments ?? []).map((c: any) => (c.reactionsBy ? c : { ...c, reactionsBy: {} })),
+              }
+            })
+          }
+        }
         return persisted
       },
       // Persist everything; strip attachment preview blobs (dataUrl) before writing so
       // large files don't blow the localStorage quota — metadata (name/size/type) is kept.
       partialize: (state) => ({
         ...state,
-        normals: state.normals.map((n) =>
-          n.career?.cv?.dataUrl
-            ? { ...n, career: { ...n.career, cv: (({ dataUrl: _d, ...meta }) => meta)(n.career.cv) } }
-            : n,
+        normals: state.normals.map((n) => {
+          let out = n
+          if (n.photo) out = { ...out, photo: undefined }
+          if (out.career?.cv?.dataUrl) out = { ...out, career: { ...out.career, cv: (({ dataUrl: _d, ...meta }) => meta)(out.career.cv) } }
+          return out
+        }),
+        posts: state.posts.map((p) => (p.image ? { ...p, image: undefined } : p)),
+        drafts: state.drafts.map((d) =>
+          d.attachments ? { ...d, attachments: d.attachments.map(({ dataUrl: _drop, ...meta }) => meta) } : d,
         ),
         messages: state.messages.map((m) =>
           m.attachments

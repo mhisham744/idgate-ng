@@ -22,16 +22,18 @@ export function PresenceAvatar({
   size,
   square,
   presence,
+  photo,
 }: {
   name: string
   color?: string
   size: number
   square?: boolean
   presence: Presence
+  photo?: string
 }) {
   return (
     <div className="relative shrink-0">
-      <Avatar name={name} color={color} size={size} square={square} />
+      <Avatar name={name} color={color} size={size} square={square} photo={photo} />
       <span
         className={cx(
           'absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full ring-2 ring-white',

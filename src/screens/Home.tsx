@@ -1,13 +1,15 @@
 import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import { Heart, MessageCircle, Forward, Bookmark, Send, ChevronDown, Globe, UsersRound, Check } from 'lucide-react'
+import type { ChangeEvent, ReactNode } from 'react'
+import { MessageCircle, Forward, Bookmark, Send, ImagePlus, X } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime } from '@/lib/identity'
-import { ActorLine } from '@/components/identity'
-import { useDirectory, useMyInbox } from '@/lib/userScope'
+import { useResolveActor } from '@/components/identity'
+import { PresenceAvatar } from '@/components/AccountSwitcher'
+import { useMyInbox } from '@/lib/userScope'
 
-import type { ActorRef, Post } from '@/types'
+import type { ActorRef, Post, ReactionKind } from '@/types'
+import { REACTION_EMOJI, REACTION_ORDER } from '@/types'
 import {
   cx,
   Button,
@@ -74,23 +76,15 @@ export function Home() {
   const addPost = useStore((s) => s.addPost)
   const reactPost = useStore((s) => s.reactPost)
   const savePost = useStore((s) => s.savePost)
-  const groupRecipients = useStore((s) => s.groupRecipients)
-  const dir = useDirectory()
   const inbox = useMyInbox()
 
   const canSend = can('post.send')
 
   const [body, setBody] = useState('')
-  // Audience is a single choice: null = everyone in the directory, or one group id.
-  const [toGroup, setToGroup] = useState<string | null>(null)
+  const [image, setImage] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   const meKey = active ? actorKey(active) : ''
-
-  const audienceGroups = useMemo(
-    () => dir.groups.map((g) => ({ id: g.id, name: g.name, count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length })),
-    [dir.groups, groupRecipients, meKey],
-  )
-  const expandGroup = (id: string): ActorRef[] => groupRecipients(id).filter((r) => actorKey(r) !== meKey)
 
   // A post is visible if I authored it, it's a legacy broadcast (no audience),
   // or its audience includes one of my accounts.
@@ -100,17 +94,22 @@ export function Home() {
     return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }, [posts, inbox.keys])
 
+  const pickImage = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setImage(typeof reader.result === 'string' ? reader.result : null)
+    reader.readAsDataURL(file)
+  }
+
   const submit = () => {
     const text = body.trim()
-    if (!text || !canSend) return
-    // Audience = the chosen group (expanded), or the whole directory by default.
-    // Always include the author so the audience is never empty — an empty audience
-    // would collapse to undefined and be treated as a legacy broadcast (leak).
-    const recipients = toGroup ? expandGroup(toGroup) : dir.people
-    const audienceKeys = Array.from(new Set([...recipients.map(actorKey), meKey].filter(Boolean)))
-    addPost(text, 'friend', audienceKeys)
+    if ((!text && !image) || !canSend) return
+    // Default broadcast audience (undefined = visible to everyone), same as the old "Everyone".
+    addPost(text, 'friend', undefined, image ?? undefined)
     setBody('')
-    setToGroup(null)
+    setImage(null)
   }
 
   return (
@@ -124,18 +123,43 @@ export function Home() {
           rows={3}
           disabled={!canSend}
         />
-        {canSend ? (
-          <div className="flex items-center justify-end">
-            <AudienceSend
-              disabled={!body.trim()}
-              groups={audienceGroups}
-              value={toGroup}
-              onChange={setToGroup}
-              onSend={submit}
-              sendLabel={t('send')}
-              L={L}
-              isRtl={isRtl}
+        {image && (
+          <div className="relative inline-block">
+            <img
+              src={image}
+              alt=""
+              className="max-h-48 rounded-2xl border border-slate-100 object-cover"
             />
+            <button
+              type="button"
+              onClick={() => setImage(null)}
+              aria-label={t('removeImage')}
+              className="absolute end-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-light transition hover:bg-black/70"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        {canSend ? (
+          <div className="flex items-center justify-between gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={pickImage}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              aria-label={t('addImage')}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            >
+              <ImagePlus className="h-5 w-5" />
+            </button>
+            <Button onClick={submit} disabled={!body.trim() && !image}>
+              {t('send')}
+            </Button>
           </div>
         ) : (
           <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
@@ -159,146 +183,13 @@ export function Home() {
               meKey={meKey}
               lang={lang}
               L={L}
-              onReact={() => reactPost(p.id)}
+              onReact={(kind) => reactPost(p.id, kind)}
               onSave={() => savePost(p.id)}
             />
           ))}
         </div>
       )}
     </div>
-  )
-}
-
-/**
- * Split "Send" button: the primary action posts, while the attached caret opens
- * a compact menu to pick the audience — everyone in the directory (default) or
- * a single group. Uses the blur-timer dismissal pattern shared with the app.
- */
-function AudienceSend({
-  disabled,
-  groups,
-  value,
-  onChange,
-  onSend,
-  sendLabel,
-  L,
-  isRtl,
-}: {
-  disabled: boolean
-  groups: { id: string; name: string; count: number }[]
-  value: string | null
-  onChange: (id: string | null) => void
-  onSend: () => void
-  sendLabel: string
-  L: (en: string, ar: string) => string
-  isRtl: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const everyone = L('Everyone in your directory', 'كل من في دليلك')
-  const selectedGroup = value ? groups.find((g) => g.id === value) : undefined
-  const chip = selectedGroup ? selectedGroup.name : L('Everyone', 'الجميع')
-
-  const choose = (id: string | null) => {
-    onChange(id)
-    setOpen(false)
-  }
-
-  return (
-    <div className="relative inline-flex items-center gap-2">
-      <span className="max-w-[10rem] truncate text-xs text-slate-500">
-        {L('To', 'إلى')}: <span className="font-medium text-slate-600">{chip}</span>
-      </span>
-
-      <div className="inline-flex overflow-hidden rounded-2xl shadow-sm">
-        <button
-          type="button"
-          onClick={onSend}
-          disabled={disabled}
-          className="bg-gate-600 px-4 py-2.5 text-sm font-medium text-light transition-all hover:bg-gate-700 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
-        >
-          {sendLabel}
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          onFocus={() => {
-            if (blurTimer.current) clearTimeout(blurTimer.current)
-          }}
-          onBlur={() => {
-            blurTimer.current = setTimeout(() => setOpen(false), 150)
-          }}
-          aria-label={L('Choose audience', 'اختر الجمهور')}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          className="flex items-center border-s border-gate-500/40 bg-gate-600 ps-1.5 pe-2.5 text-light transition-all hover:bg-gate-700 active:scale-[0.97]"
-        >
-          <ChevronDown size={16} className={cx('transition-transform', open && 'rotate-180')} />
-        </button>
-      </div>
-
-      {open && (
-        <div
-          role="menu"
-          className="absolute end-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto thin-scroll rounded-2xl border border-slate-200 bg-white py-1 shadow-lg"
-        >
-          <AudienceOption
-            icon={<Globe size={15} className="shrink-0 text-gate-500" />}
-            label={everyone}
-            selected={!value}
-            onSelect={() => choose(null)}
-            isRtl={isRtl}
-          />
-          {groups.map((g) => (
-            <AudienceOption
-              key={g.id}
-              icon={<UsersRound size={15} className="shrink-0 text-teal-500" />}
-              label={g.name}
-              count={g.count}
-              selected={value === g.id}
-              onSelect={() => choose(g.id)}
-              isRtl={isRtl}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AudienceOption({
-  icon,
-  label,
-  count,
-  selected,
-  onSelect,
-  isRtl,
-}: {
-  icon: ReactNode
-  label: string
-  count?: number
-  selected: boolean
-  onSelect: () => void
-  isRtl: boolean
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={selected}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onSelect}
-      className={cx(
-        'flex w-full items-center gap-2 px-3 py-2 text-start text-sm transition hover:bg-slate-50',
-        selected ? 'text-gate-700' : 'text-slate-700',
-      )}
-    >
-      {icon}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {count != null && <span className="shrink-0 text-[11px] text-slate-400">{count}</span>}
-      {selected && <Check size={15} className={cx('shrink-0 text-gate-600', isRtl ? 'me-0' : 'ms-0')} />}
-    </button>
   )
 }
 
@@ -316,17 +207,18 @@ function PostCard({
   meKey: string
   lang: 'en' | 'ar'
   L: (en: string, ar: string) => string
-  onReact: () => void
+  onReact: (kind: ReactionKind) => void
   onSave: () => void
 }) {
   const { t } = useLang()
   const can = useStore((s) => s.can)
   const commentPost = useStore((s) => s.commentPost)
+  const reactComment = useStore((s) => s.reactComment)
 
   const [open, setOpen] = useState(false)
   const [comment, setComment] = useState('')
 
-  const reacted = meKey ? post.reactedBy.includes(meKey) : false
+  const myReaction = meKey ? post.reactionsBy?.[meKey] : undefined
   const saved = meKey ? post.savedBy.includes(meKey) : false
   const canComment = can('post.comment')
   const canForward = can('post.forward')
@@ -341,7 +233,7 @@ function PostCard({
   return (
     <Card className="p-4 space-y-3 animate-fade-in" style={{ animationDelay: `${index * 40}ms` }}>
       <div className="flex items-start justify-between gap-2">
-        <ActorLine actor={post.author} size={40} showAddress />
+        <PresenceActorLine actor={post.author} size={40} showAddress />
         <div className="flex flex-col items-end gap-0.5 shrink-0">
           <span className="text-[11px] leading-none text-slate-500">
             {relativeTime(post.createdAt, lang)}
@@ -349,19 +241,23 @@ function PostCard({
         </div>
       </div>
 
-      <p className="text-[15px] leading-relaxed text-slate-800 whitespace-pre-wrap text-start">
-        {post.body}
-      </p>
+      {post.body && (
+        <p className="text-[15px] leading-relaxed text-slate-800 whitespace-pre-wrap text-start">
+          {post.body}
+        </p>
+      )}
+
+      {post.image && (
+        <img
+          src={post.image}
+          alt=""
+          className="max-h-80 w-full rounded-2xl border border-slate-100 object-cover"
+        />
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-1 text-slate-500 border-t border-slate-100 -mx-4 px-3 pt-2 mt-1">
-        <ActionButton
-          active={reacted}
-          onClick={onReact}
-          icon={<Heart className={cx('w-4 h-4', reacted && 'fill-current')} />}
-          label={String(post.reactions)}
-          activeClass="text-rose-500 bg-rose-50"
-        />
+        <Reactions reactionsBy={post.reactionsBy} mine={myReaction} onReact={onReact} />
         <ActionButton
           active={open}
           onClick={() => setOpen((v) => !v)}
@@ -391,13 +287,21 @@ function PostCard({
             <p className="text-xs text-slate-500 text-start">{t('comments')}</p>
           ) : (
             post.comments.map((c) => {
+              const myCommentReaction = meKey ? c.reactionsBy?.[meKey] : undefined
               return (
                 <div key={c.id} className="flex flex-col gap-0.5">
-                  <ActorLine actor={c.author} size={28} />
+                  <PresenceActorLine actor={c.author} size={28} />
                   <p className="text-sm text-slate-700 ps-[38px] text-start">{c.body}</p>
                   <span className="text-xs text-slate-500 ps-[38px]">
                     {relativeTime(c.createdAt, lang)}
                   </span>
+                  <div className="ps-[34px]">
+                    <Reactions
+                      reactionsBy={c.reactionsBy}
+                      mine={myCommentReaction}
+                      onReact={(kind) => reactComment(post.id, c.id, kind)}
+                    />
+                  </div>
                 </div>
               )
             })
@@ -462,5 +366,91 @@ function ActionButton({
       {icon}
       {label != null && <span>{label}</span>}
     </button>
+  )
+}
+
+/** Compact 4-way emoji reaction control (👍 👎 😊 😢) used on posts and replies. */
+function Reactions({
+  reactionsBy,
+  mine,
+  onReact,
+}: {
+  reactionsBy: Record<string, ReactionKind>
+  mine?: ReactionKind
+  onReact: (kind: ReactionKind) => void
+}) {
+  const { t } = useLang()
+  const values = Object.values(reactionsBy ?? {})
+  const label = (kind: ReactionKind): string => {
+    switch (kind) {
+      case 'up':
+        return t('reactLike')
+      case 'down':
+        return t('reactDislike')
+      case 'happy':
+        return t('reactHappy')
+      case 'sad':
+        return t('reactSad')
+    }
+  }
+  return (
+    <div className="flex items-center gap-0.5">
+      {REACTION_ORDER.map((kind) => {
+        const count = values.filter((v) => v === kind).length
+        const active = mine === kind
+        return (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => onReact(kind)}
+            aria-label={label(kind)}
+            aria-pressed={active}
+            title={label(kind)}
+            className={cx(
+              'inline-flex min-h-[32px] items-center gap-1 rounded-full px-1.5 py-1 text-xs font-medium transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+              active ? 'bg-gate-50 text-gate-700 ring-1 ring-gate-200' : 'text-slate-500 hover:bg-slate-100',
+            )}
+          >
+            <span className="text-sm leading-none">{REACTION_EMOJI[kind]}</span>
+            {count > 0 && <span className="tabular-nums">{count}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Like `ActorLine`, but the avatar carries the author's live presence dot. */
+function PresenceActorLine({
+  actor,
+  size,
+  showAddress = true,
+}: {
+  actor: ActorRef
+  size: number
+  showAddress?: boolean
+}) {
+  const resolve = useResolveActor()
+  const presenceOf = useStore((s) => s.presenceOf)
+  const r = resolve(actor)
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <PresenceAvatar
+        name={r.displayName}
+        color={r.color}
+        size={size}
+        square={r.isVirtual}
+        presence={presenceOf(actor)}
+        photo={r.photo}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-slate-800 leading-tight">{r.displayName}</div>
+        {showAddress && r.address && (
+          <div className="truncate font-address text-[11px] text-gate-700">
+            <bdi>{r.address}</bdi>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
