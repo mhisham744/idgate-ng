@@ -41,13 +41,20 @@ export type Ability = 'create' | 'change' | 'display' | 'delete'
 /** Payload collected by the new-account KYC wizard. */
 export interface NewNormalInput {
   firstName: string
+  /** Middle name — mandatory. */
+  middleName: string
   surname: string
   gender: 'Male' | 'Female'
   dateOfBirth?: string
   nationality?: import('@/types').Country
+  /** Optional second & third nationalities. */
+  nationality2?: import('@/types').Country
+  nationality3?: import('@/types').Country
   residenceCountry?: import('@/types').Country
   city: string
+  address1?: string
   nationalId?: string
+  passport?: string
   mobile: string
   email?: string
   landline?: string
@@ -55,9 +62,28 @@ export interface NewNormalInput {
   facebook?: string
   whatsApp?: string
   motherTongue?: import('@/types').Language
+  motherTongueLevel?: 'Basic' | 'Average' | 'Fluent'
   languages?: { language: import('@/types').Language; level: 'Basic' | 'Average' | 'Fluent' }[]
   education?: { school?: string; university?: string; postgraduate?: string; phd?: string }
-  career?: { title?: string; profession?: string; field?: string; industry?: string; history?: string }
+  career?: {
+    title?: string
+    profession?: string
+    field?: string
+    industry?: string
+    history?: string
+    cv?: import('@/types').AttachmentMeta
+    specialtiesSkills?: string
+    projectExperience?: string
+    trainingCertifications?: string
+    targetJob?: string
+  }
+  /** Privacy choices (mandatory at creation; defaults applied if absent). */
+  privacy?: {
+    personalInfo: import('@/types').PrivacyLevel
+    contactsInfo: import('@/types').PrivacyLevel
+    education: import('@/types').PrivacyLevel
+    career: import('@/types').PrivacyLevel
+  }
   /** Optional profile photo (dataUrl) captured at creation. */
   photo?: string
   verification: import('@/types').VerificationInfo
@@ -463,21 +489,28 @@ export const useStore = create<State>()(
         const nationality = input.nationality ?? 'Egypt'
         if (get().findDuplicateNormal(input.mobile, input.nationalId, nationality)) return ''
         const id = uid('n')
-        const fullName = `${input.firstName} ${input.surname}`.trim()
+        const fullName = `${input.firstName} ${input.middleName} ${input.surname}`.replace(/\s+/g, ' ').trim()
         const seq = get().normals.length + 1
+        const nationalities = [nationality, input.nationality2, input.nationality3].filter(
+          (c, i, arr): c is import('@/types').Country => !!c && arr.indexOf(c) === i,
+        )
         const person: import('@/types').NormalCharacter = {
           id,
           firstName: input.firstName.trim(),
+          middleName: input.middleName.trim(),
           surname: input.surname.trim(),
           fullName,
           gender: input.gender,
           dateOfBirth: input.dateOfBirth,
-          nationalities: [nationality],
+          nationalities,
           residenceCountry: input.residenceCountry ?? nationality,
           city: input.city.trim(),
+          address1: input.address1?.trim() || undefined,
           nationalId: input.nationalId?.trim() || undefined,
+          passports: input.passport?.trim() ? [input.passport.trim()] : undefined,
           internalCode: makeInternalCode(nationality, input.city, seq),
           motherTongue: input.motherTongue ?? 'Arabic',
+          motherTongueLevel: input.motherTongueLevel ?? 'Fluent',
           languages: input.languages,
           education: input.education,
           career: input.career,
@@ -490,7 +523,7 @@ export const useStore = create<State>()(
             whatsApp: input.whatsApp?.trim() || undefined,
           },
           verification: input.verification,
-          privacy: { personalInfo: 'contacts', contactsInfo: 'contacts', education: 'public', career: 'public' },
+          privacy: input.privacy ?? { personalInfo: 'contacts', contactsInfo: 'contacts', education: 'public', career: 'public' },
           avatarColor: colorFor(fullName || id),
           photo: input.photo,
         }
@@ -1319,7 +1352,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 6,
+      version: 7,
       // v2: notifications gained per-recipient status + private threads.
       // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
       // v4: structure node codes are strings (hierarchical); coerce any legacy numeric codes.
@@ -1374,6 +1407,9 @@ export const useStore = create<State>()(
               }
             })
           }
+        }
+        if (persisted && from < 7 && Array.isArray(persisted.normals)) {
+          persisted.normals = persisted.normals.map((n: any) => (n.middleName != null ? n : { ...n, middleName: '' }))
         }
         return persisted
       },

@@ -45,9 +45,9 @@ export function cityCode(city: string): string {
   return CITY_CODE[key] ?? (key ? key.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'XXX' : 'XXX')
 }
 
-/** Build a personal internal code: `<dial>-<city>-<6-digit sequence>` (e.g. 20-CAI-000123). */
+/** Build a personal internal code: `<dial>-<city>-<12-digit sequence>` (e.g. 20-CAI-000000000123). */
 export function makeInternalCode(country: Country, city: string, seq: number): string {
-  return `${COUNTRY_DIAL[country] ?? '0'}-${cityCode(city)}-${String(seq).padStart(6, '0')}`
+  return `${COUNTRY_DIAL[country] ?? '0'}-${cityCode(city)}-${String(seq).padStart(12, '0')}`
 }
 
 export const ORG_TYPE_LABELS: Record<OrgType, BL> = {

@@ -6,6 +6,7 @@ import {
   Briefcase,
   Building2,
   CheckCircle2,
+  Eye,
   Layers,
   Link2,
   List,
@@ -36,6 +37,7 @@ import { personalAddress } from '@/lib/identity'
 import { OrgChart } from '@/components/OrgChart'
 import { StructureEditor } from '@/components/StructureEditor'
 import { ProfileEditor } from '@/components/ProfileEditor'
+import { VirtualEntityForm, VirtualEntityDetail } from '@/components/VirtualEntityForm'
 import { GroupFormSheet } from '@/components/GroupForm'
 import {
   Avatar,
@@ -91,6 +93,9 @@ export function EntityManage() {
   const [positionQuery, setPositionQuery] = useState('')
   const [virtualQuery, setVirtualQuery] = useState('')
   const [linkTarget, setLinkTarget] = useState<VirtualCharacter | null>(null)
+  const [virtualAddOpen, setVirtualAddOpen] = useState(false)
+  const [virtualEditId, setVirtualEditId] = useState<string | null>(null)
+  const [virtualDisplayId, setVirtualDisplayId] = useState<string | null>(null)
   const [structView, setStructView] = useState<'list' | 'chart'>('list')
   const [chartKind, setChartKind] = useState<StructureKind>('corporate')
 
@@ -259,6 +264,9 @@ export function EntityManage() {
 
       {tab === 'virtuals' && (
         <div className="space-y-2">
+          <Button full variant={entVirtuals.length === 0 ? 'primary' : 'secondary'} onClick={() => setVirtualAddOpen(true)}>
+            <Plus size={16} /> {t('addVirtualEntity')}
+          </Button>
           <SearchBox value={virtualQuery} onChange={setVirtualQuery} placeholder={L('Search virtual entities…', 'ابحث في الكيانات…')} />
           {entVirtuals.filter((v) => v.positionName.toLowerCase().includes(virtualQuery.trim().toLowerCase())).length === 0 ? (
             <EmptyState icon={<Users size={36} />} title={t('empty')} />
@@ -274,6 +282,8 @@ export function EntityManage() {
                     v={v}
                     normals={normals}
                     onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
+                    onEdit={() => setVirtualEditId(v.id)}
+                    onDisplay={() => setVirtualDisplayId(v.id)}
                   />
                 ))}
             </div>
@@ -287,6 +297,17 @@ export function EntityManage() {
 
       {/* profile create / edit */}
       <ProfileEditor open={profOpen} onClose={() => setProfOpen(false)} entityId={id} profile={profEdit} />
+
+      {/* virtual entity add / edit / display */}
+      <Sheet open={virtualAddOpen} onClose={() => setVirtualAddOpen(false)} title={t('addVirtualEntity')}>
+        <VirtualEntityForm entityId={id} onDone={() => setVirtualAddOpen(false)} />
+      </Sheet>
+      <Sheet open={!!virtualEditId} onClose={() => setVirtualEditId(null)} title={t('editVirtualEntity')}>
+        {virtualEditId && <VirtualEntityForm entityId={id} virtualId={virtualEditId} onDone={() => setVirtualEditId(null)} />}
+      </Sheet>
+      <Sheet open={!!virtualDisplayId} onClose={() => setVirtualDisplayId(null)} title={t('displayVirtualEntity')}>
+        {virtualDisplayId && <VirtualEntityDetail virtualId={virtualDisplayId} />}
+      </Sheet>
 
       {/* link sheet */}
       <Sheet open={!!linkTarget} onClose={() => setLinkTarget(null)} title={L('Link position', 'ربط الوظيفة')}>
@@ -490,12 +511,16 @@ function VirtualRow({
   v,
   normals,
   onBlock,
+  onEdit,
+  onDisplay,
 }: {
   L: (en: string, ar: string) => string
   t: (k: string) => string
   v: VirtualCharacter
   normals: import('@/types').NormalCharacter[]
   onBlock: () => void
+  onEdit: () => void
+  onDisplay: () => void
 }) {
   const resolve = useResolveActor()
   const r = resolve({ kind: 'virtual', virtualId: v.id })
@@ -541,6 +566,12 @@ function VirtualRow({
 
       {/* Entity-level control */}
       <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
+        <Button size="sm" variant="subtle" onClick={onDisplay}>
+          <Eye size={13} /> {t('display')}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={onEdit}>
+          <Pencil size={13} /> {t('edit')}
+        </Button>
         <Button size="sm" variant={v.status === 'blocked' ? 'secondary' : 'danger'} onClick={onBlock}>
           <Ban size={13} /> {v.status === 'blocked' ? L('Unblock entity', 'إلغاء حظر الكيان') : L('Block entity', 'حظر الكيان')}
         </Button>

@@ -26,7 +26,9 @@ const LANGUAGES: Language[] = ['Arabic', 'English', 'French']
 const FLUENCY: Fluency[] = ['Basic', 'Average', 'Fluent']
 
 type Form = {
-  fullName: string
+  firstName: string
+  middleName: string
+  surname: string
   photo?: string
   gender: '' | 'Male' | 'Female'
   dateOfBirth: string
@@ -58,6 +60,10 @@ type Form = {
   profession: string
   industry: string
   history: string
+  specialtiesSkills: string
+  projectExperience: string
+  trainingCertifications: string
+  targetJob: string
   cv?: AttachmentMeta
   vacancyNotification: boolean
   privacy: NormalCharacter['privacy']
@@ -67,7 +73,9 @@ function toForm(n: NormalCharacter): Form {
   const extras = (n.languages ?? []).filter((l) => l.language !== n.motherTongue)
   const motherLevel = (n.languages ?? []).find((l) => l.language === n.motherTongue)?.level
   return {
-    fullName: n.fullName,
+    firstName: n.firstName,
+    middleName: n.middleName,
+    surname: n.surname,
     photo: n.photo,
     gender: n.gender,
     dateOfBirth: n.dateOfBirth ? n.dateOfBirth.slice(0, 10) : '',
@@ -99,6 +107,10 @@ function toForm(n: NormalCharacter): Form {
     profession: n.career?.profession ?? '',
     industry: n.career?.industry ?? '',
     history: n.career?.history ?? '',
+    specialtiesSkills: n.career?.specialtiesSkills ?? '',
+    projectExperience: n.career?.projectExperience ?? '',
+    trainingCertifications: n.career?.trainingCertifications ?? '',
+    targetJob: n.career?.targetJob ?? '',
     cv: n.career?.cv,
     vacancyNotification: n.vacancyNotification ?? false,
     privacy: n.privacy,
@@ -170,7 +182,9 @@ export function PersonalMasterData() {
   }
 
   const mandatoryOk =
-    !!form.fullName.trim() &&
+    !!form.firstName.trim() &&
+    !!form.middleName.trim() &&
+    !!form.surname.trim() &&
     !!form.gender &&
     !!form.dateOfBirth &&
     !!form.nat1 &&
@@ -196,7 +210,10 @@ export function PersonalMasterData() {
     pushLang(form.lang1, (form.lang1Fluency || 'Average') as Fluency)
     pushLang(form.lang2, (form.lang2Fluency || 'Average') as Fluency)
     updateNormal(me.id, {
-      fullName: form.fullName.trim(),
+      firstName: form.firstName.trim(),
+      middleName: form.middleName.trim(),
+      surname: form.surname.trim(),
+      fullName: [form.firstName.trim(), form.middleName.trim(), form.surname.trim()].filter(Boolean).join(' '),
       photo: form.photo,
       gender: form.gender as 'Male' | 'Female',
       dateOfBirth: form.dateOfBirth || undefined,
@@ -229,6 +246,10 @@ export function PersonalMasterData() {
         profession: form.profession.trim() || undefined,
         industry: form.industry.trim() || undefined,
         history: form.history.trim() || undefined,
+        specialtiesSkills: form.specialtiesSkills.trim() || undefined,
+        projectExperience: form.projectExperience.trim() || undefined,
+        trainingCertifications: form.trainingCertifications.trim() || undefined,
+        targetJob: form.targetJob.trim() || undefined,
         cv: form.cv,
       },
       vacancyNotification: form.vacancyNotification,
@@ -294,7 +315,7 @@ export function PersonalMasterData() {
             <div className="space-y-3">
               <Field label={t('photo')} hint={t('optional')}>
                 <div className="flex items-center gap-3">
-                  <Avatar name={form.fullName} color={me.avatarColor} photo={form.photo} size={56} />
+                  <Avatar name={[form.firstName, form.middleName, form.surname].filter(Boolean).join(' ')} color={me.avatarColor} photo={form.photo} size={56} />
                   <div className="flex flex-wrap gap-2">
                     <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50">
                       <Camera size={14} /> {form.photo ? L('Change', 'تغيير') : t('addPhoto')}
@@ -312,8 +333,16 @@ export function PersonalMasterData() {
                   </div>
                 </div>
               </Field>
-              <Field label={L('Full name', 'الاسم الكامل')} required>
-                <Input value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={t('firstName')} required>
+                  <Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+                </Field>
+                <Field label={t('middleName')} required>
+                  <Input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} />
+                </Field>
+              </div>
+              <Field label={t('surname')} required>
+                <Input value={form.surname} onChange={(e) => set('surname', e.target.value)} />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label={L('Gender', 'النوع')} required>
@@ -410,7 +439,7 @@ export function PersonalMasterData() {
             </div>
           ) : (
             <>
-              <RO label={L('Full name', 'الاسم الكامل')} value={form.fullName} />
+              <RO label={L('Full name', 'الاسم الكامل')} value={[form.firstName, form.middleName, form.surname].filter(Boolean).join(' ')} />
               <RO label={L('Gender', 'النوع')} value={me.gender === 'Male' ? L('Male', 'ذكر') : L('Female', 'أنثى')} />
               <RO label={L('Date of birth', 'تاريخ الميلاد')} value={me.dateOfBirth} />
               <RO label={L('Nationalities', 'الجنسيات')} value={me.nationalities.join(', ')} />
@@ -513,6 +542,18 @@ export function PersonalMasterData() {
               <Field label={L('History', 'السيرة المهنية')} hint={t('optional')}>
                 <Textarea rows={3} value={form.history} onChange={(e) => set('history', e.target.value)} />
               </Field>
+              <Field label={t('specialtiesSkills')} hint={t('optional')}>
+                <Textarea rows={3} value={form.specialtiesSkills} onChange={(e) => set('specialtiesSkills', e.target.value)} />
+              </Field>
+              <Field label={t('projectExperience')} hint={t('optional')}>
+                <Textarea rows={3} value={form.projectExperience} onChange={(e) => set('projectExperience', e.target.value)} />
+              </Field>
+              <Field label={t('trainingCertifications')} hint={t('optional')}>
+                <Textarea rows={3} value={form.trainingCertifications} onChange={(e) => set('trainingCertifications', e.target.value)} />
+              </Field>
+              <Field label={t('targetJob')} hint={t('optional')}>
+                <Input value={form.targetJob} onChange={(e) => set('targetJob', e.target.value)} />
+              </Field>
               <CvPicker cv={form.cv} onPick={onCv} onRemove={() => set('cv', undefined)} L={L} />
             </div>
           ) : (
@@ -520,7 +561,26 @@ export function PersonalMasterData() {
               <RO label={L('Title', 'المسمى الوظيفي')} value={form.title} />
               <RO label={L('Profession', 'المهنة')} value={form.profession} />
               <RO label={L('Industry', 'المجال')} value={form.industry} />
+              <RO label={t('targetJob')} value={form.targetJob} />
               {form.history && <p className="whitespace-pre-wrap pt-1 text-sm text-slate-700">{form.history}</p>}
+              {form.specialtiesSkills && (
+                <div className="pt-1">
+                  <div className="text-xs text-slate-500">{t('specialtiesSkills')}</div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-700">{form.specialtiesSkills}</p>
+                </div>
+              )}
+              {form.projectExperience && (
+                <div className="pt-1">
+                  <div className="text-xs text-slate-500">{t('projectExperience')}</div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-700">{form.projectExperience}</p>
+                </div>
+              )}
+              {form.trainingCertifications && (
+                <div className="pt-1">
+                  <div className="text-xs text-slate-500">{t('trainingCertifications')}</div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-700">{form.trainingCertifications}</p>
+                </div>
+              )}
               {form.cv && (
                 <div className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
                   <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span> <span className="shrink-0 text-slate-400">{humanSize(form.cv.size)}</span>

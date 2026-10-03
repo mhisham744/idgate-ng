@@ -170,6 +170,8 @@ export interface VerificationInfo {
 export interface NormalCharacter {
   id: string
   firstName: string
+  /** Middle name — mandatory at creation. */
+  middleName: string
   surname: string
   fullName: string
   gender: 'Male' | 'Female'
@@ -179,13 +181,15 @@ export interface NormalCharacter {
   city: string
   address1?: string
   nationalId?: string
-  /** System-generated internal code (country dial + city code + sequence), used for search/linking. */
+  /** System-generated internal code (country dial + city code + 12-digit sequence), used for search/linking. */
   internalCode?: string
   passports?: string[]
   drivingLicense?: string
   /** Identity-proofing outcome for this personal account (KYC). */
   verification?: VerificationInfo
   motherTongue: Language
+  /** Fluency level of the mother tongue. */
+  motherTongueLevel?: 'Basic' | 'Average' | 'Fluent'
   languages?: { language: Language; level: 'Basic' | 'Average' | 'Fluent' }[]
   contacts: {
     mobile: string
@@ -196,7 +200,22 @@ export interface NormalCharacter {
     whatsApp?: string
   }
   education?: { school?: string; university?: string; postgraduate?: string; phd?: string }
-  career?: { title?: string; profession?: string; field?: string; industry?: string; history?: string; cv?: AttachmentMeta }
+  career?: {
+    title?: string
+    profession?: string
+    field?: string
+    industry?: string
+    history?: string
+    cv?: AttachmentMeta
+    /** Specialties & skills (optional). */
+    specialtiesSkills?: string
+    /** Project experience (optional). */
+    projectExperience?: string
+    /** Training and certifications (optional). */
+    trainingCertifications?: string
+    /** Target job (optional). */
+    targetJob?: string
+  }
   vacancyNotification?: boolean
   privacy: {
     personalInfo: PrivacyLevel

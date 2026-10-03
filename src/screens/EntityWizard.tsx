@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Eye,
   Layers,
   Link2,
   Pencil,
@@ -39,7 +40,8 @@ import type {
 import { colorFor, unlinkedAddress, virtualAddress } from '@/lib/identity'
 import { StructureEditor } from '@/components/StructureEditor'
 import { ProfileEditor } from '@/components/ProfileEditor'
-import { Badge, Button, Card, Field, Input, Select, SectionHeader } from '@/ui/primitives'
+import { VirtualEntityForm, VirtualEntityDetail } from '@/components/VirtualEntityForm'
+import { Badge, Button, Card, Field, Input, Select, SectionHeader, Sheet } from '@/ui/primitives'
 
 type Country = LegalEntity['countryOfRegistration']
 
@@ -281,13 +283,8 @@ export function EntityWizard() {
       {step === 6 && (
         <Step6
           L={L}
-          lang={lang}
           entity={ent}
-          positions={myPositions}
-          profiles={myProfiles}
-          structures={myStructures}
           virtuals={myVirtuals}
-          addVirtual={(payload) => addVirtual(payload)}
           removeVirtual={removeVirtual}
         />
       )}
@@ -615,103 +612,28 @@ function Step5({
 // ── Step 6 ────────────────────────────────────────────────────────────────────
 function Step6({
   L,
-  lang,
   entity,
-  positions,
-  profiles,
-  structures,
   virtuals,
-  addVirtual,
   removeVirtual,
 }: {
   L: (en: string, ar: string) => string
-  lang: 'en' | 'ar'
   entity: LegalEntity | undefined
-  positions: import('@/types').Position[]
-  profiles: import('@/types').Profile[]
-  structures: import('@/types').StructureNode[]
   virtuals: import('@/types').VirtualCharacter[]
-  addVirtual: (v: Omit<import('@/types').VirtualCharacter, 'id' | 'createdAt' | 'status'>) => string
   removeVirtual: (id: string) => void
 }) {
-  const [posId, setPosId] = useState('')
-  const [profId, setProfId] = useState('')
-  const [nodes, setNodes] = useState<Partial<Record<StructureKind, string>>>({})
+  const { t } = useLang()
+  const [editId, setEditId] = useState<string | null>(null)
+  const [displayId, setDisplayId] = useState<string | null>(null)
   if (!entity) return <NeedDraft L={L} />
-
-  const create = () => {
-    const pos = positions.find((p) => p.id === posId)
-    if (!pos) return
-    addVirtual({
-      entityId: entity.id,
-      positionId: pos.id,
-      positionName: pos.name,
-      structure: {
-        corporate: nodes.corporate,
-        relation: nodes.relation,
-        organization: nodes.organization,
-        geographical: nodes.geographical,
-      },
-      profileIds: profId ? [profId] : [],
-      delegationSubjects: [],
-      delegationLimits: [],
-      delegationDisplay: true,
-      delegateOthers: false,
-      duration: { open: true },
-      displayHistory: true,
-      location: 'contacts',
-      linkedNormalId: null,
-    })
-  }
 
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
         <Users size={18} className="text-gate-600" />
-        <h3 className="text-sm font-bold">{L('Virtual Entity', 'الكيان الافتراضي')}</h3>
+        <h3 className="text-sm font-bold">{t('virtualEntity')}</h3>
       </div>
-      {positions.length === 0 ? (
-        <p className="text-xs text-slate-500">{L('Add positions in the previous step first.', 'أضف وظائف في الخطوة السابقة أولًا.')}</p>
-      ) : (
-        <>
-          <Field label={L('Position', 'الوظيفة')} required>
-            <Select value={posId} onChange={(e) => setPosId(e.target.value)}>
-              <option value="">—</option>
-              {positions.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={L('Profile', 'البروفايل')} required>
-            <Select value={profId} onChange={(e) => setProfId(e.target.value)}>
-              <option value="">—</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
-          </Field>
-          {profiles.length === 0 && (
-            <p className="text-xs text-amber-600">{L('Create an authorization profile in step 4 first.', 'أنشئ بروفايل صلاحيات في الخطوة ٤ أولًا.')}</p>
-          )}
-          {STRUCTURE_KINDS.map((kind) => {
-            const opts = structures.filter((n) => n.kind === kind)
-            if (opts.length === 0) return null
-            return (
-              <Field key={kind} label={bl(STRUCTURE_LABELS[kind], lang)}>
-                <Select value={nodes[kind] ?? ''} onChange={(e) => setNodes((n) => ({ ...n, [kind]: e.target.value || undefined }))}>
-                  <option value="">—</option>
-                  {opts.map((o) => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                  ))}
-                </Select>
-              </Field>
-            )
-          })}
-          <Button full variant="secondary" disabled={!posId || !profId} onClick={create}>
-            <Plus size={14} /> {L('Create virtual account', 'إنشاء حساب افتراضي')}
-          </Button>
-        </>
-      )}
+
+      <VirtualEntityForm entityId={entity.id} />
 
       {virtuals.length > 0 && (
         <div className="space-y-1.5 border-t border-slate-100 pt-3">
@@ -721,13 +643,26 @@ function Step6({
                 <div className="truncate text-xs font-semibold text-slate-700">{v.positionName}</div>
                 <div className="truncate font-address text-[10px] text-gate-700" dir="ltr">{unlinkedAddress(v, entity)}</div>
               </div>
-              <button onClick={() => removeVirtual(v.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Delete', 'حذف')}>
+              <button onClick={() => setDisplayId(v.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600" aria-label={t('display')}>
+                <Eye size={13} />
+              </button>
+              <button onClick={() => setEditId(v.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600" aria-label={t('edit')}>
+                <Pencil size={13} />
+              </button>
+              <button onClick={() => removeVirtual(v.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={t('delete')}>
                 <Trash2 size={13} />
               </button>
             </div>
           ))}
         </div>
       )}
+
+      <Sheet open={!!editId} onClose={() => setEditId(null)} title={t('editVirtualEntity')}>
+        {editId && <VirtualEntityForm entityId={entity.id} virtualId={editId} onDone={() => setEditId(null)} />}
+      </Sheet>
+      <Sheet open={!!displayId} onClose={() => setDisplayId(null)} title={t('displayVirtualEntity')}>
+        {displayId && <VirtualEntityDetail virtualId={displayId} />}
+      </Sheet>
     </Card>
   )
 }

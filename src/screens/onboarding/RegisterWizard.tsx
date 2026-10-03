@@ -6,6 +6,7 @@ import {
   Check,
   FileText,
   Landmark,
+  Paperclip,
   ScanFace,
   Smartphone,
   UserRound,
@@ -14,14 +15,16 @@ import {
 import { useStore } from '@/store'
 import type { NewNormalInput } from '@/store'
 import { useLang } from '@/i18n'
-import type { Country, Language } from '@/types'
+import type { AttachmentMeta, Country, Language, PrivacyLevel } from '@/types'
 import { colorFor } from '@/lib/identity'
 import { Avatar, Button, Card, Field, Input, Select, Textarea, cx } from '@/ui/primitives'
 import { VerificationBadge } from '@/components/VerificationBadge'
 import { CaptureField, DemoHint, OtpBoxes, Stepper, Working } from './parts'
 
+type Fluency = 'Basic' | 'Average' | 'Fluent'
 const COUNTRIES: Country[] = ['Egypt', 'USA', 'France', 'Germany', 'India']
 const LANGUAGES: Language[] = ['Arabic', 'English', 'French']
+const FLUENCY: Fluency[] = ['Basic', 'Average', 'Fluent']
 const randomOtp = () => String(Math.floor(100000 + Math.random() * 900000))
 /** Whole years between a 'YYYY-MM-DD' birth date and today (parsed as local parts). */
 const ageFrom = (dob: string): number | null => {
@@ -42,13 +45,18 @@ const maskMobile = (m: string) => {
 
 interface Claim {
   firstName: string
+  middleName: string
   surname: string
   photo?: string
-  gender: 'Male' | 'Female'
+  gender: '' | 'Male' | 'Female'
   dateOfBirth: string
-  nationality: Country
-  residenceCountry: Country
+  nationality: '' | Country
+  nationality2: '' | Country
+  nationality3: '' | Country
+  residenceCountry: '' | Country
+  passport: string
   city: string
+  address1: string
   nationalId: string
   mobile: string
   email: string
@@ -56,7 +64,12 @@ interface Claim {
   linkedIn: string
   facebook: string
   whatsApp: string
-  motherTongue: Language
+  motherTongue: '' | Language
+  motherTongueLevel: '' | Fluency
+  lang1: '' | Language
+  lang1Fluency: '' | Fluency
+  lang2: '' | Language
+  lang2Fluency: '' | Fluency
   school: string
   university: string
   postgraduate: string
@@ -65,16 +78,32 @@ interface Claim {
   profession: string
   industry: string
   history: string
+  specialtiesSkills: string
+  projectExperience: string
+  trainingCertifications: string
+  targetJob: string
+  cv?: AttachmentMeta
+  privacy: {
+    personalInfo: PrivacyLevel
+    contactsInfo: PrivacyLevel
+    education: PrivacyLevel
+    career: PrivacyLevel
+  }
 }
 
 const EMPTY: Claim = {
   firstName: '',
+  middleName: '',
   surname: '',
-  gender: 'Male',
+  gender: '',
   dateOfBirth: '',
-  nationality: 'Egypt',
-  residenceCountry: 'Egypt',
+  nationality: '',
+  nationality2: '',
+  nationality3: '',
+  residenceCountry: '',
+  passport: '',
   city: '',
+  address1: '',
   nationalId: '',
   mobile: '',
   email: '',
@@ -82,7 +111,12 @@ const EMPTY: Claim = {
   linkedIn: '',
   facebook: '',
   whatsApp: '',
-  motherTongue: 'Arabic',
+  motherTongue: '',
+  motherTongueLevel: '',
+  lang1: '',
+  lang1Fluency: '',
+  lang2: '',
+  lang2Fluency: '',
   school: '',
   university: '',
   postgraduate: '',
@@ -91,6 +125,16 @@ const EMPTY: Claim = {
   profession: '',
   industry: '',
   history: '',
+  specialtiesSkills: '',
+  projectExperience: '',
+  trainingCertifications: '',
+  targetJob: '',
+  privacy: {
+    personalInfo: 'contacts',
+    contactsInfo: 'contacts',
+    education: 'public',
+    career: 'public',
+  },
 }
 
 export function RegisterWizard({ onBack }: { onBack: () => void }) {
@@ -107,6 +151,16 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
     reader.onload = () => set('photo', reader.result as string)
     reader.readAsDataURL(f)
   }
+  const onCv = (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    const id = 'cv_' + f.name
+    const meta: AttachmentMeta = { id, name: f.name, size: f.size, type: f.type }
+    set('cv', meta)
+    const reader = new FileReader()
+    reader.onload = () => setForm((prev) => ({ ...prev, cv: { ...meta, dataUrl: reader.result as string } }))
+    reader.readAsDataURL(f)
+  }
   const set = <K extends keyof Claim>(k: K, v: Claim[K]) => {
     setForm((f) => ({ ...f, [k]: v }))
     // Editing a claim field invalidates any proof that was tied to its old
@@ -118,12 +172,14 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
       setMobileErr(false)
     } else if (k === 'email') {
       setEmailState('idle')
-    } else if (k === 'firstName' || k === 'surname' || k === 'nationalId') {
+    } else if (k === 'firstName' || k === 'middleName' || k === 'surname' || k === 'nationalId') {
       setOcr('idle')
       setMatch('idle')
       setRegistry('idle')
     }
   }
+  const setPrivacy = (k: keyof Claim['privacy'], v: PrivacyLevel) =>
+    setForm((f) => ({ ...f, privacy: { ...f.privacy, [k]: v } }))
 
   // contact verification
   const [mobileOtpSent, setMobileOtpSent] = useState<string | null>(null)
@@ -149,10 +205,16 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
   const age = ageFrom(form.dateOfBirth)
   const nidRequired = age != null && age > 17
   const nidOk = nidRequired ? nidValid : !form.nationalId.trim() || nidValid
-  const duplicate = useStore((s) => s.findDuplicateNormal)(form.mobile, form.nationalId, form.nationality)
+  const duplicate = useStore((s) => s.findDuplicateNormal)(form.mobile, form.nationalId, form.nationality || 'Egypt')
   const claimValid =
     form.firstName.trim() &&
+    form.middleName.trim() &&
     form.surname.trim() &&
+    form.gender &&
+    form.nationality &&
+    form.residenceCountry &&
+    form.motherTongue &&
+    form.motherTongueLevel &&
     form.city.trim() &&
     form.mobile.trim() &&
     form.dateOfBirth.trim() &&
@@ -205,15 +267,33 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
   }
 
   const finish = () => {
+    // Build languages the same way the edit screen does: mother tongue first,
+    // then the two optional languages — only chosen ones, deduped by language.
+    const languages: NonNullable<NewNormalInput['languages']> = []
+    const seenLang = new Set<Language>()
+    const pushLang = (language: Language | '', level: Fluency) => {
+      if (!language || seenLang.has(language)) return
+      seenLang.add(language)
+      languages.push({ language, level })
+    }
+    pushLang(form.motherTongue, (form.motherTongueLevel || 'Fluent') as Fluency)
+    pushLang(form.lang1, (form.lang1Fluency || 'Average') as Fluency)
+    pushLang(form.lang2, (form.lang2Fluency || 'Average') as Fluency)
+
     const input: NewNormalInput = {
       firstName: form.firstName,
+      middleName: form.middleName,
       surname: form.surname,
       photo: form.photo,
-      gender: form.gender,
+      gender: form.gender as 'Male' | 'Female',
       dateOfBirth: form.dateOfBirth || undefined,
-      nationality: form.nationality,
-      residenceCountry: form.residenceCountry,
+      nationality: form.nationality || undefined,
+      nationality2: form.nationality2 || undefined,
+      nationality3: form.nationality3 || undefined,
+      residenceCountry: form.residenceCountry || undefined,
+      passport: form.passport || undefined,
       city: form.city,
+      address1: form.address1 || undefined,
       nationalId: form.nationalId,
       mobile: form.mobile,
       email: form.email || undefined,
@@ -221,7 +301,9 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
       linkedIn: form.linkedIn || undefined,
       facebook: form.facebook || undefined,
       whatsApp: form.whatsApp || undefined,
-      motherTongue: form.motherTongue,
+      motherTongue: form.motherTongue || undefined,
+      motherTongueLevel: form.motherTongueLevel || undefined,
+      languages,
       education: {
         school: form.school || undefined,
         university: form.university || undefined,
@@ -233,7 +315,13 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
         profession: form.profession || undefined,
         industry: form.industry || undefined,
         history: form.history || undefined,
+        cv: form.cv,
+        specialtiesSkills: form.specialtiesSkills || undefined,
+        projectExperience: form.projectExperience || undefined,
+        trainingCertifications: form.trainingCertifications || undefined,
+        targetJob: form.targetJob || undefined,
       },
+      privacy: form.privacy,
       verification: {
         level: 'verified',
         contact: true,
@@ -346,43 +434,80 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
             </div>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={L('First name', 'الاسم الأول')} required>
+            <Field label={t('firstName')} required>
               <Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
             </Field>
-            <Field label={L('Surname', 'اسم العائلة')} required>
-              <Input value={form.surname} onChange={(e) => set('surname', e.target.value)} />
+            <Field label={t('middleName')} required>
+              <Input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={L('Gender', 'النوع')}>
+            <Field label={t('surname')} required>
+              <Input value={form.surname} onChange={(e) => set('surname', e.target.value)} />
+            </Field>
+            <Field label={t('gender')} required>
               <Select value={form.gender} onChange={(e) => set('gender', e.target.value as Claim['gender'])}>
+                <option value="">{L('Select…', 'اختر…')}</option>
                 <option value="Male">{L('Male', 'ذكر')}</option>
                 <option value="Female">{L('Female', 'أنثى')}</option>
               </Select>
             </Field>
-            <Field label={L('Date of birth', 'تاريخ الميلاد')} required>
-              <Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
+          </div>
+          <Field label={L('Date of birth', 'تاريخ الميلاد')} required>
+            <Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
+          </Field>
+
+          {/* Nationalities */}
+          <div className="rounded-2xl bg-slate-50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-500">{L('Nationalities', 'الجنسيات')}</p>
+            <Field label={t('nationality1')} required>
+              <Select value={form.nationality} onChange={(e) => set('nationality', e.target.value as Country)}>
+                <option value="">{L('Select…', 'اختر…')}</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
             </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('nationality2')} hint={t('optional')}>
+                <Select value={form.nationality2} onChange={(e) => set('nationality2', e.target.value as Country)}>
+                  <option value="">—</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('nationality3')} hint={t('optional')}>
+                <Select value={form.nationality3} onChange={(e) => set('nationality3', e.target.value as Country)}>
+                  <option value="">—</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('residenceCountry')} required>
+                <Select value={form.residenceCountry} onChange={(e) => set('residenceCountry', e.target.value as Country)}>
+                  <option value="">{L('Select…', 'اختر…')}</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('passport')} hint={t('optional')}>
+                <Input dir="ltr" value={form.passport} onChange={(e) => set('passport', e.target.value)} />
+              </Field>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={L('Nationality', 'الجنسية')}>
-              <Select value={form.nationality} onChange={(e) => set('nationality', e.target.value as Country)}>
-                {COUNTRIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </Select>
+            <Field label={L('City', 'المدينة')} required>
+              <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
             </Field>
-            <Field label={L('Residence country', 'بلد الإقامة')}>
-              <Select value={form.residenceCountry} onChange={(e) => set('residenceCountry', e.target.value as Country)}>
-                {COUNTRIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </Select>
+            <Field label={t('address')} hint={t('optional')}>
+              <Input value={form.address1} onChange={(e) => set('address1', e.target.value)} />
             </Field>
           </div>
-          <Field label={L('City', 'المدينة')} required>
-            <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
-          </Field>
           <Field
             label={L('National ID', 'الرقم القومي')}
             required={nidRequired}
@@ -433,13 +558,61 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
                 <Input dir="ltr" value={form.whatsApp} onChange={(e) => set('whatsApp', e.target.value)} />
               </Field>
             </div>
-            <Field label={L('Mother tongue', 'اللغة الأم')}>
-              <Select value={form.motherTongue} onChange={(e) => set('motherTongue', e.target.value as Language)}>
-                {LANGUAGES.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </Select>
-            </Field>
+          </div>
+
+          {/* Languages */}
+          <div className="rounded-2xl bg-slate-50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-500">{L('Languages', 'اللغات')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('motherTongue')} required>
+                <Select value={form.motherTongue} onChange={(e) => set('motherTongue', e.target.value as Language)}>
+                  <option value="">{L('Select…', 'اختر…')}</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('fluencyLevel')} required>
+                <Select value={form.motherTongueLevel} onChange={(e) => set('motherTongueLevel', e.target.value as Fluency)}>
+                  <option value="">{L('Select…', 'اختر…')}</option>
+                  {FLUENCY.map((f) => (
+                    <option key={f} value={f}>{t('level' + f)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('language1')} hint={t('optional')}>
+                <Select value={form.lang1} onChange={(e) => set('lang1', e.target.value as Language)}>
+                  <option value="">—</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('fluencyLevel')} hint={t('optional')}>
+                <Select value={form.lang1Fluency} onChange={(e) => set('lang1Fluency', e.target.value as Fluency)}>
+                  <option value="">—</option>
+                  {FLUENCY.map((f) => (
+                    <option key={f} value={f}>{t('level' + f)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('language2')} hint={t('optional')}>
+                <Select value={form.lang2} onChange={(e) => set('lang2', e.target.value as Language)}>
+                  <option value="">—</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('fluencyLevel')} hint={t('optional')}>
+                <Select value={form.lang2Fluency} onChange={(e) => set('lang2Fluency', e.target.value as Fluency)}>
+                  <option value="">—</option>
+                  {FLUENCY.map((f) => (
+                    <option key={f} value={f}>{t('level' + f)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
           </div>
 
           {/* Education */}
@@ -478,6 +651,77 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
             <Field label={L('History', 'السيرة المهنية')} hint={t('optional')}>
               <Textarea rows={2} value={form.history} onChange={(e) => set('history', e.target.value)} />
             </Field>
+            <Field label={t('specialtiesSkills')} hint={t('optional')}>
+              <Textarea rows={2} value={form.specialtiesSkills} onChange={(e) => set('specialtiesSkills', e.target.value)} />
+            </Field>
+            <Field label={t('projectExperience')} hint={t('optional')}>
+              <Textarea rows={2} value={form.projectExperience} onChange={(e) => set('projectExperience', e.target.value)} />
+            </Field>
+            <Field label={t('trainingCertifications')} hint={t('optional')}>
+              <Textarea rows={2} value={form.trainingCertifications} onChange={(e) => set('trainingCertifications', e.target.value)} />
+            </Field>
+            <Field label={t('targetJob')} hint={t('optional')}>
+              <Input value={form.targetJob} onChange={(e) => set('targetJob', e.target.value)} />
+            </Field>
+            {/* CV */}
+            <div>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-700">{t('cv')}</span>
+                <span className="text-[10px] text-slate-500">· {t('optional')}</span>
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50">
+                <Paperclip size={14} /> {form.cv ? L('Replace CV', 'استبدال السيرة') : t('attachCv')}
+                <input type="file" className="hidden" onChange={(e) => { onCv(e.target.files); e.target.value = '' }} />
+              </label>
+              {form.cv && (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-slate-100 py-1.5 ps-2.5 pe-1 text-[11px] font-medium text-slate-600">
+                  <FileText size={12} /> <span className="max-w-[10rem] truncate">{form.cv.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => set('cv', undefined)}
+                    className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-slate-700"
+                    aria-label={L('Remove', 'إزالة')}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Privacy */}
+          <div className="rounded-2xl bg-slate-50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-500">{t('privacy')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('privacyPersonal')} required>
+                <Select value={form.privacy.personalInfo} onChange={(e) => setPrivacy('personalInfo', e.target.value as PrivacyLevel)}>
+                  <option value="public">{t('privacyPublic')}</option>
+                  <option value="contacts">{t('privacyContactsOnly')}</option>
+                  <option value="closed">{t('privacyClosed')}</option>
+                </Select>
+              </Field>
+              <Field label={t('privacyContacts')} required>
+                <Select value={form.privacy.contactsInfo} onChange={(e) => setPrivacy('contactsInfo', e.target.value as PrivacyLevel)}>
+                  <option value="public">{t('privacyPublic')}</option>
+                  <option value="contacts">{t('privacyContactsOnly')}</option>
+                  <option value="closed">{t('privacyClosed')}</option>
+                </Select>
+              </Field>
+              <Field label={t('privacyEducation')} required>
+                <Select value={form.privacy.education} onChange={(e) => setPrivacy('education', e.target.value as PrivacyLevel)}>
+                  <option value="public">{t('privacyPublic')}</option>
+                  <option value="contacts">{t('privacyContactsOnly')}</option>
+                  <option value="closed">{t('privacyClosed')}</option>
+                </Select>
+              </Field>
+              <Field label={t('privacyCareer')} required>
+                <Select value={form.privacy.career} onChange={(e) => setPrivacy('career', e.target.value as PrivacyLevel)}>
+                  <option value="public">{t('privacyPublic')}</option>
+                  <option value="contacts">{t('privacyContactsOnly')}</option>
+                  <option value="closed">{t('privacyClosed')}</option>
+                </Select>
+              </Field>
+            </div>
           </div>
         </div>
       )}
