@@ -625,9 +625,9 @@ export function buildSeed(): AppData {
   // ── Vacancies ──────────────────────────────────────────────────────────────
   const hrNestle = virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Human Resources Specialist')!
   const vacancies: Vacancy[] = [
-    { id: 'vac_1', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Supply Chain Analyst', positionName: 'Supply Chain Director', location: 'New York', industry: 'Manufacturing', description: 'Analyze demand & optimize the supply chain across USA legal entities.', createdAt: ago(720), applicants: [], status: 'open', shortlisted: [], hires: [] },
+    { id: 'vac_1', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Supply Chain Analyst', positionName: 'Supply Chain Director', location: 'New York', industry: 'Manufacturing', description: 'Analyze demand & optimize the supply chain across USA legal entities.', createdAt: ago(720), applicants: ['n_sara'], status: 'open', shortlisted: [], hires: [] },
     { id: 'vac_2', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Financial Analyst (Cairo)', location: 'Cairo', industry: 'Finance', description: 'Support the Egypt finance team with reporting & budgeting.', createdAt: ago(900), applicants: [], status: 'open', shortlisted: [], hires: [] },
-    { id: 'vac_3', entityId: 'e_univ', postedByVirtualId: virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!.id, title: 'Teaching Assistant — Data Analysis', location: 'Giza', industry: 'Education', description: 'Assist with undergraduate data-analysis labs at the Faculty of Commerce.', createdAt: ago(1100), applicants: [], status: 'open', shortlisted: [], hires: [] },
+    { id: 'vac_3', entityId: 'e_univ', postedByVirtualId: virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!.id, title: 'Teaching Assistant — Data Analysis', location: 'Giza', industry: 'Education', description: 'Assist with undergraduate data-analysis labs at the Faculty of Commerce.', createdAt: ago(1100), applicants: ['n_sara'], status: 'open', shortlisted: [], hires: [] },
   ]
 
   const contactRequests: ContactRequest[] = [

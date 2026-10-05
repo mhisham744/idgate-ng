@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ShieldCheck, Search, Check, Send } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
+import { actorKey, uid } from '@/lib/identity'
 import { useResolveActor } from '@/components/identity'
+import { credentialPayload, hashObject, makeSerial, simulatedSignature, tawkeelPayload } from '@/lib/crypto'
 import { Button, Card, Field, Input, Select, EmptyState, Badge, cx } from '@/ui/primitives'
-import type { ActorRef, Validity } from '@/types'
+import type { ActorRef, Tawkeel, Validity } from '@/types'
 
 /**
- * Delegation Show — a virtual account shares one of its organization's
- * delegations with a target account. After validating the recipient, confirming
- * auto-sends a locked, system-generated message carrying Subject / Limit / Validity.
+ * Delegation Show — a virtual account grants one of its organization's
+ * delegations to a target account as a first-class DIGITAL TAWKEEL: an e-signed,
+ * revocable power of attorney, plus a verifiable credential minted into the
+ * grantee's wallet and a system notice message.
  */
 export function DelegationShow() {
   const nav = useNavigate()
@@ -23,6 +26,8 @@ export function DelegationShow() {
   const delegations = useStore((s) => s.delegations)
   const virtual = useStore((s) => s.virtual)
   const sendSystemMessage = useStore((s) => s.sendSystemMessage)
+  const grantTawkeel = useStore((s) => s.grantTawkeel)
+  const issueCredential = useStore((s) => s.issueCredential)
   const resolve = useResolveActor()
 
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
@@ -34,6 +39,7 @@ export function DelegationShow() {
   const [delId, setDelId] = useState('')
   const [valid, setValid] = useState<Validity>({ open: true })
   const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const meKey = active ? `${active.kind === 'virtual' ? 'v' : 'n'}:${active.kind === 'virtual' ? active.virtualId : active.normalId}` : ''
   const q = query.trim().toLowerCase()
@@ -58,19 +64,51 @@ export function DelegationShow() {
 
   const fmtVal = (v: Validity) => (v.open ? L('Open', 'مفتوح') : `${v.from || '—'} → ${v.to || '—'}`)
 
-  const confirm = () => {
-    if (!active || !target || !delId) return
+  const confirm = async () => {
+    if (!active || !target || !delId || busy) return
     const d = entDelegations.find((x) => x.id === delId)
     if (!d) return
-    const limitStr = d.limitAmount != null ? String(d.limitAmount) : d.limit || '—'
-    const body = [
-      L('Delegation shared with you (system-generated).', 'تم مشاركة تفويض معك (رسالة نظامية).'),
-      `${L('Subject', 'الموضوع')}: ${d.subject}`,
-      `${L('Limit', 'الحد')}: ${limitStr}`,
-      `${L('Validity', 'الصلاحية')}: ${fmtVal(valid)}`,
-    ].join('\n')
-    sendSystemMessage(active as ActorRef, [target], `${L('Delegation', 'تفويض')}: ${d.subject}`, body)
-    setSent(true)
+    setBusy(true)
+    try {
+      const grantor = active as ActorRef
+      const limitStr = d.limitAmount != null ? String(d.limitAmount) : d.limit || '—'
+      const grantedAt = new Date().toISOString()
+      const serial = makeSerial('TWK', Date.now() % 1_000_000)
+      const base = {
+        id: uid('twk'), serial, grantor, grantee: target, subject: d.subject,
+        scopeEntityId: activeVirtual!.entityId, limitText: d.limit || undefined, limitAmount: d.limitAmount,
+        validity: valid, grantedAt,
+      }
+      const hash = await hashObject(tawkeelPayload(base as any))
+      const signature = await simulatedSignature(hash, actorKey(grantor))
+
+      // Mint a wallet credential for the grantee.
+      const credSerial = makeSerial('CRD', Date.now() % 1_000_000, 'twk')
+      const credClaims = [{ label: L('Subject', 'الموضوع'), value: d.subject }, { label: L('Limit', 'الحد'), value: limitStr }, { label: L('Validity', 'الصلاحية'), value: fmtVal(valid) }]
+      const credTitle = `${t('tawkeel')} — ${d.subject}`
+      const credPayload = credentialPayload({ serial: credSerial, credType: 'tawkeel', issuer: grantor, holder: target, title: credTitle, claims: credClaims, issuedAt: grantedAt, validity: valid } as any)
+      const credHash = await hashObject(credPayload)
+      const credSig = await simulatedSignature(credHash, actorKey(grantor))
+      const credId = issueCredential(
+        { credType: 'tawkeel', holder: target, title: credTitle, claims: credClaims, validity: valid, sourceKind: 'tawkeel', sourceId: base.id },
+        { serial: credSerial, hash: credHash, signature: credSig, issuedAt: grantedAt },
+      )
+
+      const tk: Tawkeel = { ...base, status: 'active', hash, signature, credentialId: credId || undefined, audit: [{ at: grantedAt, by: grantor, action: 'granted' }] }
+      grantTawkeel(tk)
+
+      const body = [
+        L('A digital tawkeel (power of attorney) was granted to you.', 'تم منحك توكيلًا رقميًا.'),
+        `${L('Subject', 'الموضوع')}: ${d.subject}`,
+        `${L('Limit', 'الحد')}: ${limitStr}`,
+        `${L('Validity', 'الصلاحية')}: ${fmtVal(valid)}`,
+        `${L('Serial', 'الرقم التسلسلي')}: ${serial}`,
+      ].join('\n')
+      sendSystemMessage(grantor, [target], `${t('tawkeel')}: ${d.subject}`, body)
+      setSent(true)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -86,7 +124,7 @@ export function DelegationShow() {
           <h1 className="text-xl font-bold text-slate-800">{L('Delegation Show', 'عرض التفويض')}</h1>
         </div>
         <p className="text-sm text-slate-500">
-          {L('Share a delegation with an account. The recipient receives a locked, system-generated message.', 'شارك تفويضًا مع حساب. يستلم المستلم رسالة نظامية مقفلة.')}
+          {L('Grant a delegation as a signed digital tawkeel. The grantee receives a verifiable credential in their wallet.', 'امنح تفويضًا كتوكيل رقمي موقّع. يستلم المُوكَّل إليه شهادة موثّقة في محفظته.')}
         </p>
       </div>
 
@@ -95,9 +133,10 @@ export function DelegationShow() {
       ) : sent ? (
         <Card className="p-4 space-y-3">
           <div className="rounded-2xl bg-emerald-50 px-3 py-3 text-sm font-medium text-emerald-700">
-            {L('Delegation sent as a system message.', 'تم إرسال التفويض كرسالة نظامية.')}
+            {L('Tawkeel granted — a credential was added to the grantee’s wallet.', 'تم منح التوكيل — وأُضيفت شهادة إلى محفظة المُوكَّل إليه.')}
           </div>
-          <Button full variant="secondary" onClick={() => nav('/settings')}>{t('done')}</Button>
+          <Button full variant="secondary" onClick={() => nav('/settings/tawkeel')}>{t('tawkeel')}</Button>
+          <Button full variant="ghost" onClick={() => nav('/settings')}>{t('done')}</Button>
         </Card>
       ) : (
         <Card className="p-4 space-y-3">
@@ -168,12 +207,12 @@ export function DelegationShow() {
                   </div>
                 )}
               </div>
-              <Button full disabled={!delId} onClick={confirm}>
-                <Send size={16} className="me-1.5" /> {L('Confirm & send', 'تأكيد وإرسال')}
+              <Button full disabled={!delId || busy} onClick={confirm}>
+                <Send size={16} className="me-1.5" /> {busy ? L('Signing…', 'جارٍ التوقيع…') : L('Sign & grant', 'توقيع ومنح')}
               </Button>
               <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
                 <Badge tone="slate">{L('Note', 'ملاحظة')}</Badge>
-                {L('The message is system-generated and cannot be edited.', 'الرسالة نظامية ولا يمكن تعديلها.')}
+                {t('signatureSimulated')}
               </p>
             </>
           )}

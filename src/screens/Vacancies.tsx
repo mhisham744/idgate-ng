@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Briefcase, MapPin, Building2, Users, Plus } from 'lucide-react'
+import { ArrowLeft, Briefcase, MapPin, Building2, Users, Plus, UserCheck, Star, Lock } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
-import { relativeTime } from '@/lib/identity'
+import { actorKey, relativeTime, uid } from '@/lib/identity'
+import { credentialPayload, hashObject, makeSerial, simulatedSignature } from '@/lib/crypto'
 import {
   Button,
   Card,
@@ -16,7 +17,7 @@ import {
   Sheet,
 } from '@/ui/primitives'
 import { INDUSTRY_LABELS } from '@/data/reference'
-import type { Industry } from '@/types'
+import type { ActorRef, Industry, Vacancy } from '@/types'
 
 export function Vacancies() {
   const navigate = useNavigate()
@@ -122,7 +123,11 @@ export function Vacancies() {
 
                 {v.description && <p className="text-sm text-slate-600">{v.description}</p>}
 
-                {canApply && (
+                {v.status === 'closed' && (
+                  <Badge tone="slate"><Lock size={10} /> {t('closed')}</Badge>
+                )}
+
+                {canApply && v.status !== 'closed' && (
                   <Button
                     full
                     variant={applied ? 'secondary' : 'primary'}
@@ -132,6 +137,10 @@ export function Vacancies() {
                   >
                     {applied ? t('applied') : t('apply')}
                   </Button>
+                )}
+
+                {active?.kind === 'virtual' && activeVirtual?.entityId === v.entityId && can('tool.talentAcquisition') && (
+                  <ManageVacancy v={v} />
                 )}
               </Card>
             )
@@ -171,6 +180,116 @@ export function Vacancies() {
           </Field>
         </div>
       </Sheet>
+    </div>
+  )
+}
+
+/** Hiring manager for a vacancy: shortlist / hire (mints a role + employment credential) / close. */
+function ManageVacancy({ v }: { v: Vacancy }) {
+  const { t, lang, isRtl } = useLang()
+  const L = (en: string, ar: string) => (isRtl ? ar : en)
+  const active = useStore((s) => s.active)
+  const normals = useStore((s) => s.normals)
+  const entity = useStore((s) => s.entity)
+  const shortlistApplicant = useStore((s) => s.shortlistApplicant)
+  const closeVacancy = useStore((s) => s.closeVacancy)
+  const hireApplicant = useStore((s) => s.hireApplicant)
+  const addVirtual = useStore((s) => s.addVirtual)
+  const issueCredential = useStore((s) => s.issueCredential)
+  const [busy, setBusy] = useState('')
+
+  const ent = entity(v.entityId)
+  const hiredIds = new Set((v.hires ?? []).map((h) => h.normalId))
+
+  const hire = async (normalId: string) => {
+    if (!active || busy || !ent) return
+    setBusy(normalId)
+    try {
+      // 1) mint a role virtual for the hire
+      const virtualId = addVirtual({
+        entityId: v.entityId,
+        positionId: `${v.entityId}.pos.${v.title}`,
+        positionName: v.title,
+        structure: {},
+        profileIds: [],
+        delegationSubjects: [],
+        delegationLimits: [],
+        delegationDisplay: true,
+        delegateOthers: false,
+        duration: { open: true },
+        displayHistory: true,
+        location: 'contacts',
+        linkedNormalId: normalId,
+        positionCode: `EMP-${Date.now().toString().slice(-5)}`,
+      })
+      // 2) issue an employment credential into the hire's wallet
+      const issuer = active as ActorRef
+      const holder: ActorRef = { kind: 'normal', normalId }
+      const serial = makeSerial('CRD', Date.now() % 1_000_000, 'emp')
+      const issuedAt = new Date().toISOString()
+      const validity = { open: true }
+      const title = `${L('Employment', 'إثبات عمل')} — ${ent.commercialName}`
+      const claims = [
+        { label: L('Position', 'المنصب'), value: v.title },
+        { label: L('Employer', 'جهة العمل'), value: ent.commercialName },
+        { label: L('Status', 'الحالة'), value: L('Hired', 'تم التوظيف') },
+      ]
+      const payload = credentialPayload({ serial, credType: 'employment', issuer, holder, title, claims, issuedAt, validity } as any)
+      const hash = await hashObject(payload)
+      const signature = await simulatedSignature(hash, actorKey(issuer))
+      const credentialId = issueCredential(
+        { credType: 'employment', holder, title, claims, validity, sourceKind: 'hiring', sourceId: v.id },
+        { serial, hash, signature, issuedAt },
+      )
+      // 3) record the hire
+      hireApplicant(v.id, normalId, { virtualId, credentialId: credentialId || undefined })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (v.applicants.length === 0) {
+    return <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs text-slate-400">{t('applicants')}: 0</div>
+  }
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('applicants')} · {v.applicants.length}</span>
+        {v.status !== 'closed' && (
+          <button type="button" onClick={() => closeVacancy(v.id)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-rose-600">
+            <Lock size={12} /> {t('closeVacancy')}
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-400">{t('hireDesc')}</p>
+      {v.applicants.map((nid) => {
+        const n = normals.find((x) => x.id === nid)
+        const isShortlisted = v.shortlisted?.includes(nid)
+        const isHired = hiredIds.has(nid)
+        return (
+          <div key={nid} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-slate-800">{n?.fullName ?? nid}</div>
+              {isShortlisted && !isHired && <span className="text-[10px] font-semibold uppercase text-amber-600">{t('shortlisted')}</span>}
+            </div>
+            {isHired ? (
+              <Badge tone="green"><UserCheck size={10} /> {t('hired')}</Badge>
+            ) : (
+              <>
+                {!isShortlisted && (
+                  <Button size="sm" variant="subtle" onClick={() => shortlistApplicant(v.id, nid)}>
+                    <Star size={13} /> {t('shortlist')}
+                  </Button>
+                )}
+                <Button size="sm" variant="primary" disabled={busy === nid} onClick={() => hire(nid)}>
+                  <UserCheck size={13} /> {busy === nid ? (isRtl ? '…' : '…') : t('hire')}
+                </Button>
+              </>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
