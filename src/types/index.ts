@@ -129,6 +129,12 @@ export type TransactionKey =
   | 'tool.videos'
   | 'tool.calculator'
   | 'tool.converter'
+  // Strategy edition — credentials, trust & delegation
+  | 'tool.wallet'
+  | 'tool.issueCredential'
+  | 'tool.verifyCredential'
+  | 'tool.tawkeel'
+  | 'tool.requestToPay'
   // Master-data admin transactions (used by profiles)
   | 'admin.createVirtualAccount'
   | 'admin.changeVirtualAccount'
@@ -165,6 +171,8 @@ export interface VerificationInfo {
   liveness?: boolean
   registry?: boolean
   verifiedAt?: string
+  /** How the proofing was obtained (Strategy edition): manual KYC, or imported from a national rail. */
+  source?: 'kyc' | 'egypass' | 'valify'
 }
 
 export interface NormalCharacter {
@@ -262,6 +270,8 @@ export interface LegalEntity {
   adminNormalId: string
   /** The responsible CEO/Managing Director natural person, auto-granted full authority on activation. */
   managingDirectorNormalId?: string
+  /** Registry verification (Strategy edition) — simulated GAFI commercial-register / ETA tax check. */
+  verification?: { status: 'unverified' | 'verified'; authority?: 'GAFI' | 'ETA'; verifiedAt?: string }
   logoColor: string
 }
 
@@ -563,6 +573,16 @@ export interface NoteRecipient {
   rating?: RatingKey
   /** Voting/Election result — one 'agree'/'disagree' (or null = undecided) per note.ballot item. */
   ballotChoices?: ('agree' | 'disagree' | null)[]
+  /** Tamper-evident receipt produced when this recipient signed to accept (Strategy edition). */
+  receipt?: Receipt
+  /** Request-to-pay state for this recipient (Strategy edition). */
+  payment?: {
+    status: 'unpaid' | 'paid'
+    method?: PayMethod
+    paidAt?: string
+    reference?: string
+    receiptCredentialId?: string
+  }
 }
 
 export interface Notification {
@@ -591,6 +611,10 @@ export interface Notification {
   attachments?: AttachmentMeta[]
   /** Sender froze the note — no further reactions or messages by anyone. */
   frozen?: boolean
+  /** Recipient must e-sign to accept, producing a tamper-evident receipt (Strategy edition). */
+  requiresSignature?: boolean
+  /** Request-to-pay: a payable amount attached to this note (Strategy edition). */
+  payment?: { amountEGP: number }
   /** Voting tally when kind === 'voting'. */
   votes?: { accept: number; reject: number }
   /** actorKeys who have opened/read this notification (missing → unread). */
@@ -610,6 +634,111 @@ export interface Vacancy {
   description: string
   createdAt: string
   applicants: string[] // normalIds
+  /** Verified hiring loop (Strategy edition). */
+  status?: 'open' | 'closed'
+  shortlisted?: string[] // normalIds
+  hires?: { normalId: string; virtualId?: string; credentialId?: string; hiredAt: string }[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Strategy edition — Verifiable Credentials & Wallet
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CredentialType = 'diploma' | 'employment' | 'salary' | 'license' | 'membership' | 'payment' | 'tawkeel'
+export type CredentialStatus = 'active' | 'revoked' | 'expired'
+
+/** One attribute carried by a credential (e.g. {label:"Degree", value:"BSc Computer Science"}). */
+export interface CredentialClaim {
+  label: string
+  value: string
+}
+
+/**
+ * An issuer-minted, cryptographically-anchored credential held in a wallet.
+ * `hash` is a REAL SHA-256 over the canonical payload (serial, credType, issuer,
+ * holder, title, claims, issuedAt, validity) — excludes status/hash/signature so
+ * revoking does not change the integrity hash. `signature` is a simulated, clearly
+ * labelled signature over that hash (not real PKI — honest demo trust).
+ */
+export interface Credential {
+  id: string
+  serial: string
+  credType: CredentialType
+  issuer: ActorRef
+  holder: ActorRef
+  title: string
+  claims: CredentialClaim[]
+  issuedAt: string
+  validity: Validity
+  status: CredentialStatus
+  revokedAt?: string
+  revokedReason?: string
+  hash: string
+  signature: string
+  /** Optional holder photo (in-session dataUrl; stripped before persist). */
+  photo?: string
+  /** Where this credential came from, for provenance display. */
+  sourceKind?: 'manual' | 'hiring' | 'tawkeel' | 'payment' | 'seed'
+  sourceId?: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Strategy edition — Tamper-evident signed receipts (on notifications-as-tasks)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A signed, hash-chained receipt produced when a recipient signs to accept a note.
+ * `prevHash` chains to the previous receipt on the same note (or 64 zeros as genesis),
+ * so the sequence is tamper-evident. `hash` is a REAL SHA-256 over the receipt payload.
+ */
+export interface Receipt {
+  id: string
+  serial: string
+  noteId: string
+  recipientKey: string
+  signedBy: ActorRef
+  statement: string
+  signedAt: string
+  prevHash: string
+  hash: string
+  signature: string
+}
+
+export type PayMethod = 'meeza' | 'instapay'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Strategy edition — Digital Tawkeel (power of attorney)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TawkeelStatus = 'active' | 'revoked' | 'expired'
+
+export interface TawkeelAudit {
+  at: string
+  by: ActorRef
+  action: 'granted' | 'revoked' | 'exercised'
+  note?: string
+}
+
+/** A first-class, e-signed, revocable delegation of authority between two identities. */
+export interface Tawkeel {
+  id: string
+  serial: string
+  grantor: ActorRef
+  grantee: ActorRef
+  subject: string
+  /** Org whose delegation catalog this draws from (optional). */
+  scopeEntityId?: string
+  limitAmount?: number
+  limitText?: string
+  validity: Validity
+  status: TawkeelStatus
+  grantedAt: string
+  revokedAt?: string
+  hash: string
+  signature: string
+  /** The wallet credential minted alongside this tawkeel. */
+  credentialId?: string
+  audit: TawkeelAudit[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

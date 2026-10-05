@@ -5,6 +5,9 @@ import type {
   ActorRef,
   CommunicationArea,
   ContactRequest,
+  Credential,
+  CredentialClaim,
+  CredentialType,
   DelegationItem,
   Draft,
   EntityStatus,
@@ -16,15 +19,19 @@ import type {
   NoteKind,
   NoteStatus,
   Notification,
+  PayMethod,
   Position,
   Post,
   Presence,
   Profile,
   ReactionKind,
+  Receipt,
   StructureNode,
+  Tawkeel,
   TransactionKey,
   Vacancy,
   Validity,
+  VerificationLevel,
   VirtualCharacter,
   VirtualLink,
 } from '@/types'
@@ -122,6 +129,21 @@ interface State extends AppData {
   /** Resolve a group's membership criteria + explicit members into concrete recipients. */
   groupRecipients: (groupId: string) => ActorRef[]
 
+  // ── strategy edition selectors ───────────────────────────────────────────────
+  credential: (id: string) => Credential | undefined
+  credentialsHeldBy: (ref: ActorRef) => Credential[]
+  credentialsIssuedBy: (ref: ActorRef) => Credential[]
+  /** Credentials held across all of the signed-in person's identities. */
+  myCredentials: () => Credential[]
+  /** Whether an actor is allowed to issue credentials (verified person, or a virtual of a verified/active entity). */
+  isVerifiedIssuer: (ref: ActorRef) => boolean
+  tawkeelsGrantedBy: (ref: ActorRef) => Tawkeel[]
+  tawkeelsGrantedTo: (ref: ActorRef) => Tawkeel[]
+  /** The active tawkeel (if any) under which an account is currently acting. */
+  activeTawkeelFor: (ref: ActorRef | ActiveAccount) => Tawkeel | undefined
+  /** Earned verification tier: 'authority' when admin/MD of an active entity, else the stored level. */
+  authorityLevelOf: (normalId: string) => VerificationLevel
+
   // ── session actions ──────────────────────────────────────────────────────────
   signIn: (normalId: string) => void
   /** Create a freshly-proofed personal account (KYC) and sign in as it. Returns the new id. */
@@ -211,6 +233,10 @@ interface State extends AppData {
     evalType?: import('@/types').Notification['evalType']
     ballot?: string[]
     attachments?: import('@/types').AttachmentMeta[]
+    /** Recipient must e-sign to accept (Strategy edition). */
+    requiresSignature?: boolean
+    /** Attach a payable EGP amount (Strategy edition). */
+    payment?: { amountEGP: number }
   }) => void
   /** A recipient changes their own reaction (optionally with a clarification text). */
   respondNotification: (id: string, recipientKey: string, status: NoteStatus, text?: string) => void
@@ -290,6 +316,38 @@ interface State extends AppData {
   linkVirtual: (virtualId: string, normalId: string) => void
   unlinkVirtual: (virtualId: string) => void
   blockVirtual: (virtualId: string, blocked: boolean) => void
+
+  // ── strategy edition: credentials / receipts / payment / tawkeel / hiring ─────
+  /** Issue a credential from the active account (must be a verified issuer). Returns id ('' if blocked). */
+  issueCredential: (
+    input: {
+      credType: CredentialType
+      holder: ActorRef
+      title: string
+      claims: CredentialClaim[]
+      validity: Validity
+      photo?: string
+      sourceKind?: Credential['sourceKind']
+      sourceId?: string
+    },
+    meta: { serial: string; hash: string; signature: string; issuedAt: string },
+  ) => string
+  revokeCredential: (id: string, reason?: string) => void
+  /** Patch a credential in place (used by the async seed-hash backfill). */
+  updateCredential: (id: string, patch: Partial<Credential>) => void
+  /** A recipient signs to accept a note, attaching a tamper-evident receipt. */
+  signNoteAccept: (noteId: string, recipientKey: string, receipt: Receipt) => void
+  /** A recipient pays a request-to-pay note; closes it and mints a payment credential. */
+  payNote: (noteId: string, recipientKey: string, method: PayMethod, reference: string, credMeta: { serial: string; hash: string; signature: string; issuedAt: string }) => void
+  grantTawkeel: (t: Tawkeel) => string
+  revokeTawkeel: (id: string, reason?: string) => void
+  exerciseTawkeel: (id: string) => void
+  /** Patch a tawkeel in place (used by the async seed-hash backfill). */
+  updateTawkeel: (id: string, patch: Partial<Tawkeel>) => void
+  verifyEntity: (id: string, authority: 'GAFI' | 'ETA') => void
+  shortlistApplicant: (vacancyId: string, normalId: string) => void
+  closeVacancy: (id: string) => void
+  hireApplicant: (vacancyId: string, normalId: string, result: { virtualId?: string; credentialId?: string }) => void
 
   // ── util ────────────────────────────────────────────────────────────────────
   reset: () => void
@@ -470,6 +528,36 @@ export const useStore = create<State>()(
 
         walk(groupId)
         return out
+      },
+
+      // ── strategy edition selectors ───────────────────────────────────────────
+      credential: (id) => get().credentials.find((c) => c.id === id),
+      credentialsHeldBy: (ref) => get().credentials.filter((c) => actorKey(c.holder) === actorKey(ref)),
+      credentialsIssuedBy: (ref) => get().credentials.filter((c) => actorKey(c.issuer) === actorKey(ref)),
+      myCredentials: () => {
+        const keys = new Set(get().myActorKeys())
+        return get().credentials.filter((c) => keys.has(actorKey(c.holder)))
+      },
+      isVerifiedIssuer: (ref) => {
+        if (ref.kind === 'normal') {
+          const lvl = get().authorityLevelOf(ref.normalId)
+          return lvl === 'verified' || lvl === 'authority'
+        }
+        const v = get().virtual(ref.virtualId)
+        if (!v) return false
+        const e = get().entity(v.entityId)
+        return !!e && (e.verification?.status === 'verified' || e.status === 'active')
+      },
+      tawkeelsGrantedBy: (ref) => get().tawkeels.filter((t) => actorKey(t.grantor) === actorKey(ref)),
+      tawkeelsGrantedTo: (ref) => get().tawkeels.filter((t) => actorKey(t.grantee) === actorKey(ref)),
+      activeTawkeelFor: (ref) => get().tawkeels.find((t) => t.status === 'active' && actorKey(t.grantee) === actorKey(ref)),
+      authorityLevelOf: (normalId) => {
+        const n = get().normals.find((x) => x.id === normalId)
+        const isAuthority = get().entities.some(
+          (e) => e.status === 'active' && (e.adminNormalId === normalId || e.managingDirectorNormalId === normalId),
+        )
+        if (isAuthority) return 'authority'
+        return n?.verification?.level ?? 'basic'
       },
 
       // ── session ────────────────────────────────────────────────────────────────
@@ -808,7 +896,7 @@ export const useStore = create<State>()(
       },
 
       // ── notifications ──────────────────────────────────────────────────────────
-      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, evalType, ballot, attachments }) => {
+      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, evalType, ballot, attachments, requiresSignature, payment }) => {
         const { active } = get()
         if (!active) return
         const RESPONSE = ['task', 'calendar', 'offer', 'voting', 'event', 'training', 'tender', 'meeting', 'conference', 'valuation', 'election']
@@ -818,6 +906,7 @@ export const useStore = create<State>()(
           status: 'pending' as NoteStatus,
           thread: [],
           ...(cleanBallot && cleanBallot.length ? { ballotChoices: cleanBallot.map(() => null) } : {}),
+          ...(payment && payment.amountEGP > 0 ? { payment: { status: 'unpaid' as const } } : {}),
         }))
         const note: Notification = {
           id: uid('nt'),
@@ -837,6 +926,8 @@ export const useStore = create<State>()(
           status: 'pending',
           recipients,
           frozen: false,
+          requiresSignature: requiresSignature || undefined,
+          payment: payment && payment.amountEGP > 0 ? { amountEGP: payment.amountEGP } : undefined,
           votes: kind === 'voting' ? { accept: 0, reject: 0 } : undefined,
           readBy: [],
           history: [],
@@ -1085,6 +1176,9 @@ export const useStore = create<State>()(
           postedByVirtualId: active.virtualId,
           createdAt: new Date().toISOString(),
           applicants: [],
+          status: 'open',
+          shortlisted: [],
+          hires: [],
         }
         set((s) => ({ vacancies: [vac, ...s.vacancies] }))
       },
@@ -1322,6 +1416,162 @@ export const useStore = create<State>()(
           ),
         })),
 
+      // ── strategy edition: credentials / receipts / payment / tawkeel / hiring ──
+      issueCredential: (input, meta) => {
+        const { active } = get()
+        if (!active) return ''
+        const issuer = active as ActorRef
+        if (!get().isVerifiedIssuer(issuer)) return ''
+        const cred: Credential = {
+          id: uid('crd'),
+          serial: meta.serial,
+          credType: input.credType,
+          issuer,
+          holder: input.holder,
+          title: input.title,
+          claims: input.claims,
+          issuedAt: meta.issuedAt,
+          validity: input.validity,
+          status: 'active',
+          hash: meta.hash,
+          signature: meta.signature,
+          photo: input.photo,
+          sourceKind: input.sourceKind ?? 'manual',
+          sourceId: input.sourceId,
+        }
+        set((s) => ({ credentials: [cred, ...s.credentials] }))
+        return cred.id
+      },
+      revokeCredential: (id, reason) =>
+        set((s) => ({
+          credentials: s.credentials.map((c) =>
+            c.id === id ? { ...c, status: 'revoked', revokedAt: new Date().toISOString(), revokedReason: reason } : c,
+          ),
+        })),
+      updateCredential: (id, patch) =>
+        set((s) => ({ credentials: s.credentials.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+
+      signNoteAccept: (noteId, recipientKey, receipt) => {
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== noteId || n.frozen) return n
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (actorKey(rc.ref) !== recipientKey || rc.status === 'closed') return rc
+              return {
+                ...rc,
+                status: 'accepted' as NoteStatus,
+                receipt,
+                thread: [
+                  ...rc.thread,
+                  { id: uid('nte'), at, by: rc.ref, type: 'system' as const, text: `Signed to accept — receipt ${receipt.serial}`, status: 'accepted' as NoteStatus, readBy: [actorKey(rc.ref)] },
+                ],
+              }
+            })
+            return { ...n, recipients, history: [...n.history, { at, by: n.from, action: 'signed' }] }
+          }),
+        }))
+      },
+
+      payNote: (noteId, recipientKey, method, reference, credMeta) => {
+        const at = new Date().toISOString()
+        const note = get().notifications.find((n) => n.id === noteId)
+        const rc = note?.recipients?.find((r) => actorKey(r.ref) === recipientKey)
+        const amount = note?.payment?.amountEGP
+        let credId = ''
+        if (note && rc && amount != null) {
+          const cred: Credential = {
+            id: uid('crd'),
+            serial: credMeta.serial,
+            credType: 'payment',
+            issuer: note.from,
+            holder: rc.ref,
+            title: `Payment receipt — ${note.subject}`,
+            claims: [
+              { label: 'Amount', value: `EGP ${amount.toLocaleString()}` },
+              { label: 'Method', value: method },
+              { label: 'Reference', value: reference },
+            ],
+            issuedAt: credMeta.issuedAt,
+            validity: { open: true },
+            status: 'active',
+            hash: credMeta.hash,
+            signature: credMeta.signature,
+            sourceKind: 'payment',
+            sourceId: noteId,
+          }
+          credId = cred.id
+          set((s) => ({ credentials: [cred, ...s.credentials] }))
+        }
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== noteId) return n
+            const recipients = (n.recipients ?? []).map((r) => {
+              if (actorKey(r.ref) !== recipientKey) return r
+              return {
+                ...r,
+                status: 'closed' as NoteStatus,
+                payment: { status: 'paid' as const, method, paidAt: at, reference, receiptCredentialId: credId || undefined },
+                thread: [
+                  ...r.thread,
+                  { id: uid('nte'), at, by: r.ref, type: 'system' as const, text: `Paid EGP ${amount?.toLocaleString()} via ${method} — ref ${reference}`, status: 'closed' as NoteStatus, readBy: [actorKey(r.ref)] },
+                ],
+              }
+            })
+            return { ...n, recipients }
+          }),
+        }))
+      },
+
+      grantTawkeel: (t) => {
+        set((s) => ({ tawkeels: [t, ...s.tawkeels] }))
+        return t.id
+      },
+      revokeTawkeel: (id, reason) => {
+        const at = new Date().toISOString()
+        const t = get().tawkeels.find((x) => x.id === id)
+        set((s) => ({
+          tawkeels: s.tawkeels.map((x) =>
+            x.id === id ? { ...x, status: 'revoked', revokedAt: at, audit: [...x.audit, { at, by: x.grantor, action: 'revoked', note: reason }] } : x,
+          ),
+          credentials: t?.credentialId
+            ? s.credentials.map((c) => (c.id === t.credentialId ? { ...c, status: 'revoked', revokedAt: at, revokedReason: reason } : c))
+            : s.credentials,
+        }))
+      },
+      exerciseTawkeel: (id) => {
+        const at = new Date().toISOString()
+        set((s) => ({
+          tawkeels: s.tawkeels.map((x) => (x.id === id ? { ...x, audit: [...x.audit, { at, by: x.grantee, action: 'exercised' }] } : x)),
+        }))
+      },
+      updateTawkeel: (id, patch) =>
+        set((s) => ({ tawkeels: s.tawkeels.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
+
+      verifyEntity: (id, authority) =>
+        set((s) => ({
+          entities: s.entities.map((e) =>
+            e.id === id ? { ...e, status: 'active', verification: { status: 'verified', authority, verifiedAt: new Date().toISOString() } } : e,
+          ),
+        })),
+
+      shortlistApplicant: (vacancyId, normalId) =>
+        set((s) => ({
+          vacancies: s.vacancies.map((v) =>
+            v.id === vacancyId ? { ...v, shortlisted: v.shortlisted?.includes(normalId) ? v.shortlisted : [...(v.shortlisted ?? []), normalId] } : v,
+          ),
+        })),
+      closeVacancy: (id) =>
+        set((s) => ({ vacancies: s.vacancies.map((v) => (v.id === id ? { ...v, status: 'closed' } : v)) })),
+      hireApplicant: (vacancyId, normalId, result) =>
+        set((s) => ({
+          vacancies: s.vacancies.map((v) =>
+            v.id === vacancyId
+              ? { ...v, hires: [...(v.hires ?? []), { normalId, virtualId: result.virtualId, credentialId: result.credentialId, hiredAt: new Date().toISOString() }] }
+              : v,
+          ),
+        })),
+
       // Full wipe → blank slate: no accounts, organizations, or communications.
       // The app returns to onboarding so everything is created from scratch.
       reset: () =>
@@ -1343,6 +1593,8 @@ export const useStore = create<State>()(
           vacancies: [],
           contactRequests: [],
           linkRequests: [],
+          credentials: [],
+          tawkeels: [],
           normalId: null,
           active: null,
           onboarded: false,
@@ -1352,7 +1604,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'idgate.app',
-      version: 7,
+      version: 8,
       // v2: notifications gained per-recipient status + private threads.
       // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
       // v4: structure node codes are strings (hierarchical); coerce any legacy numeric codes.
@@ -1411,6 +1663,14 @@ export const useStore = create<State>()(
         if (persisted && from < 7 && Array.isArray(persisted.normals)) {
           persisted.normals = persisted.normals.map((n: any) => (n.middleName != null ? n : { ...n, middleName: '' }))
         }
+        // v8 (Strategy edition): credentials & tawkeels collections; vacancy status fields.
+        if (persisted && from < 8) {
+          if (!Array.isArray(persisted.credentials)) persisted.credentials = []
+          if (!Array.isArray(persisted.tawkeels)) persisted.tawkeels = []
+          if (Array.isArray(persisted.vacancies)) {
+            persisted.vacancies = persisted.vacancies.map((v: any) => ({ status: 'open', shortlisted: [], hires: [], ...v }))
+          }
+        }
         return persisted
       },
       // Persist everything; strip attachment preview blobs (dataUrl) before writing so
@@ -1444,6 +1704,8 @@ export const useStore = create<State>()(
             ),
           })),
         })),
+        // Strip credential holder photos (in-session blobs) before persisting.
+        credentials: state.credentials.map((c) => (c.photo ? { ...c, photo: undefined } : c)),
       }),
     },
   ),

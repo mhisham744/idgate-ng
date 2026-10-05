@@ -28,6 +28,7 @@ import {
   RotateCcw,
   LogOut,
   Send,
+  ScrollText,
 } from 'lucide-react'
 
 /** Settings menu — identity summary, navigation, language, danger zone, sign out. */
@@ -177,6 +178,12 @@ export function Settings() {
           title={L('Delegation Show', 'عرض التفويض')}
           trailing={Chevron}
           onClick={() => nav('/settings/delegation-show')}
+        />
+        <Row
+          leading={<ScrollText size={20} className="text-gate-600" />}
+          title={t('tawkeel')}
+          trailing={Chevron}
+          onClick={() => nav('/settings/tawkeel')}
         />
         <Row
           leading={<Info size={20} className="text-gate-600" />}

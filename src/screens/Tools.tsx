@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Send, Info, Plus, X as XIcon, Bell } from 'lucide-react'
+import { ChevronRight, Send, Info, Plus, X as XIcon, Bell, WalletCards, ShieldCheck, FilePlus2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey } from '@/lib/identity'
@@ -8,6 +9,7 @@ import { useDirectory } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
 import { CreateNotificationSheet } from '@/components/CreateNotificationSheet'
+import { IssueCredentialSheet } from '@/components/IssueCredentialSheet'
 import {
   Button,
   Card,
@@ -34,9 +36,11 @@ export function Tools() {
   const { lang, t, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
   const resolve = useResolveActor()
+  const navigate = useNavigate()
 
   const active = useStore((s) => s.active)
   const can = useStore((s) => s.can)
+  const isVerifiedIssuer = useStore((s) => s.isVerifiedIssuer)
   const normals = useStore((s) => s.normals)
   const virtuals = useStore((s) => s.virtuals)
   const groups = useStore((s) => s.groups)
@@ -47,10 +51,15 @@ export function Tools() {
   const [assessKey, setAssessKey] = useState<TransactionKey | null>(null)
   const [demoKey, setDemoKey] = useState<TransactionKey | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [issueOpen, setIssueOpen] = useState(false)
 
   const meKey = active ? actorKey(active) : ''
 
   const toolTx = TRANSACTIONS.filter((tx) => tx.area === 'tools')
+  // Credential/trust tools get their own section; keep them out of the generic list.
+  const CRED_KEYS: TransactionKey[] = ['tool.wallet', 'tool.verifyCredential', 'tool.issueCredential', 'tool.requestToPay']
+  const genericToolTx = toolTx.filter((tx) => !CRED_KEYS.includes(tx.key))
+  const canIssue = !!active && can('tool.issueCredential') && isVerifiedIssuer(active)
 
   // Recipients + groups are scoped to the acting account's Directory.
   const dir = useDirectory()
@@ -96,7 +105,7 @@ export function Tools() {
               <ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />
             }
           />
-          {toolTx.map((def) => {
+          {genericToolTx.map((def) => {
             const allowed = can(def.key)
             const interactive = INTERACTIVE_TOOLS.includes(def.key)
             const clickable = interactive ? allowed : true
@@ -117,6 +126,36 @@ export function Tools() {
               />
             )
           })}
+        </Card>
+      </div>
+
+      {/* Credentials & Trust (Strategy edition) */}
+      <div className="space-y-2">
+        <SectionHeader title={t('credentialsTrust')} />
+        <Card className="divide-y divide-slate-100 overflow-hidden">
+          <Row
+            onClick={() => navigate('/tools/wallet')}
+            leading={<div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gate-50 text-gate-600"><WalletCards size={16} /></div>}
+            title={t('wallet')}
+            subtitle={t('walletDesc')}
+            trailing={<ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />}
+          />
+          <Row
+            onClick={() => navigate('/tools/verify')}
+            leading={<div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><ShieldCheck size={16} /></div>}
+            title={t('verifyWithIdgate')}
+            subtitle={t('verifyDesc')}
+            trailing={<ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />}
+          />
+          {canIssue && (
+            <Row
+              onClick={() => setIssueOpen(true)}
+              leading={<div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><FilePlus2 size={16} /></div>}
+              title={t('issueCredential')}
+              subtitle={t('issueCredentialDesc')}
+              trailing={<ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />}
+            />
+          )}
         </Card>
       </div>
 
@@ -153,6 +192,9 @@ export function Tools() {
 
       {/* Create Notification composer (moved here from the Statements page) */}
       <CreateNotificationSheet open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      {/* Issue a verifiable credential */}
+      <IssueCredentialSheet open={issueOpen} onClose={() => setIssueOpen(false)} />
     </div>
   )
 }

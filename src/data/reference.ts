@@ -1,12 +1,16 @@
 import type {
   Country,
+  CredentialStatus,
+  CredentialType,
   Industry,
   LegalEntityType,
   NoteKind,
   OrgLevel,
   OrgType,
+  PayMethod,
   RatingKey,
   StructureKind,
+  TawkeelStatus,
   TransactionKey,
   AppArea,
 } from '@/types'
@@ -158,6 +162,37 @@ export const RATING_ORDER: RatingKey[] = [
   'outstanding',
 ]
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Strategy edition — credential / tawkeel / payment labels
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CRED_TYPE_LABELS: Record<CredentialType, BL> = {
+  diploma: { en: 'Diploma / Degree', ar: 'شهادة دراسية' },
+  employment: { en: 'Employment', ar: 'إثبات عمل' },
+  salary: { en: 'Salary Certificate', ar: 'شهادة راتب' },
+  license: { en: 'License', ar: 'رخصة' },
+  membership: { en: 'Membership', ar: 'عضوية' },
+  payment: { en: 'Payment Receipt', ar: 'إيصال دفع' },
+  tawkeel: { en: 'Power of Attorney', ar: 'توكيل' },
+}
+
+export const CRED_STATUS_LABELS: Record<CredentialStatus, BL> = {
+  active: { en: 'Active', ar: 'سارية' },
+  revoked: { en: 'Revoked', ar: 'ملغاة' },
+  expired: { en: 'Expired', ar: 'منتهية' },
+}
+
+export const TAWKEEL_STATUS_LABELS: Record<TawkeelStatus, BL> = {
+  active: { en: 'Active', ar: 'ساري' },
+  revoked: { en: 'Revoked', ar: 'ملغى' },
+  expired: { en: 'Expired', ar: 'منتهٍ' },
+}
+
+export const PAY_METHOD_LABELS: Record<PayMethod, BL> = {
+  meeza: { en: 'Meeza', ar: 'ميزة' },
+  instapay: { en: 'InstaPay', ar: 'إنستاباي' },
+}
+
 /** "Type" field options for assessment tools. */
 export type EvalType = 'subject' | 'event' | 'performance' | 'person' | 'organization'
 
@@ -244,6 +279,11 @@ export const TRANSACTIONS: TxDef[] = [
   { key: 'tool.valuation', area: 'tools', label: NOTE_KIND_LABELS.valuation, personalCanCreate: true, note: { en: 'Rate a subject, event or performance — the recipient picks a rating and closes.', ar: 'قيّم موضوعًا أو حدثًا أو أداءً — يختار المستلم تقييمًا ثم يغلق.' } },
   { key: 'tool.voting', area: 'tools', label: NOTE_KIND_LABELS.voting, personalCanCreate: true, note: { en: 'Agree/disagree ballot over one or more subjects.', ar: 'تصويت بالموافقة/الرفض على موضوع أو أكثر.' } },
   { key: 'tool.election', area: 'tools', label: NOTE_KIND_LABELS.election, personalCanCreate: true, note: { en: 'Agree/disagree ballot over one or more persons or organizations.', ar: 'تصويت بالموافقة/الرفض على أشخاص أو منظمات.' } },
+  // Credentials & trust (Strategy edition) — interactive:
+  { key: 'tool.wallet', area: 'tools', label: { en: 'Credential Wallet', ar: 'محفظة الشهادات' }, personalCanCreate: true, note: { en: 'Hold verifiable credentials issued to you; present them by QR.', ar: 'احتفظ بالشهادات الموثّقة الصادرة لك واعرضها عبر رمز QR.' } },
+  { key: 'tool.verifyCredential', area: 'tools', label: { en: 'Verify with IDGate', ar: 'تحقّق عبر IDGate' }, personalCanCreate: true, note: { en: 'Scan/paste a credential token and cryptographically verify it.', ar: 'امسح أو الصق رمز الشهادة وتحقّق منه تشفيريًا.' } },
+  { key: 'tool.issueCredential', area: 'tools', label: { en: 'Issue Credential', ar: 'إصدار شهادة' }, personalCanCreate: false, note: { en: 'Verified entities issue signed credentials (diploma, employment, license…).', ar: 'تُصدر الجهات الموثّقة شهادات موقّعة (دراسية، عمل، رخصة…).' } },
+  { key: 'tool.requestToPay', area: 'tools', label: { en: 'Request to Pay', ar: 'طلب دفع' }, personalCanCreate: false, note: { en: 'Attach a payable amount to a task, settled via Meeza / InstaPay.', ar: 'أرفق مبلغًا مستحقًا بالمهمة يُسوّى عبر ميزة / إنستاباي.' } },
   // Postponed / demo-only tools:
   { key: 'tool.idgatePass', area: 'tools', label: { en: 'IDGate Pass', ar: 'تصريح IDGate' }, personalCanCreate: false, note: DEMO_NOTE },
   { key: 'tool.idgateNote', area: 'tools', label: NOTE_KIND_LABELS.idgate, personalCanCreate: false, note: DEMO_NOTE },

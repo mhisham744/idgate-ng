@@ -23,6 +23,10 @@ import { EntityWizard } from '@/screens/EntityWizard'
 import { EntityManage } from '@/screens/EntityManage'
 import { AboutConcept } from '@/screens/AboutConcept'
 import { Directory } from '@/screens/Directory'
+import { Wallet } from '@/screens/Wallet'
+import { VerifyCredential } from '@/screens/VerifyCredential'
+import { Tawkeel } from '@/screens/Tawkeel'
+import { useSeedHashBackfill } from '@/lib/backfill'
 
 function Shell() {
   return (
@@ -34,6 +38,8 @@ function Shell() {
         <Route path="/tools" element={<Tools />} />
         <Route path="/tools/idgate" element={<IDGateCode />} />
         <Route path="/tools/vacancies" element={<Vacancies />} />
+        <Route path="/tools/wallet" element={<Wallet />} />
+        <Route path="/tools/verify" element={<VerifyCredential />} />
         <Route path="/tools/groups" element={<GroupsScreen />} />
         <Route path="/settings/groups" element={<GroupsScreen />} />
         <Route path="/directory" element={<Directory />} />
@@ -42,6 +48,7 @@ function Shell() {
         <Route path="/settings/communication-areas" element={<CommunicationAreas />} />
         <Route path="/settings/link-position" element={<LinkPosition />} />
         <Route path="/settings/delegation-show" element={<DelegationShow />} />
+        <Route path="/settings/tawkeel" element={<Tawkeel />} />
         <Route path="/settings/entities" element={<MyEntities />} />
         <Route path="/settings/entities/new" element={<EntityWizard />} />
         <Route path="/settings/entity/:id" element={<EntityManage />} />
@@ -57,6 +64,9 @@ export default function App() {
   const normalId = useStore((s) => s.normalId)
   const lang = useI18n((s) => s.lang)
   const theme = useTheme((s) => s.theme)
+
+  // Strategy edition: fill integrity hashes for seeded credentials/tawkeels once.
+  useSeedHashBackfill()
 
   // Reflect language on <html> for global dir + font.
   useEffect(() => {

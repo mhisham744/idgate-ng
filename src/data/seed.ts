@@ -1,6 +1,7 @@
 import type {
   CommunicationArea,
   ContactRequest,
+  Credential,
   DelegationItem,
   Draft,
   Group,
@@ -15,6 +16,7 @@ import type {
   ReactionKind,
   StructureKind,
   StructureNode,
+  Tawkeel,
   TransactionKey,
   Vacancy,
   VirtualCharacter,
@@ -40,6 +42,9 @@ export interface AppData {
   vacancies: Vacancy[]
   contactRequests: ContactRequest[]
   linkRequests: import('@/types').LinkRequest[]
+  /** Strategy edition — verifiable credentials & digital tawkeels. */
+  credentials: Credential[]
+  tawkeels: Tawkeel[]
 }
 
 // time helpers (runtime app code — Date is fine here)
@@ -135,6 +140,7 @@ const FULL_COMMS: TransactionKey[] = [
   'tool.idgateCode', 'tool.idgatePass', 'tool.idgateNote', 'tool.complaint', 'tool.meeting', 'tool.conference',
   'tool.contactRequest', 'tool.delegationDisplay', 'tool.linkRequest', 'tool.createVacancy', 'tool.displayVacancy',
   'tool.talentAcquisition', 'tool.advertising', 'tool.publishing', 'tool.valuation', 'tool.location',
+  'tool.wallet', 'tool.verifyCredential', 'tool.issueCredential', 'tool.requestToPay', 'tool.tawkeel',
 ]
 
 // A restricted "member/subscriber" profile — receive-oriented, minimal creation.
@@ -143,6 +149,7 @@ const MEMBER_COMMS: TransactionKey[] = [
   'msg.send', 'msg.reply', 'msg.replyAll', 'msg.forward', 'msg.delete', 'msg.save',
   'tool.idgateCode', 'tool.idgateNote', 'tool.complaint', 'tool.meeting', 'tool.conference',
   'tool.contactRequest', 'tool.delegationDisplay', 'tool.linkRequest', 'tool.displayVacancy', 'tool.location',
+  'tool.wallet', 'tool.verifyCredential',
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -266,6 +273,7 @@ export function buildSeed(): AppData {
     domain: 'Nestle', status: 'active', dateOfOperation: ago(60 * 24 * 400),
     documents: { commercialRegistration: true, taxCard: true, vatCertificate: true },
     adminNormalId: 'n_hossam', managingDirectorNormalId: 'n_hossam',
+    verification: { status: 'verified', authority: 'GAFI', verifiedAt: ago(60 * 24 * 390) },
     logoColor: '#0d5eaf',
   }
   {
@@ -338,6 +346,7 @@ export function buildSeed(): AppData {
     domain: 'GeziraSportingClub', status: 'active', dateOfOperation: ago(60 * 24 * 500),
     documents: { commercialRegistration: true, taxCard: true },
     adminNormalId: 'n_hossam', managingDirectorNormalId: 'n_hossam',
+    verification: { status: 'verified', authority: 'GAFI', verifiedAt: ago(60 * 24 * 480) },
     logoColor: '#166534',
   }
   {
@@ -400,6 +409,7 @@ export function buildSeed(): AppData {
     domain: 'MinistryOfElectricity', status: 'active', dateOfOperation: ago(60 * 24 * 600),
     documents: { commercialRegistration: true, taxCard: true, vatCertificate: true },
     adminNormalId: 'n_mohamed', managingDirectorNormalId: 'n_mohamed',
+    verification: { status: 'verified', authority: 'ETA', verifiedAt: ago(60 * 24 * 580) },
     logoColor: '#b45309',
   }
   {
@@ -461,6 +471,7 @@ export function buildSeed(): AppData {
     domain: 'CairoUniversity', status: 'active', dateOfOperation: ago(60 * 24 * 700),
     documents: { commercialRegistration: true, taxCard: true },
     adminNormalId: 'n_hossam', managingDirectorNormalId: 'n_hossam',
+    verification: { status: 'verified', authority: 'GAFI', verifiedAt: ago(60 * 24 * 680) },
     logoColor: '#7c3aed',
   }
   {
@@ -517,6 +528,7 @@ export function buildSeed(): AppData {
     domain: 'TrafficAuthority', status: 'active', dateOfOperation: ago(60 * 24 * 650),
     documents: { commercialRegistration: true, taxCard: true },
     adminNormalId: 'n_mohamed', managingDirectorNormalId: 'n_mohamed',
+    verification: { status: 'verified', authority: 'ETA', verifiedAt: ago(60 * 24 * 620) },
     logoColor: '#334155',
   }
   {
@@ -600,19 +612,22 @@ export function buildSeed(): AppData {
   const ntVoteTo = { kind: 'virtual' as const, virtualId: virtuals.find((v) => v.entityId === 'e_moe' && v.positionName === 'Energy Committee Member')!.id }
   const ntCalTo = { kind: 'virtual' as const, virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Athletic Member')!.id }
   const ntGateTo = { kind: 'virtual' as const, virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Family Member')!.id }
+  const ntPayFrom = virtuals.find((v) => v.entityId === 'e_moe' && v.positionName === 'Finance Director')!
+  const ntPayTo = { kind: 'virtual' as const, virtualId: virtuals.find((v) => v.entityId === 'e_moe' && v.positionName === 'Current-account Subscriber')!.id }
   const notifications: Notification[] = [
-    { id: 'nt_1', kind: 'task', from: { kind: 'virtual', virtualId: nestleCEO.id }, to: [ntTaskTo], subject: 'Prepare Q4 supply forecast', body: 'Please prepare the Q4 supply forecast for the USA legal entities by end of week.', createdAt: ago(150), targetDate: new Date(Date.now() + 3 * 864e5).toISOString(), needsResponse: true, status: 'pending', recipients: [{ ref: ntTaskTo, status: 'pending', thread: [] }], frozen: false, history: [] },
+    { id: 'nt_1', kind: 'task', from: { kind: 'virtual', virtualId: nestleCEO.id }, to: [ntTaskTo], subject: 'Prepare Q4 supply forecast', body: 'Please prepare the Q4 supply forecast for the USA legal entities by end of week.', createdAt: ago(150), targetDate: new Date(Date.now() + 3 * 864e5).toISOString(), needsResponse: true, status: 'pending', recipients: [{ ref: ntTaskTo, status: 'pending', thread: [] }], frozen: false, requiresSignature: true, history: [] },
     { id: 'nt_2', kind: 'voting', from: { kind: 'virtual', virtualId: moeBoard.id }, to: [ntVoteTo], subject: 'Board resolution #2026-14', body: 'Please cast your vote on the following items of the residential renewable-energy resolution.', createdAt: ago(220), evalType: 'subject', ballot: ['Approve the new residential renewable tariff', 'Fund the rooftop-solar rebate program', 'Delay the industrial tariff review to Q1'], needsResponse: true, status: 'pending', recipients: [{ ref: ntVoteTo, status: 'pending', thread: [], ballotChoices: [null, null, null] }], frozen: false, history: [] },
     { id: 'nt_3', kind: 'calendar', from: { kind: 'virtual', virtualId: virtuals.find((v) => v.entityId === 'e_gezira' && v.positionName === 'Swimming Coach')!.id }, to: [ntCalTo], subject: 'Swimming session — Saturday 6 PM', body: 'Booked your private swimming session at the Zamalek pool for Saturday 6 PM.', createdAt: ago(260), targetDate: new Date(Date.now() + 2 * 864e5).toISOString(), needsResponse: true, status: 'pending', recipients: [{ ref: ntCalTo, status: 'pending', thread: [] }], frozen: false, history: [] },
     { id: 'nt_4', kind: 'idgate', from: { kind: 'virtual', virtualId: geziraSub.id }, to: [ntGateTo], subject: 'Welcome to Gezira Sporting Club', body: 'Your family membership is active. Use your IDGate Code at the gate.', createdAt: ago(1000), needsResponse: false, status: 'closed', recipients: [{ ref: ntGateTo, status: 'closed', thread: [] }], frozen: false, history: [] },
+    { id: 'nt_5', kind: 'offer', from: { kind: 'virtual', virtualId: ntPayFrom.id }, to: [ntPayTo], subject: 'Electricity bill — October', body: 'Your current-account electricity bill for October is ready. Pay within the app via Meeza or InstaPay to settle instantly.', createdAt: ago(70), needsResponse: true, status: 'pending', payment: { amountEGP: 2450 }, recipients: [{ ref: ntPayTo, status: 'pending', thread: [], payment: { status: 'unpaid' } }], frozen: false, history: [] },
   ]
 
   // ── Vacancies ──────────────────────────────────────────────────────────────
   const hrNestle = virtuals.find((v) => v.entityId === 'e_nestle' && v.positionName === 'Human Resources Specialist')!
   const vacancies: Vacancy[] = [
-    { id: 'vac_1', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Supply Chain Analyst', positionName: 'Supply Chain Director', location: 'New York', industry: 'Manufacturing', description: 'Analyze demand & optimize the supply chain across USA legal entities.', createdAt: ago(720), applicants: [] },
-    { id: 'vac_2', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Financial Analyst (Cairo)', location: 'Cairo', industry: 'Finance', description: 'Support the Egypt finance team with reporting & budgeting.', createdAt: ago(900), applicants: [] },
-    { id: 'vac_3', entityId: 'e_univ', postedByVirtualId: virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!.id, title: 'Teaching Assistant — Data Analysis', location: 'Giza', industry: 'Education', description: 'Assist with undergraduate data-analysis labs at the Faculty of Commerce.', createdAt: ago(1100), applicants: [] },
+    { id: 'vac_1', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Supply Chain Analyst', positionName: 'Supply Chain Director', location: 'New York', industry: 'Manufacturing', description: 'Analyze demand & optimize the supply chain across USA legal entities.', createdAt: ago(720), applicants: [], status: 'open', shortlisted: [], hires: [] },
+    { id: 'vac_2', entityId: 'e_nestle', postedByVirtualId: hrNestle.id, title: 'Financial Analyst (Cairo)', location: 'Cairo', industry: 'Finance', description: 'Support the Egypt finance team with reporting & budgeting.', createdAt: ago(900), applicants: [], status: 'open', shortlisted: [], hires: [] },
+    { id: 'vac_3', entityId: 'e_univ', postedByVirtualId: virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!.id, title: 'Teaching Assistant — Data Analysis', location: 'Giza', industry: 'Education', description: 'Assist with undergraduate data-analysis labs at the Faculty of Commerce.', createdAt: ago(1100), applicants: [], status: 'open', shortlisted: [], hires: [] },
   ]
 
   const contactRequests: ContactRequest[] = [
@@ -621,8 +636,28 @@ export function buildSeed(): AppData {
     { id: 'cr_3', from: { kind: 'normal', normalId: 'n_sara' }, to: { kind: 'normal', normalId: 'n_hossam' }, status: 'accepted', createdAt: ago(1500) },
   ]
 
+  // ── Verifiable credentials (Strategy edition) ────────────────────────────────
+  // Issuers are verified-entity virtuals; holders are personal accounts. hash/signature
+  // are left EMPTY here (buildSeed is sync) and filled by the one-time async backfill
+  // in the store on first load — using real SHA-256, so Verify genuinely works.
+  const univProf = virtuals.find((v) => v.entityId === 'e_univ' && v.positionName === 'Professor')!
+  const traffOfficer = virtuals.find((v) => v.entityId === 'e_traffic' && v.positionName === 'Inspection Manager')!
+  const blankCred = { hash: '', signature: '', status: 'active' as const, validity: { open: true } }
+  const credentials: Credential[] = [
+    { id: 'crd_1', serial: 'CRD-UNIV-000001', credType: 'diploma', issuer: { kind: 'virtual', virtualId: univProf.id }, holder: { kind: 'normal', normalId: 'n_sara' }, title: 'BSc in Commerce — Data Analysis', claims: [{ label: 'Degree', value: 'Bachelor of Commerce' }, { label: 'Major', value: 'Data Analysis' }, { label: 'Graduation', value: '2024' }, { label: 'Grade', value: 'Very Good' }], issuedAt: ago(60 * 24 * 120), sourceKind: 'seed', ...blankCred },
+    { id: 'crd_2', serial: 'CRD-NESTLE-000002', credType: 'employment', issuer: { kind: 'virtual', virtualId: hrNestle.id }, holder: { kind: 'normal', normalId: 'n_mohamed' }, title: 'Employment Verification — Nestle Egypt', claims: [{ label: 'Position', value: 'Finance Director' }, { label: 'Status', value: 'Permanent' }, { label: 'Since', value: '2022' }], issuedAt: ago(60 * 24 * 60), sourceKind: 'seed', ...blankCred },
+    { id: 'crd_3', serial: 'CRD-NESTLE-000003', credType: 'salary', issuer: { kind: 'virtual', virtualId: hrNestle.id }, holder: { kind: 'normal', normalId: 'n_mohamed' }, title: 'Salary Certificate — Nestle Egypt', claims: [{ label: 'Gross monthly', value: 'EGP 180,000' }, { label: 'Purpose', value: 'Bank loan' }], issuedAt: ago(60 * 24 * 20), sourceKind: 'seed', ...blankCred },
+    { id: 'crd_4', serial: 'CRD-TRAFFIC-000004', credType: 'license', issuer: { kind: 'virtual', virtualId: traffOfficer.id }, holder: { kind: 'normal', normalId: 'n_hossam' }, title: 'Private Driving License', claims: [{ label: 'Class', value: 'Private' }, { label: 'License No.', value: 'LIC-770012' }, { label: 'Expires', value: '2030' }], issuedAt: ago(60 * 24 * 200), sourceKind: 'seed', ...blankCred },
+  ]
+
+  // ── Digital tawkeel (Strategy edition) ───────────────────────────────────────
+  const tawkeels: Tawkeel[] = [
+    { id: 'twk_1', serial: 'TWK-000001', grantor: { kind: 'virtual', virtualId: nestleCEO.id }, grantee: { kind: 'normal', normalId: 'n_mohamed' }, subject: 'Sign bank transfers', limitText: 'Up to EGP 1,000,000', limitAmount: 1000000, scopeEntityId: 'e_nestle', validity: { open: false, from: ago(60 * 24 * 30), to: new Date(Date.now() + 60 * 24 * 60 * 60000).toISOString() }, status: 'active', grantedAt: ago(60 * 24 * 30), hash: '', signature: '', audit: [{ at: ago(60 * 24 * 30), by: { kind: 'virtual', virtualId: nestleCEO.id }, action: 'granted' }] },
+  ]
+
   return {
     normals, communicationAreas, entities, structures, profiles, delegations, positions, virtuals, groups,
     posts, messages, labels, drafts, notifications, vacancies, contactRequests, linkRequests: [],
+    credentials, tawkeels,
   }
 }
