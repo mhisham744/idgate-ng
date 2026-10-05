@@ -4,7 +4,7 @@ import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
-import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
+import { VerificationBadge } from '@/components/VerificationBadge'
 import type { ActiveAccount, ActorRef, Presence } from '@/types'
 
 /** Fixed tints (not remapped in dark mode) — presence reads correctly in both themes. */
@@ -54,6 +54,7 @@ export function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () 
   const virtualsFor = useStore((s) => s.virtualsFor)
   const currentNormal = useStore((s) => s.currentNormal)
   const activeTawkeelFor = useStore((s) => s.activeTawkeelFor)
+  const authorityLevelOf = useStore((s) => s.authorityLevelOf)
   const resolve = useResolveActor()
 
   if (!normalId) return null
@@ -79,7 +80,7 @@ export function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () 
             selected={activeKey === `n:${normalId}`}
             onClick={() => pick({ kind: 'normal', normalId })}
             actor={{ kind: 'normal', normalId }}
-            trailing={<div className="flex items-center gap-1">{tawkeelBadge({ kind: 'normal', normalId })}<VerificationBadge level={levelOf(person?.verification)} /></div>}
+            trailing={<div className="flex items-center gap-1">{tawkeelBadge({ kind: 'normal', normalId })}<VerificationBadge level={authorityLevelOf(normalId)} /></div>}
           />
         </div>
 

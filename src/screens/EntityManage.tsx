@@ -33,6 +33,7 @@ import { STRUCTURE_ROOT_CODE } from '@/types'
 import type { Ability } from '@/store'
 import type { Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
 import { useResolveActor } from '@/components/identity'
+import { EntityVerificationBadge } from '@/components/VerificationBadge'
 import { personalAddress } from '@/lib/identity'
 import { OrgChart } from '@/components/OrgChart'
 import { StructureEditor } from '@/components/StructureEditor'
@@ -67,6 +68,8 @@ export function EntityManage() {
 
   const entity = useStore((s) => s.entity)
   const activateEntity = useStore((s) => s.activateEntity)
+  const verifyEntity = useStore((s) => s.verifyEntity)
+  const [checking, setChecking] = useState(false)
   const structures = useStore((s) => s.structures)
   const profiles = useStore((s) => s.profiles)
   const positions = useStore((s) => s.positions)
@@ -147,13 +150,31 @@ export function EntityManage() {
           <Badge tone={ent.status === 'active' ? 'green' : 'amber'}>
             {ent.status === 'active' ? t('entityStatusActive') : ent.status === 'pending' ? t('entityStatusPending') : t('entityStatusDraft')}
           </Badge>
+          <EntityVerificationBadge entity={ent} />
           <Badge tone="gate">{bl(ORG_TYPE_LABELS[ent.orgType], lang)}</Badge>
           <Badge tone="slate">{bl(LEGAL_TYPE_LABELS[ent.legalEntityType], lang)}</Badge>
           <Badge tone="teal">{bl(INDUSTRY_LABELS[ent.mainIndustry], lang)}</Badge>
         </div>
-        {ent.status !== 'active' && (
-          <Button full className="mt-3" onClick={() => activateEntity(id)}>
-            <CheckCircle2 size={16} /> {t('activate')}
+        {ent.verification?.status !== 'verified' && (
+          <Button
+            full
+            className="mt-3"
+            disabled={checking}
+            onClick={() => {
+              setChecking(true)
+              const authority = ent.orgType === 'Gov' ? 'ETA' : 'GAFI'
+              setTimeout(() => {
+                verifyEntity(id, authority)
+                setChecking(false)
+              }, 1400)
+            }}
+          >
+            <CheckCircle2 size={16} /> {checking ? t('registryChecking') : t('runRegistryCheck')}
+          </Button>
+        )}
+        {ent.status !== 'active' && ent.verification?.status !== 'verified' && (
+          <Button full variant="secondary" className="mt-2" onClick={() => activateEntity(id)}>
+            {t('activate')}
           </Button>
         )}
       </Card>

@@ -10,7 +10,7 @@ import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { StatusBar } from '@/components/StatusBar'
 import { actorKey } from '@/lib/identity'
 import { useInboxScopeKeys } from '@/lib/userScope'
-import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
+import { VerificationBadge } from '@/components/VerificationBadge'
 
 const TABS = [
   { to: '/home', key: 'home', icon: Home },
@@ -60,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const active = useStore((s) => s.active)
   const me = useStore((s) => s.currentNormal())
+  const authorityLevelOf = useStore((s) => s.authorityLevelOf)
   const presence = useStore((s) => s.myPresence())
   const resolve = useResolveActor()
   const [switcherOpen, setSwitcherOpen] = useState(false)
@@ -112,7 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <div className="truncate text-sm font-semibold text-slate-800">{r.displayName}</div>
-                {active?.kind === 'normal' && <VerificationBadge level={levelOf(me?.verification)} variant="icon" />}
+                {active?.kind === 'normal' && me && <VerificationBadge level={authorityLevelOf(me.id)} variant="icon" />}
               </div>
               <div className="truncate font-address text-[11px] text-gate-700"><bdi>{r.address}</bdi></div>
             </div>

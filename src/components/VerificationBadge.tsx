@@ -1,7 +1,7 @@
-import { BadgeCheck, ShieldCheck, CircleDashed } from 'lucide-react'
+import { BadgeCheck, ShieldCheck, CircleDashed, Landmark } from 'lucide-react'
 import { useLang } from '@/i18n'
 import { cx } from '@/ui/primitives'
-import type { VerificationInfo, VerificationLevel } from '@/types'
+import type { LegalEntity, VerificationInfo, VerificationLevel } from '@/types'
 
 /** Effective assurance tier for a personal account (undefined verification → basic). */
 export function levelOf(v: VerificationInfo | undefined): VerificationLevel {
@@ -67,6 +67,20 @@ export function VerificationBadge({
     >
       <Icon size={12} />
       {label}
+    </span>
+  )
+}
+
+/** Registry-verification badge for a legal entity (GAFI / ETA). Renders nothing when unverified. */
+export function EntityVerificationBadge({ entity, className }: { entity: LegalEntity; className?: string }) {
+  const { isRtl } = useLang()
+  if (entity.verification?.status !== 'verified') return null
+  const authority = entity.verification.authority
+  const label = isRtl ? 'موثّق بالسجل' : 'Registry verified'
+  return (
+    <span className={cx('inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700', className)}>
+      <Landmark size={12} />
+      {label}{authority ? ` · ${authority}` : ''}
     </span>
   )
 }

@@ -4,6 +4,7 @@ import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { ORG_TYPE_LABELS, LEGAL_TYPE_LABELS } from '@/data/reference'
 import { Avatar, Badge, Button, Card, EmptyState, SectionHeader } from '@/ui/primitives'
+import { EntityVerificationBadge } from '@/components/VerificationBadge'
 import type { LegalEntity } from '@/types'
 
 export function MyEntities() {
@@ -68,6 +69,7 @@ export function MyEntities() {
 
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
                   <Badge tone={st.tone}>{st.text}</Badge>
+                  <EntityVerificationBadge entity={e} />
                   <Badge tone="gate">{bl(ORG_TYPE_LABELS[e.orgType], lang)}</Badge>
                   <Badge tone="slate">{bl(LEGAL_TYPE_LABELS[e.legalEntityType], lang)}</Badge>
                 </div>

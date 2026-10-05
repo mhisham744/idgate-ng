@@ -143,6 +143,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
   const registerNormal = useStore((s) => s.registerNormal)
 
   const [step, setStep] = useState(0) // 0..5
+  const [source, setSource] = useState<'kyc' | 'egypass' | 'valify'>('kyc')
   const [form, setForm] = useState<Claim>(EMPTY)
   const onPhoto = (files: FileList | null) => {
     const f = files?.[0]
@@ -329,6 +330,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
         liveness: true,
         registry: true,
         verifiedAt: new Date().toISOString(),
+        source,
       },
     }
     registerNormal(input) // creates account + signs in → App swaps to the Shell
@@ -408,6 +410,18 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
       {/* ── Step bodies ─────────────────────────────────────────────────────── */}
       {step === 0 && (
         <div className="space-y-3">
+          <div className="rounded-2xl border border-gate-100 bg-gate-50/60 p-3">
+            <div className="mb-2 text-xs font-semibold text-slate-700">{L('Import a verified identity', 'استيراد هوية موثّقة')}</div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" disabled={!claimValid} onClick={() => { setSource('egypass'); setStep(5) }}>
+                {L('Import from Egypass', 'استيراد من إيجي باس')}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={!claimValid} onClick={() => { setSource('valify'); setStep(5) }}>
+                {L('Verify with Valify', 'التحقق عبر Valify')}
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">{L('Simulated national-rail verification. Fill your name first, then import to skip manual KYC.', 'تحقق محاكى عبر المنصات القومية. أدخل اسمك أولًا ثم استورد لتخطّي التحقق اليدوي.')}</p>
+          </div>
           <Field label={t('photo')} hint={t('optional')}>
             <div className="flex items-center gap-3">
               <Avatar
