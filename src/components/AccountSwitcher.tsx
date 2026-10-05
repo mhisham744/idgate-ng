@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom'
-import { Check, Plus } from 'lucide-react'
+import { Check, Plus, ScrollText } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
-import { Avatar, Sheet, cx } from '@/ui/primitives'
+import { Avatar, Badge, Sheet, cx } from '@/ui/primitives'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { VerificationBadge, levelOf } from '@/components/VerificationBadge'
-import type { ActiveAccount, Presence } from '@/types'
+import type { ActiveAccount, ActorRef, Presence } from '@/types'
 
 /** Fixed tints (not remapped in dark mode) — presence reads correctly in both themes. */
 export const PRESENCE_DOT: Record<Presence, string> = {
@@ -53,11 +53,16 @@ export function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () 
   const setActive = useStore((s) => s.setActive)
   const virtualsFor = useStore((s) => s.virtualsFor)
   const currentNormal = useStore((s) => s.currentNormal)
+  const activeTawkeelFor = useStore((s) => s.activeTawkeelFor)
   const resolve = useResolveActor()
 
   if (!normalId) return null
   const person = currentNormal()
   const myVirtuals = virtualsFor(normalId).filter((v) => v.status !== 'blocked')
+  const tawkeelBadge = (ref: ActorRef) =>
+    activeTawkeelFor(ref) ? (
+      <Badge tone="violet"><ScrollText size={10} /> {t('actingUnderTawkeel')}</Badge>
+    ) : undefined
 
   const pick = (acc: ActiveAccount) => {
     setActive(acc)
@@ -74,7 +79,7 @@ export function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () 
             selected={activeKey === `n:${normalId}`}
             onClick={() => pick({ kind: 'normal', normalId })}
             actor={{ kind: 'normal', normalId }}
-            trailing={<VerificationBadge level={levelOf(person?.verification)} />}
+            trailing={<div className="flex items-center gap-1">{tawkeelBadge({ kind: 'normal', normalId })}<VerificationBadge level={levelOf(person?.verification)} /></div>}
           />
         </div>
 
@@ -89,6 +94,7 @@ export function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () 
                 selected={activeKey === `v:${v.id}`}
                 onClick={() => pick({ kind: 'virtual', virtualId: v.id })}
                 actor={{ kind: 'virtual', virtualId: v.id }}
+                trailing={tawkeelBadge({ kind: 'virtual', virtualId: v.id })}
               />
             ))}
             {myVirtuals.length === 0 && (

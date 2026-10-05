@@ -11,14 +11,19 @@ import {
   SlidersHorizontal,
   FileText,
   Send,
+  PenLine,
+  Wallet,
+  BadgeCheck,
 } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
-import { actorKey, formatDate, relativeTime } from '@/lib/identity'
+import { actorKey, formatDate, relativeTime, uid } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
-import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS } from '@/data/reference'
+import { ReceiptCard } from '@/components/ReceiptCard'
+import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS, PAY_METHOD_LABELS } from '@/data/reference'
 import type { EvalType } from '@/data/reference'
 import { useInboxScopeKeys, myRecipientOf } from '@/lib/userScope'
+import { GENESIS_HASH, credentialPayload, hashObject, makeSerial, receiptPayload, simulatedSignature } from '@/lib/crypto'
 import {
   Button,
   Card,
@@ -555,6 +560,8 @@ function NoteThreadSheet({
   const markNoteThreadRead = useStore((s) => s.markNoteThreadRead)
   const rateNotification = useStore((s) => s.rateNotification)
   const setBallotChoice = useStore((s) => s.setBallotChoice)
+  const signNoteAccept = useStore((s) => s.signNoteAccept)
+  const payNote = useStore((s) => s.payNote)
 
   const [editing, setEditing] = useState(false)
 
@@ -695,6 +702,38 @@ function NoteThreadSheet({
               frozen={!!note.frozen}
               onRespond={(status, text) => respondNotification(note.id, myKey, status, text)}
               onMessage={(text) => postNoteMessage(note.id, myKey, text, undefined, myRec.ref)}
+              onSign={async () => {
+                const signedAt = new Date().toISOString()
+                const serial = makeSerial('RCPT', Date.now() % 1_000_000)
+                const prev = (note.recipients ?? [])
+                  .flatMap((r) => (r.receipt ? [r.receipt] : []))
+                  .sort((a, b) => (a.signedAt < b.signedAt ? 1 : -1))[0]
+                const prevHash = prev?.hash ?? GENESIS_HASH
+                const statement = `${resolveName(myRec.ref)} — ${t('signToAccept')}: ${note.subject}`
+                const base = { serial, noteId: note.id, recipientKey: myKey, signedBy: myRec.ref, statement, signedAt, prevHash }
+                const hash = await hashObject(receiptPayload(base))
+                const signature = await simulatedSignature(hash, myKey)
+                signNoteAccept(note.id, myKey, { id: uid('rcpt'), ...base, hash, signature })
+              }}
+              onPay={async (method) => {
+                const amount = note.payment?.amountEGP ?? 0
+                const issuedAt = new Date().toISOString()
+                const reference = `${method.toUpperCase()}-${Date.now().toString(36).toUpperCase().slice(-6)}`
+                const serial = makeSerial('PAY', Date.now() % 1_000_000)
+                const payload = credentialPayload({
+                  serial, credType: 'payment', issuer: note.from, holder: myRec.ref,
+                  title: `Payment receipt — ${note.subject}`,
+                  claims: [
+                    { label: 'Amount', value: `EGP ${amount.toLocaleString()}` },
+                    { label: 'Method', value: method },
+                    { label: 'Reference', value: reference },
+                  ],
+                  issuedAt, validity: { open: true },
+                } as any)
+                const hash = await hashObject(payload)
+                const signature = await simulatedSignature(hash, actorKey(note.from))
+                payNote(note.id, myKey, method, reference, { serial, hash, signature, issuedAt })
+              }}
               isRtl={isRtl}
               lang={lang}
               t={t}
@@ -734,6 +773,13 @@ function RecipientSection({
         <ActorLine actor={rc.ref} size={28} />
         <Badge tone={STATUS_TONE[rc.status]}>{statusLabel(rc.status, isRtl)}</Badge>
       </div>
+      {rc.receipt && <div className="mb-2"><ReceiptCard receipt={rc.receipt} /></div>}
+      {rc.payment?.status === 'paid' && (
+        <div className="mb-2 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700"><CheckCheck size={14} /> {t('paid')}</span>
+          <span dir="ltr" className="font-mono text-slate-500">{rc.payment.reference}</span>
+        </div>
+      )}
       <ThreadList thread={rc.thread} keys={keys} lang={lang} isRtl={isRtl} t={t} resolveName={resolveName} />
       {!locked ? (
         <Composer placeholder={t('replyToClarification')} onSend={onReply} isRtl={isRtl} />
@@ -746,11 +792,14 @@ function RecipientSection({
 
 // Recipient-side view: my own thread + reaction bar + follow-up composer.
 function RecipientView({
+  note,
   rc,
   keys,
   frozen,
   onRespond,
   onMessage,
+  onSign,
+  onPay,
   isRtl,
   lang,
   t,
@@ -761,15 +810,30 @@ function RecipientView({
   frozen: boolean
   onRespond: (status: NoteStatus, text?: string) => void
   onMessage: (text: string) => void
+  onSign: () => Promise<void>
+  onPay: (method: 'meeza' | 'instapay') => Promise<void>
   isRtl: boolean
   lang: 'en' | 'ar'
   t: (k: string) => string
 }) {
   const [clarifyOpen, setClarifyOpen] = useState(false)
   const [clarifyText, setClarifyText] = useState('')
+  const [busy, setBusy] = useState(false)
   const words = clarifyText.trim() ? clarifyText.trim().split(/\s+/).length : 0
   const clarifyValid = words > 0 && words <= 20
   const locked = frozen || rc.status === 'closed'
+  const needsPay = !!note.payment && rc.payment?.status !== 'paid'
+  const requiresSig = !!note.requiresSignature
+
+  const run = async (fn: () => Promise<void>) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await fn()
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -780,23 +844,54 @@ function RecipientView({
         <Badge tone={STATUS_TONE[rc.status]}>{statusLabel(rc.status, isRtl)}</Badge>
       </div>
 
+      {rc.receipt && <ReceiptCard receipt={rc.receipt} />}
+
+      {rc.payment?.status === 'paid' && (
+        <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700"><BadgeCheck size={14} /> {t('paid')}</span>
+          <span dir="ltr" className="font-mono text-slate-500">{rc.payment.reference}</span>
+        </div>
+      )}
+
       <ThreadList thread={rc.thread} keys={keys} lang={lang} isRtl={isRtl} t={t} />
 
       {locked ? (
         <LockedNote frozen={frozen} isRtl={isRtl} t={t} />
       ) : (
         <>
+          {needsPay && (
+            <div className="space-y-2 rounded-2xl border border-gate-200 bg-gate-50/50 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-700">{t('amountDue')}</span>
+                <span className="text-base font-bold text-gate-700">EGP {note.payment!.amountEGP.toLocaleString()}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(['meeza', 'instapay'] as const).map((m) => (
+                  <Button key={m} size="sm" variant="primary" disabled={busy} onClick={() => run(() => onPay(m))}>
+                    <Wallet size={14} /> {t('payNow')} · {bl(PAY_METHOD_LABELS[m], lang)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="primary" onClick={() => onRespond('accepted')}>
-              <Check size={14} /> {t('accept')}
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => onRespond('rejected')}>
+            {requiresSig ? (
+              <Button size="sm" variant="primary" disabled={busy} onClick={() => run(onSign)}>
+                <PenLine size={14} /> {t('signToAccept')}
+              </Button>
+            ) : (
+              <Button size="sm" variant="primary" disabled={busy} onClick={() => onRespond('accepted')}>
+                <Check size={14} /> {t('accept')}
+              </Button>
+            )}
+            <Button size="sm" variant="danger" disabled={busy} onClick={() => onRespond('rejected')}>
               <XIcon size={14} /> {t('reject')}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => setClarifyOpen((v) => !v)}>
               <HelpCircle size={14} /> {t('clarify')}
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => onRespond('closed')}>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onRespond('closed')}>
               <CheckCheck size={14} /> {t('close')}
             </Button>
           </div>

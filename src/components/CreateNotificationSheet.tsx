@@ -8,7 +8,7 @@ import { useDirectory } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
 import { NOTE_KIND_LABELS } from '@/data/reference'
-import { Button, Field, Input, Textarea, Select, Sheet } from '@/ui/primitives'
+import { Button, Field, Input, Textarea, Select, Sheet, Toggle } from '@/ui/primitives'
 import type { ActorRef, AttachmentMeta, NoteKind, TransactionKey } from '@/types'
 
 const L = (isRtl: boolean, en: string, ar: string) => (isRtl ? ar : en)
@@ -79,6 +79,8 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
   const [targetDate, setTargetDate] = useState('')
   const [targetTime, setTargetTime] = useState('')
   const [targetVenue, setTargetVenue] = useState('')
+  const [requiresSignature, setRequiresSignature] = useState(false)
+  const [payAmount, setPayAmount] = useState('')
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -91,6 +93,8 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
     setTargetDate('')
     setTargetTime('')
     setTargetVenue('')
+    setRequiresSignature(false)
+    setPayAmount('')
     setAttachments([])
   }
 
@@ -153,6 +157,8 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
               targetTime: targetTime || undefined,
               targetVenue: targetVenue.trim() || undefined,
               attachments: attachments.length ? attachments : undefined,
+              requiresSignature: requiresSignature || undefined,
+              payment: Number(payAmount) > 0 ? { amountEGP: Number(payAmount) } : undefined,
             })
             close()
           }}
@@ -202,6 +208,17 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
         </Field>
         <Field label={t('targetVenue')} hint={t('optional')}>
           <Input value={targetVenue} onChange={(e) => setTargetVenue(e.target.value)} />
+        </Field>
+
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
+          <div>
+            <div className="text-sm font-medium text-slate-700">{t('requiresSignature')}</div>
+            <div className="text-[11px] text-slate-500">{t('requiresSignatureHint')}</div>
+          </div>
+          <Toggle checked={requiresSignature} onChange={setRequiresSignature} />
+        </div>
+        <Field label={t('requestPayment')} hint={t('optional')}>
+          <Input type="number" min={0} inputMode="numeric" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0" />
         </Field>
 
         <div>
