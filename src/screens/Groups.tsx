@@ -30,7 +30,10 @@ export function GroupsScreen() {
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
 
   const memberCount = (g: Group) =>
-    (g.explicitMemberIds?.length ?? 0) + (g.explicitNormalIds?.length ?? 0) + (g.memberGroupIds?.length ?? 0)
+    (g.explicitMemberIds?.length ?? 0) +
+    (g.explicitNormalIds?.length ?? 0) +
+    (g.memberGroupIds?.length ?? 0) +
+    (['corporateNodeId', 'relationNodeId', 'organizationNodeId', 'geographicalNodeId'] as const).filter((k) => g[k]).length
 
   return (
     <div className="p-4 space-y-4 pb-8">
