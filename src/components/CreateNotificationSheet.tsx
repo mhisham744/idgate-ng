@@ -4,9 +4,8 @@ import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey, uid } from '@/lib/identity'
 import { useResolveActor } from '@/components/identity'
-import { useDirectory } from '@/lib/userScope'
+import { useRecipientSources } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
-import type { PickerGroup } from '@/components/RecipientPicker'
 import { NOTE_KIND_LABELS } from '@/data/reference'
 import { Button, Field, Input, Textarea, Select, Sheet } from '@/ui/primitives'
 import type { ActorRef, AttachmentMeta, NoteKind, TransactionKey } from '@/types'
@@ -41,27 +40,11 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
   const { t, lang, isRtl } = useLang()
   const resolve = useResolveActor()
 
-  const active = useStore((s) => s.active)
   const can = useStore((s) => s.can)
-  const groupRecipients = useStore((s) => s.groupRecipients)
   const createNotification = useStore((s) => s.createNotification)
 
-  const meKey = active ? actorKey(active) : ''
-
-  // Recipients + groups are scoped to the acting account's Directory.
-  const dir = useDirectory()
-  const options = dir.people
-  const groups = useMemo<PickerGroup[]>(
-    () =>
-      dir.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
-      })),
-    [dir.groups, groupRecipients, meKey],
-  )
-  const expandGroup = (id: string): ActorRef[] =>
-    groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+  // Recipients + groups + structure nodes, scoped to the acting account's Directory.
+  const { options, pickerGroups: groups, expandGroup } = useRecipientSources()
 
   const kinds = useMemo(() => CREATABLE_KINDS.filter((c) => can(c.permission)).map((c) => c.kind), [can])
 

@@ -620,7 +620,7 @@ export interface ContactRequest {
   id: string
   from: ActorRef
   to: ActorRef
-  status: 'pending' | 'accepted' | 'rejected'
+  status: 'pending' | 'accepted' | 'rejected' | 'ended'
   createdAt: string
 }
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Link2, Search, Check } from 'lucide-react'
+import { ChevronLeft, ChevronDown, Link2, Search, Check } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { Button, Card, Field, Select, Input, EmptyState, Badge, cx } from '@/ui/primitives'
@@ -51,11 +51,16 @@ export function LinkPosition() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const normalId = useStore((s) => s.normalId)
+  const active = useStore((s) => s.active)
+  const can = useStore((s) => s.can)
   const entities = useStore((s) => s.entities)
   const virtuals = useStore((s) => s.virtuals)
   const normals = useStore((s) => s.normals)
   const delegations = useStore((s) => s.delegations)
   const requestLink = useStore((s) => s.requestLink)
+
+  // Link requests may only be sent from an AUTHORIZED virtual account (not a personal account).
+  const authorized = active?.kind === 'virtual' && can('admin.createLinkRequest')
 
   const myEntities = useMemo(
     () => entities.filter((e) => e.adminNormalId === normalId || e.managingDirectorNormalId === normalId),
@@ -88,7 +93,7 @@ export function LinkPosition() {
   )
 
   const send = () => {
-    if (!entId || !vId || !nId) return
+    if (!authorized || !entId || !vId || !nId) return
     const del = entDelegations.find((d) => d.id === delId)
     const ok = requestLink(entId, vId, nId, {
       validity: linkValidity,
@@ -122,7 +127,12 @@ export function LinkPosition() {
         </p>
       </div>
 
-      {myEntities.length === 0 ? (
+      {!authorized ? (
+        <EmptyState
+          icon={<Link2 size={28} />}
+          title={L('Switch to an authorized virtual account to send link requests.', 'بدّل إلى حساب افتراضي مخوّل لإرسال طلبات الربط.')}
+        />
+      ) : myEntities.length === 0 ? (
         <EmptyState icon={<Link2 size={28} />} title={L('You do not administer any organization.', 'لا تدير أي مؤسسة.')} />
       ) : (
         <Card className="p-4 space-y-3">
@@ -146,7 +156,8 @@ export function LinkPosition() {
           <Field label={L('Find person (name / internal code / mobile)', 'ابحث عن شخص (اسم / كود داخلي / جوال)')}>
             <div className="relative">
               <Search size={16} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-slate-400" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={L('Search…', 'بحث…')} className="ps-9" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={L('Search…', 'بحث…')} className="ps-9 pe-9" />
+              <ChevronDown size={16} className="pointer-events-none absolute inset-y-0 end-3 my-auto text-slate-400" />
             </div>
           </Field>
           <div className="max-h-52 space-y-1.5 overflow-y-auto thin-scroll pe-0.5">

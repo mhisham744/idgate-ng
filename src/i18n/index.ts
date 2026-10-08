@@ -273,6 +273,18 @@ export const STRINGS: Dict = {
   displayVirtualEntity: { en: 'Display virtual entity', ar: 'عرض الكيان الافتراضي' },
   deleteVirtualEntity: { en: 'Delete virtual entity', ar: 'حذف الكيان الافتراضي' },
   edit: { en: 'Edit', ar: 'تعديل' },
+
+  // ── Final Test 3&4: Link/Contact + Directory/Grouping ──────────────────────────
+  connAuto: { en: 'Auto', ar: 'تلقائي' },
+  connManual: { en: 'Manual', ar: 'يدوي' },
+  disconnect: { en: 'Disconnect', ar: 'فصل الاتصال' },
+  connectionEnded: { en: 'Connection ended', ar: 'انتهى الاتصال' },
+  pendingApprovals: { en: 'Requests awaiting your approval', ar: 'طلبات بانتظار موافقتك' },
+  nodeCriteria: { en: 'Include everyone under a structure node', ar: 'شمل كل من يتبع عقدة في الهيكل' },
+  virtualHistory: { en: 'Virtual accounts', ar: 'الحسابات الافتراضية' },
+  statusPresent: { en: 'Present', ar: 'حتى الآن' },
+  statusBlocked: { en: 'Blocked', ar: 'محظور' },
+  statusUnlinked: { en: 'Unlinked', ar: 'غير مرتبط' },
 }
 
 export function tr(key: keyof typeof STRINGS | string, lang: Lang): string {

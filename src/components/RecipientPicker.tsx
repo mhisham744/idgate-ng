@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { X, UsersRound, User, Search } from 'lucide-react'
+import { X, UsersRound, User, Search, Network } from 'lucide-react'
 import type { ActorRef } from '@/types'
 import { actorKey } from '@/lib/identity'
 import { cx } from '@/ui/primitives'
@@ -8,6 +8,8 @@ export interface PickerGroup {
   id: string
   name: string
   count: number
+  /** True when this entry is a structure-node pseudo-group (shown with a distinct icon). */
+  node?: boolean
 }
 
 /**
@@ -98,7 +100,7 @@ export function RecipientPicker({
                 key={id}
                 className="inline-flex items-center gap-1 rounded-full bg-teal-50 py-1 ps-2.5 pe-1 text-xs font-medium text-teal-700"
               >
-                <UsersRound size={12} />
+                {g?.node ? <Network size={12} /> : <UsersRound size={12} />}
                 {g?.name ?? id}
                 {g && <span className="text-teal-400">· {g.count}</span>}
                 <button
@@ -158,7 +160,7 @@ export function RecipientPicker({
                 onClick={() => addGroup(g.id)}
                 className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-slate-700 transition hover:bg-teal-50"
               >
-                <UsersRound size={15} className="shrink-0 text-teal-500" />
+                {g.node ? <Network size={15} className="shrink-0 text-teal-500" /> : <UsersRound size={15} className="shrink-0 text-teal-500" />}
                 <span className="min-w-0 flex-1 truncate">{g.name}</span>
                 <span className="shrink-0 text-[11px] text-slate-400">{g.count}</span>
               </button>

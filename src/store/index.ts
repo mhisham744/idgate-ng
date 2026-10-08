@@ -32,6 +32,10 @@ import { buildSeed } from '@/data/seed'
 import type { AppData } from '@/data/seed'
 import { actorKey, colorFor, mergedPermission, uid } from '@/lib/identity'
 import { TRANSACTIONS, makeInternalCode } from '@/data/reference'
+import { useI18n } from '@/i18n'
+
+/** Current UI language, read imperatively so sync store actions can localize system messages. */
+const L2 = (en: string, ar: string) => (useI18n.getState().lang === 'ar' ? ar : en)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived-helper (pure) — resolve what an active account is allowed to do.
@@ -121,6 +125,8 @@ interface State extends AppData {
   canCommunicate: (a: ActorRef, b: ActorRef) => boolean
   /** Resolve a group's membership criteria + explicit members into concrete recipients. */
   groupRecipients: (groupId: string) => ActorRef[]
+  /** Resolve the active virtual accounts attached to a structure node (node + descendants). */
+  nodeRecipients: (nodeId: string) => ActorRef[]
 
   // ── session actions ──────────────────────────────────────────────────────────
   signIn: (normalId: string) => void
@@ -250,6 +256,8 @@ interface State extends AppData {
   // ── contact / link ────────────────────────────────────────────────────────────
   sendContactRequest: (to: ActorRef) => void
   respondContactRequest: (id: string, status: 'accepted' | 'rejected') => void
+  /** End an accepted (manual) contact connection with a given actor; notifies the other side. */
+  disconnectContact: (other: ActorRef, note?: { subject: string; body: string }) => void
   createLinkRequest: (entityId: string, virtualId: string, targetNormalId: string) => void
   /** Rich link request: adds a 'waiting' link + a pending LinkRequest. Returns false if a duplicate (same entity/virtual/person already waiting or active). */
   requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation'] }) => boolean
@@ -328,6 +336,26 @@ function syncMirror(v: VirtualCharacter, links: VirtualLink[]): VirtualCharacter
   }
 }
 
+/**
+ * The set of node ids a criterion "covers": the node itself + all descendants
+ * (a message to a node level reaches every level below it). Shared by
+ * groupRecipients and nodeRecipients.
+ */
+function descendantSet(structures: StructureNode[], rootId: string): Set<string> {
+  const out = new Set<string>([rootId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const n of structures) {
+      if (n.parentId && out.has(n.parentId) && !out.has(n.id)) {
+        out.add(n.id)
+        changed = true
+      }
+    }
+  }
+  return out
+}
+
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
@@ -341,9 +369,7 @@ export const useStore = create<State>()(
       // ── selectors ────────────────────────────────────────────────────────────
       currentNormal: () => get().normals.find((n) => n.id === get().normalId),
       virtualsFor: (normalId) =>
-        get().virtuals.filter(
-          (v) => v.linkedNormalId === normalId || (v.links ?? []).some((l) => l.normalId === normalId && l.status === 'active'),
-        ),
+        get().virtuals.filter((v) => (v.links ?? []).some((l) => l.normalId === normalId && l.status === 'active')),
       myActorKeys: () => {
         const { normalId } = get()
         if (!normalId) return []
@@ -398,23 +424,8 @@ export const useStore = create<State>()(
       groupRecipients: (groupId) => {
         const s = get()
 
-        // Set of node ids that a criterion "covers": the node itself + all descendants
-        // (a group message reaches that node level and every level below it).
-        const coverage = (rootId: string): Set<string> => {
-          const kin = s.structures
-          const out = new Set<string>([rootId])
-          let changed = true
-          while (changed) {
-            changed = false
-            for (const n of kin) {
-              if (n.parentId && out.has(n.parentId) && !out.has(n.id)) {
-                out.add(n.id)
-                changed = true
-              }
-            }
-          }
-          return out
-        }
+        // Set of node ids that a criterion "covers": the node itself + all descendants.
+        const coverage = (rootId: string): Set<string> => descendantSet(s.structures, rootId)
 
         const keys = new Set<string>()
         const out: ActorRef[] = []
@@ -469,6 +480,24 @@ export const useStore = create<State>()(
         }
 
         walk(groupId)
+        return out
+      },
+      nodeRecipients: (nodeId) => {
+        const s = get()
+        const cov = descendantSet(s.structures, nodeId)
+        const seen = new Set<string>()
+        const out: ActorRef[] = []
+        for (const v of s.virtuals) {
+          if (v.status !== 'active') continue
+          const slots = [v.structure.corporate, v.structure.relation, v.structure.organization, v.structure.geographical]
+          if (slots.some((id) => id && cov.has(id))) {
+            const k = `v:${v.id}`
+            if (!seen.has(k)) {
+              seen.add(k)
+              out.push({ kind: 'virtual', virtualId: v.id })
+            }
+          }
+        }
         return out
       },
 
@@ -1113,12 +1142,49 @@ export const useStore = create<State>()(
         }
         set((s) => ({ contactRequests: [cr, ...s.contactRequests] }))
       },
-      respondContactRequest: (id, status) =>
-        set((s) => ({ contactRequests: s.contactRequests.map((c) => (c.id === id ? { ...c, status } : c)) })),
+      respondContactRequest: (id, status) => {
+        const cr = get().contactRequests.find((c) => c.id === id)
+        set((s) => ({ contactRequests: s.contactRequests.map((c) => (c.id === id ? { ...c, status } : c)) }))
+        if (cr && status === 'rejected') {
+          const name = (ref: ActorRef) =>
+            ref.kind === 'normal'
+              ? get().normals.find((n) => n.id === ref.normalId)?.fullName ?? ''
+              : get().virtual(ref.virtualId)?.positionName ?? ''
+          get().sendSystemMessage(
+            cr.to,
+            [cr.from],
+            L2('Contact request rejected', 'رفض طلب التواصل'),
+            L2(`${name(cr.to)} declined your contact request. This is an automated no-reply notice.`, `رفض ${name(cr.to)} طلب التواصل الخاص بك. هذا إشعار آلي بلا رد.`),
+          )
+        }
+      },
+      disconnectContact: (other, note) => {
+        const { active } = get()
+        if (!active) return
+        const meKey = actorKey(active)
+        const otherKey = actorKey(other)
+        const toEnd = get().contactRequests.filter(
+          (c) =>
+            c.status === 'accepted' &&
+            ((actorKey(c.from) === meKey && actorKey(c.to) === otherKey) ||
+              (actorKey(c.from) === otherKey && actorKey(c.to) === meKey)),
+        )
+        if (toEnd.length === 0) return
+        const endIds = new Set(toEnd.map((c) => c.id))
+        set((s) => ({ contactRequests: s.contactRequests.map((c) => (endIds.has(c.id) ? { ...c, status: 'ended' as const } : c)) }))
+        get().sendSystemMessage(
+          active as ActorRef,
+          [other],
+          note?.subject ?? L2('Connection ended', 'انتهى الاتصال'),
+          note?.body ?? L2('This connection has ended. This is an automated no-reply notice.', 'انتهى هذا الاتصال. هذه رسالة تلقائية بلا رد.'),
+        )
+      },
       createLinkRequest: (entityId, virtualId, targetNormalId) => {
         get().requestLink(entityId, virtualId, targetNormalId)
       },
       requestLink: (entityId, virtualId, targetNormalId, opts) => {
+        // Only an authorized virtual account may originate link requests.
+        if (get().active?.kind !== 'virtual' || !get().can('admin.createLinkRequest')) return false
         const v = get().virtual(virtualId)
         if (!v) return false
         // Dedup: same person already waiting, active, or blocked on this virtual
@@ -1167,6 +1233,27 @@ export const useStore = create<State>()(
           }),
           linkRequests: s.linkRequests.map((l) => (l.id === id ? { ...l, status } : l)),
         }))
+        if (status === 'rejected') {
+          const ent = get().entity(lr.entityId)
+          const v = get().virtual(lr.virtualId)
+          const person = get().normals.find((n) => n.id === lr.targetNormalId)
+          const adminIds = Array.from(new Set([ent?.adminNormalId, ent?.managingDirectorNormalId])).filter(
+            (x): x is string => !!x && x !== lr.targetNormalId,
+          )
+          if (adminIds.length) {
+            const to = adminIds.map((nid) => ({ kind: 'normal', normalId: nid }) as ActorRef)
+            const from: ActorRef = { kind: 'normal', normalId: lr.targetNormalId }
+            get().sendSystemMessage(
+              from,
+              to,
+              L2('Link request rejected', 'رفض طلب الربط'),
+              L2(
+                `Your link request for ${v?.positionName ?? ''} at ${ent?.commercialName ?? ''} was rejected by ${person?.fullName ?? ''}. This is an automated no-reply notice.`,
+                `تم رفض طلب ربط الوظيفة ${v?.positionName ?? ''} في ${ent?.commercialName ?? ''} من قبل ${person?.fullName ?? ''}. هذا إشعار آلي بلا رد.`,
+              ),
+            )
+          }
+        }
       },
       setLinkStatus: (virtualId, normalId, status) => {
         const now = new Date().toISOString()

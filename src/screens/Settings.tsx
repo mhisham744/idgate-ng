@@ -4,9 +4,10 @@ import { useStore } from '@/store'
 import { useLang, useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
 import { ActorLine, useResolveActor } from '@/components/identity'
+import { useMyInbox } from '@/lib/userScope'
 import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { actorKey } from '@/lib/identity'
-import { Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal, Toggle } from '@/ui/primitives'
+import { Badge, Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal, Toggle } from '@/ui/primitives'
 import type { ActorRef } from '@/types'
 import {
   User,
@@ -37,6 +38,8 @@ export function Settings() {
   const setLang = useI18n((s) => s.setLang)
   const theme = useTheme((s) => s.theme)
   const toggleTheme = useTheme((s) => s.toggle)
+  const inbox = useMyInbox()
+  const pendingApprovals = inbox.incomingContacts.length + inbox.incomingLinks.length
 
   const normalId = useStore((s) => s.normalId)
   const currentNormal = useStore((s) => s.currentNormal)
@@ -163,7 +166,12 @@ export function Settings() {
         <Row
           leading={<Users size={20} className="text-gate-600" />}
           title={t('directory')}
-          trailing={Chevron}
+          trailing={
+            <div className="flex items-center gap-1.5">
+              {pendingApprovals > 0 && <Badge tone="red">{pendingApprovals}</Badge>}
+              {Chevron}
+            </div>
+          }
           onClick={() => nav('/directory')}
         />
         <Row

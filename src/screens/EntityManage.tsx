@@ -31,7 +31,7 @@ import {
 } from '@/data/reference'
 import { STRUCTURE_ROOT_CODE } from '@/types'
 import type { Ability } from '@/store'
-import type { Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
+import type { ActorRef, Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
 import { useResolveActor } from '@/components/identity'
 import { personalAddress } from '@/lib/identity'
 import { OrgChart } from '@/components/OrgChart'
@@ -78,6 +78,8 @@ export function EntityManage() {
   const addStructureNode = useStore((s) => s.addStructureNode)
   const removeStructureNode = useStore((s) => s.removeStructureNode)
   const addPosition = useStore((s) => s.addPosition)
+  const updatePosition = useStore((s) => s.updatePosition)
+  const removePosition = useStore((s) => s.removePosition)
   const addDelegation = useStore((s) => s.addDelegation)
   const updateDelegation = useStore((s) => s.updateDelegation)
   const createLinkRequest = useStore((s) => s.createLinkRequest)
@@ -85,6 +87,10 @@ export function EntityManage() {
   const unlinkVirtual = useStore((s) => s.unlinkVirtual)
   const blockVirtual = useStore((s) => s.blockVirtual)
   const removeGroup = useStore((s) => s.removeGroup)
+  const active = useStore((s) => s.active)
+  const virtualSel = useStore((s) => s.virtual)
+  const can = useStore((s) => s.can)
+  const sendSystemMessage = useStore((s) => s.sendSystemMessage)
 
   const [tab, setTab] = useState<Tab>('structures')
   const [profOpen, setProfOpen] = useState(false)
@@ -117,6 +123,51 @@ export function EntityManage() {
   const entPositions = positions.filter((p) => p.entityId === id)
   const entVirtuals = virtuals.filter((v) => v.entityId === id)
   const entDelegations = delegations.filter((d) => d.entityId === id)
+
+  // Org master data is managed ONLY through the admin's authorized virtual account,
+  // never the personal account — except to bootstrap a brand-new entity that has no
+  // virtual accounts yet (so the admin can create the first one).
+  const activeV = active?.kind === 'virtual' ? virtualSel(active.virtualId) : undefined
+  const isAdminNormal =
+    active?.kind === 'normal' && (ent.adminNormalId === active.normalId || ent.managingDirectorNormalId === active.normalId)
+  const bootstrap = !!isAdminNormal && entVirtuals.length === 0
+  const canManage =
+    (!!activeV && activeV.entityId === id && activeV.status === 'active' && can('admin.changeVirtualAccount', 'display')) || bootstrap
+  const canEdit = bootstrap || (!!activeV && activeV.entityId === id && activeV.status === 'active' && can('admin.changeVirtualAccount', 'change'))
+
+  // Entity-level block/unblock → notify every attached (active-linked) person.
+  const handleBlockEntity = (v: VirtualCharacter) => {
+    const willBlock = v.status !== 'blocked'
+    const recipients = (v.links ?? [])
+      .filter((l) => l.status === 'active')
+      .map((l) => ({ kind: 'normal', normalId: l.normalId }) as ActorRef)
+    if (active && recipients.length) {
+      sendSystemMessage(
+        active as ActorRef,
+        recipients,
+        willBlock ? L('Virtual entity blocked', 'تم حظر الكيان الافتراضي') : L('Virtual entity unblocked', 'تم إلغاء حظر الكيان الافتراضي'),
+        willBlock
+          ? L(`The position "${v.positionName}" at ${ent.commercialName} has been blocked. This is an automated no-reply notice.`, `تم حظر المنصب "${v.positionName}" في ${ent.commercialName}. هذا إشعار آلي بلا رد.`)
+          : L(`The position "${v.positionName}" at ${ent.commercialName} has been unblocked.`, `تم إلغاء حظر المنصب "${v.positionName}" في ${ent.commercialName}.`),
+      )
+    }
+    blockVirtual(v.id, willBlock)
+  }
+
+  if (!canManage) {
+    return (
+      <div className="p-4 space-y-4 pb-8">
+        <button onClick={() => navigate('/settings/entities')} className="inline-flex items-center gap-1 text-xs font-medium text-gate-600">
+          <ArrowLeft size={14} className="rtl:rotate-180" /> {t('myEntities')}
+        </button>
+        <EmptyState
+          icon={<Building2 size={40} />}
+          title={L('Switch to your organization account', 'بدّل إلى حساب مؤسستك')}
+          subtitle={L('Organization master data can only be viewed or edited through an authorized virtual account of this entity.', 'لا يمكن عرض أو تعديل البيانات الرئيسية للمؤسسة إلا عبر حساب افتراضي مخوّل لهذا الكيان.')}
+        />
+      </div>
+    )
+  }
 
   const tabs: { key: Tab; label: string; n: number }[] = [
     { key: 'structures', label: t('communicationStructure'), n: entStructures.length },
@@ -151,7 +202,7 @@ export function EntityManage() {
           <Badge tone="slate">{bl(LEGAL_TYPE_LABELS[ent.legalEntityType], lang)}</Badge>
           <Badge tone="teal">{bl(INDUSTRY_LABELS[ent.mainIndustry], lang)}</Badge>
         </div>
-        {ent.status !== 'active' && (
+        {ent.status !== 'active' && canEdit && (
           <Button full className="mt-3" onClick={() => activateEntity(id)}>
             <CheckCircle2 size={16} /> {t('activate')}
           </Button>
@@ -233,9 +284,11 @@ export function EntityManage() {
 
       {tab === 'profiles' && (
         <div className="space-y-2">
-          <Button full variant={entProfiles.length === 0 ? 'primary' : 'secondary'} onClick={() => { setProfEdit(null); setProfOpen(true) }}>
-            <Plus size={16} /> {L('New profile', 'بروفايل جديد')}
-          </Button>
+          {canEdit && (
+            <Button full variant={entProfiles.length === 0 ? 'primary' : 'secondary'} onClick={() => { setProfEdit(null); setProfOpen(true) }}>
+              <Plus size={16} /> {L('New profile', 'بروفايل جديد')}
+            </Button>
+          )}
           <SearchBox value={profileQuery} onChange={setProfileQuery} placeholder={L('Search profiles…', 'ابحث في البروفايلات…')} />
           {entProfiles.filter((p) => p.name.toLowerCase().includes(profileQuery.trim().toLowerCase())).length === 0 ? (
             <EmptyState icon={<Shield size={36} />} title={t('empty')} />
@@ -259,14 +312,16 @@ export function EntityManage() {
       )}
 
       {tab === 'positions' && (
-        <PositionsTab L={L} entityId={id} positions={entPositions} addPosition={addPosition} query={positionQuery} setQuery={setPositionQuery} />
+        <PositionsTab L={L} entityId={id} positions={entPositions} addPosition={addPosition} updatePosition={updatePosition} removePosition={removePosition} canEdit={canEdit} query={positionQuery} setQuery={setPositionQuery} />
       )}
 
       {tab === 'virtuals' && (
         <div className="space-y-2">
-          <Button full variant={entVirtuals.length === 0 ? 'primary' : 'secondary'} onClick={() => setVirtualAddOpen(true)}>
-            <Plus size={16} /> {t('addVirtualEntity')}
-          </Button>
+          {canEdit && (
+            <Button full variant={entVirtuals.length === 0 ? 'primary' : 'secondary'} onClick={() => setVirtualAddOpen(true)}>
+              <Plus size={16} /> {t('addVirtualEntity')}
+            </Button>
+          )}
           <SearchBox value={virtualQuery} onChange={setVirtualQuery} placeholder={L('Search virtual entities…', 'ابحث في الكيانات…')} />
           {entVirtuals.filter((v) => v.positionName.toLowerCase().includes(virtualQuery.trim().toLowerCase())).length === 0 ? (
             <EmptyState icon={<Users size={36} />} title={t('empty')} />
@@ -281,7 +336,7 @@ export function EntityManage() {
                     t={t}
                     v={v}
                     normals={normals}
-                    onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
+                    onBlock={() => handleBlockEntity(v)}
                     onEdit={() => setVirtualEditId(v.id)}
                     onDisplay={() => setVirtualDisplayId(v.id)}
                   />
@@ -370,6 +425,9 @@ function PositionsTab({
   entityId,
   positions,
   addPosition,
+  updatePosition,
+  removePosition,
+  canEdit,
   query,
   setQuery,
 }: {
@@ -377,38 +435,65 @@ function PositionsTab({
   entityId: string
   positions: import('@/types').Position[]
   addPosition: (entityId: string, name: string) => string
+  updatePosition: (id: string, name: string) => void
+  removePosition: (id: string) => void
+  canEdit: boolean
   query: string
   setQuery: (v: string) => void
 }) {
   const [name, setName] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
   const shown = positions.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <Card className="p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={L('New position…', 'وظيفة جديدة…')} />
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            if (!name.trim()) return
-            addPosition(entityId, name.trim())
-            setName('')
-          }}
-        >
-          <Plus size={14} />
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex items-center gap-2">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={L('New position…', 'وظيفة جديدة…')} />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              if (!name.trim()) return
+              addPosition(entityId, name.trim())
+              setName('')
+            }}
+          >
+            <Plus size={14} />
+          </Button>
+        </div>
+      )}
       <SearchBox value={query} onChange={setQuery} placeholder={L('Search positions…', 'ابحث في الوظائف…')} />
       {shown.length === 0 ? (
         <EmptyState icon={<Briefcase size={32} />} title={L('No positions', 'لا توجد وظائف')} />
       ) : (
         <div className="space-y-1.5">
-          {shown.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-              <Briefcase size={14} className="text-gate-600" />
-              <span className="text-sm font-medium text-slate-700">{p.name}</span>
-            </div>
-          ))}
+          {shown.map((p) =>
+            editId === p.id ? (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1" />
+                <Button size="sm" onClick={() => { if (editName.trim()) { updatePosition(p.id, editName.trim()); setEditId(null) } }}>
+                  {L('Save', 'حفظ')}
+                </Button>
+                <Button size="sm" variant="subtle" onClick={() => setEditId(null)}>{L('Cancel', 'إلغاء')}</Button>
+              </div>
+            ) : (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                <Briefcase size={14} className="text-gate-600" />
+                <span className="flex-1 text-sm font-medium text-slate-700">{p.name}</span>
+                {canEdit && (
+                  <>
+                    <button onClick={() => { setEditId(p.id); setEditName(p.name) }} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700" aria-label={L('Edit', 'تعديل')}>
+                      <Pencil size={13} />
+                    </button>
+                    <button onClick={() => removePosition(p.id)} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
+                      <Trash2 size={13} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ),
+          )}
         </div>
       )}
     </Card>
@@ -603,9 +688,17 @@ function LinkBox({
 }) {
   const setLinkStatus = useStore((s) => s.setLinkStatus)
   const updateLinkDelegation = useStore((s) => s.updateLinkDelegation)
+  const active = useStore((s) => s.active)
+  const sendSystemMessage = useStore((s) => s.sendSystemMessage)
   const [editVal, setEditVal] = useState(false)
   const [from, setFrom] = useState(link.delegation?.validity?.from ?? '')
   const [to, setTo] = useState(link.delegation?.validity?.to ?? '')
+
+  // Change this person's link status, auto-notifying them with a no-reply system message.
+  const notifyLink = (next: 'unlinked' | 'blocked' | 'active', subjEn: string, subjAr: string, bodyEn: string, bodyAr: string) => {
+    if (active) sendSystemMessage(active as ActorRef, [{ kind: 'normal', normalId: link.normalId }], L(subjEn, subjAr), L(bodyEn, bodyAr))
+    setLinkStatus(v.id, link.normalId, next)
+  }
 
   const statusLabel: Record<string, string> = {
     waiting: L('Waiting response', 'بانتظار الرد'),
@@ -641,9 +734,6 @@ function LinkBox({
               <button onClick={() => setEditVal((x) => !x)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
                 <Pencil size={12} />
               </button>
-              <button onClick={() => updateLinkDelegation(v.id, link.normalId, undefined)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
-                <Trash2 size={12} />
-              </button>
             </div>
           </div>
           {editVal && (
@@ -667,16 +757,16 @@ function LinkBox({
       <div className="flex flex-wrap gap-1.5">
         {link.status === 'active' && (
           <>
-            <Button size="sm" variant="subtle" onClick={() => setLinkStatus(v.id, link.normalId, 'unlinked')}>
+            <Button size="sm" variant="subtle" onClick={() => notifyLink('unlinked', 'Virtual account unlinked', 'تم فك ربط الحساب الافتراضي', `You have been unlinked from "${v.positionName}". This is an automated no-reply notice.`, `تم فك ربطك من "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
               <Unlink size={12} /> {t('unlink')}
             </Button>
-            <Button size="sm" variant="danger" onClick={() => setLinkStatus(v.id, link.normalId, 'blocked')}>
+            <Button size="sm" variant="danger" onClick={() => notifyLink('blocked', 'Virtual account blocked', 'تم حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been blocked. This is an automated no-reply notice.`, `تم حظر حسابك على "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
               <Ban size={12} /> {t('block')}
             </Button>
           </>
         )}
         {link.status === 'blocked' && (
-          <Button size="sm" variant="secondary" onClick={() => setLinkStatus(v.id, link.normalId, 'active')}>
+          <Button size="sm" variant="secondary" onClick={() => notifyLink('active', 'Virtual account unblocked', 'تم إلغاء حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been unblocked and is active again.`, `تم إلغاء حظر حسابك على "${v.positionName}" وأصبح نشطًا.`)}>
             {L('Unblock', 'إلغاء الحظر')}
           </Button>
         )}

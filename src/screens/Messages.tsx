@@ -18,7 +18,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useStore } from '@/store'
-import { useDirectory, useInboxScopeKeys } from '@/lib/userScope'
+import { useInboxScopeKeys, useRecipientSources } from '@/lib/userScope'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime, uid } from '@/lib/identity'
 import { useResolveActor, ActorLine } from '@/components/identity'
@@ -150,21 +150,8 @@ export function Messages() {
   // The set of identities that count as "me" for the inbox (per the scope setting).
   const keys = useInboxScopeKeys()
 
-  // ── Recipients & groups are scoped to the acting account's Directory ─────────
-  const dir = useDirectory()
-  const recipientOptions = dir.people
-  const pickerGroups = useMemo<PickerGroup[]>(
-    () =>
-      dir.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
-      })),
-    [dir.groups, groupRecipients, meKey],
-  )
-
-  const expandGroup = (id: string): ActorRef[] =>
-    groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+  // ── Recipients & groups + structure nodes, scoped to the acting account's Directory ──
+  const { options: recipientOptions, pickerGroups, expandGroup } = useRecipientSources()
 
   // My labels (shared across my accounts, owned by the signed-in person).
   const myLabels = useMemo(() => labels.filter((l) => l.ownerNormalId === normalId), [labels, normalId])
