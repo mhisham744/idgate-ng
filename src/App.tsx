@@ -26,6 +26,7 @@ import { Directory } from '@/screens/Directory'
 import { Wallet } from '@/screens/Wallet'
 import { VerifyCredential } from '@/screens/VerifyCredential'
 import { Tawkeel } from '@/screens/Tawkeel'
+import { WhatsAppTest } from '@/screens/WhatsAppTest'
 import { useSeedHashBackfill } from '@/lib/backfill'
 
 function Shell() {
@@ -40,6 +41,7 @@ function Shell() {
         <Route path="/tools/vacancies" element={<Vacancies />} />
         <Route path="/tools/wallet" element={<Wallet />} />
         <Route path="/tools/verify" element={<VerifyCredential />} />
+        <Route path="/tools/whatsapp" element={<WhatsAppTest />} />
         <Route path="/tools/groups" element={<GroupsScreen />} />
         <Route path="/settings/groups" element={<GroupsScreen />} />
         <Route path="/directory" element={<Directory />} />

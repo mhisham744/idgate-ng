@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Send, Info, Plus, X as XIcon, Bell, WalletCards, ShieldCheck, FilePlus2 } from 'lucide-react'
+import { ChevronRight, Send, Info, Plus, X as XIcon, Bell, WalletCards, ShieldCheck, FilePlus2, MessageCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
@@ -156,6 +156,13 @@ export function Tools() {
               trailing={<ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />}
             />
           )}
+          <Row
+            onClick={() => navigate('/tools/whatsapp')}
+            leading={<div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><MessageCircle size={16} /></div>}
+            title={L('WhatsApp test', 'اختبار واتساب')}
+            subtitle={L('Exchange messages with a test WhatsApp agent (Vercel build).', 'تبادل الرسائل مع وكيل واتساب تجريبي (نسخة Vercel).')}
+            trailing={<ChevronRight size={16} className={cx('text-slate-300', isRtl && 'rotate-180')} />}
+          />
         </Card>
       </div>
 
