@@ -51,7 +51,7 @@ export type Ability = 'create' | 'change' | 'display' | 'delete'
  * and zustand v5 compares snapshots with Object.is and no equality fn — returning a
  * fresh object literal on every call would loop React forever ("Maximum update depth").
  */
-const DEFAULT_NEWS_PREFS: { enabled: boolean; scope: 'auto' | 'all' } = { enabled: false, scope: 'auto' }
+const DEFAULT_NEWS_PREFS: { enabled: boolean; scope: 'auto' | 'all' } = { enabled: true, scope: 'auto' }
 
 /** Payload collected by the new-account KYC wizard. */
 export interface NewNormalInput {
@@ -114,8 +114,8 @@ interface State extends AppData {
   /** Inbox scope for Messages/Notifications, keyed by normalId. 'unified' = all
    *  owned identities; 'active' = only the currently active account. */
   inboxScopeByNormal: Record<string, 'unified' | 'active'>
-  /** Egypt business-news service feed preference, keyed by normalId. Opt-in (off by
-   *  default); 'auto' scope tailors headlines to the active personality's industry. */
+  /** Egypt business-news service feed preference, keyed by normalId. On by default
+   *  (people can opt out); 'auto' scope tailors headlines to the active personality's industry. */
   newsFeedByNormal: Record<string, { enabled: boolean; scope: 'auto' | 'all' }>
 
   // ── selectors ──────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ interface State extends AppData {
   myPresence: () => import('@/types').Presence
   /** The signed-in person's inbox scope (defaults to 'unified'). */
   inboxScope: () => 'unified' | 'active'
-  /** The signed-in person's business-news feed preference (defaults to off/auto). */
+  /** The signed-in person's business-news feed preference (defaults to on/auto). */
   newsFeed: () => { enabled: boolean; scope: 'auto' | 'all' }
   /** Presence for any actor — resolves the underlying person (host for virtuals). */
   presenceOf: (ref: ActorRef) => Presence

@@ -14,13 +14,13 @@ export interface NewsItem {
 
 /** Per-person preference for the business-news service feed. */
 export interface NewsFeedPrefs {
-  /** Opt-in: the service is off until the person turns it on in Settings. */
+  /** On by default; the person can opt out in Settings. */
   enabled: boolean
   /** 'auto' tailors headlines to the active identity's industry; 'all' = general Egypt business. */
   scope: 'auto' | 'all'
 }
 
-export const DEFAULT_NEWS_PREFS: NewsFeedPrefs = { enabled: false, scope: 'auto' }
+export const DEFAULT_NEWS_PREFS: NewsFeedPrefs = { enabled: true, scope: 'auto' }
 
 const INDUSTRIES: Industry[] = [
   'Manufacturing',
