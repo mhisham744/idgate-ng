@@ -88,13 +88,13 @@ export function BusinessNewsFeed() {
 
       <div className="px-2 pb-2 sm:px-3 sm:pb-3">
         {state.status === 'loading' && (
-          <p className="py-6 text-center text-xs text-slate-400">{t('newsLoading')}</p>
+          <p className="py-6 text-center text-xs text-slate-500">{t('newsLoading')}</p>
         )}
         {state.status === 'unavailable' && (
-          <p className="py-6 text-center text-xs text-slate-400">{t('newsUnavailable')}</p>
+          <p className="py-6 text-center text-xs text-slate-500">{t('newsUnavailable')}</p>
         )}
         {state.status === 'empty' && (
-          <p className="py-6 text-center text-xs text-slate-400">{t('newsEmpty')}</p>
+          <p className="py-6 text-center text-xs text-slate-500">{t('newsEmpty')}</p>
         )}
 
         {state.status === 'ready' && (
@@ -108,7 +108,7 @@ export function BusinessNewsFeed() {
                   href={item.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex min-w-0 flex-1 items-start gap-3 focus-visible:outline-none"
+                  className="flex min-w-0 flex-1 items-start gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
                 >
                   <Thumb src={item.image} source={item.source} />
                   <div className="min-w-0 flex-1">
@@ -137,7 +137,7 @@ export function BusinessNewsFeed() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={L('Open article', 'فتح المقال')}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:bg-slate-500/10 hover:text-gate-600"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-500/10 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
                   >
                     <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                   </a>
@@ -270,6 +270,6 @@ function IconButton({
 
 function cxBtn(small?: boolean): string {
   const base =
-    'inline-flex items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-500/10 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400'
+    'inline-flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-500/10 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400'
   return `${base} ${small ? 'h-7 w-7' : 'h-9 w-9'}`
 }

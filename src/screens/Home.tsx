@@ -316,7 +316,8 @@ function PostCard({
         <ActionButton
           active={saved}
           onClick={onSave}
-          icon={<Bookmark className={cx('w-4 h-4', saved && 'fill-current')} />}
+          ariaLabel={saved ? t('saved') : t('save')}
+          icon={<Bookmark className={cx('w-4 h-4', saved && 'fill-current')} aria-hidden />}
           activeClass="text-gate-600 bg-gate-50"
         />
       </div>
@@ -378,6 +379,7 @@ function PostCard({
 function ActionButton({
   icon,
   label,
+  ariaLabel,
   active,
   disabled,
   onClick,
@@ -385,6 +387,7 @@ function ActionButton({
 }: {
   icon: ReactNode
   label?: string
+  ariaLabel?: string
   active?: boolean
   disabled?: boolean
   onClick: () => void
@@ -395,6 +398,8 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel}
+      aria-pressed={active}
       className={cx(
         'inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-2 text-xs font-medium transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         disabled

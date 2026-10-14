@@ -666,7 +666,7 @@ export const useStore = create<State>()(
         set((s) => ({
           newsFeedByNormal: {
             ...s.newsFeedByNormal,
-            [normalId]: { scope: s.newsFeedByNormal[normalId]?.scope ?? 'auto', enabled: v },
+            [normalId]: { scope: s.newsFeedByNormal[normalId]?.scope ?? DEFAULT_NEWS_PREFS.scope, enabled: v },
           },
         }))
       },
@@ -676,7 +676,9 @@ export const useStore = create<State>()(
         set((s) => ({
           newsFeedByNormal: {
             ...s.newsFeedByNormal,
-            [normalId]: { enabled: s.newsFeedByNormal[normalId]?.enabled ?? false, scope: v },
+            // Preserve the current enabled state; fall back to the real default (ON),
+            // never a stale `false`, so switching relevance can't disable the feed.
+            [normalId]: { enabled: s.newsFeedByNormal[normalId]?.enabled ?? DEFAULT_NEWS_PREFS.enabled, scope: v },
           },
         }))
       },

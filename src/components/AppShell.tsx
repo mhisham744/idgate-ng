@@ -184,7 +184,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   to={tab.to}
                   className={cx(
                     'relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
-                    isActive ? 'bg-gate-50 text-gate-600' : 'text-slate-400',
+                    isActive ? 'bg-gate-50 text-gate-600' : 'text-slate-500',
                   )}
                 >
                   <div className="relative">

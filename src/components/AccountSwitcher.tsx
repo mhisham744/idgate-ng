@@ -80,7 +80,7 @@ export function AccountSwitcher({ open, onClose }: { open: boolean; onClose: () 
             selected={activeKey === `n:${normalId}`}
             onClick={() => pick({ kind: 'normal', normalId })}
             actor={{ kind: 'normal', normalId }}
-            trailing={<div className="flex items-center gap-1">{tawkeelBadge({ kind: 'normal', normalId })}<VerificationBadge level={authorityLevelOf(normalId)} /></div>}
+            trailing={<div className="flex flex-wrap items-center justify-end gap-1">{tawkeelBadge({ kind: 'normal', normalId })}<VerificationBadge level={authorityLevelOf(normalId)} /></div>}
           />
         </div>
 
@@ -143,7 +143,7 @@ function AccountOption({
       <div className="min-w-0 flex-1">
         <ActorLine actor={actor} size={40} />
       </div>
-      {trailing && <div className="flex max-w-[46%] shrink-0 flex-wrap items-center justify-end gap-1">{trailing}</div>}
+      {trailing && <div className="flex max-w-[52%] shrink-0 flex-wrap items-center justify-end gap-1">{trailing}</div>}
       {selected && <Check size={18} className="shrink-0 text-gate-600" />}
     </button>
   )
