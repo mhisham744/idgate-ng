@@ -1,19 +1,21 @@
-import { Newspaper, ExternalLink, RefreshCw, Settings2 } from 'lucide-react'
+import { useState } from 'react'
+import { Newspaper, ExternalLink, RefreshCw, SlidersHorizontal, Power } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { relativeTime } from '@/lib/identity'
 import { useActiveNewsContext, useEgyptNews } from '@/lib/news'
 import { INDUSTRY_LABELS } from '@/data/reference'
-import { Badge, Card } from '@/ui/primitives'
+import { Badge, Button, Card, Chip, Sheet } from '@/ui/primitives'
 
 /**
  * Egypt business-news service feed (Strategy edition).
  *
- * An opt-in, free (key-less) external service surfaced at the top of Home. Headlines
- * are tuned to the identity the person is currently acting as: a virtual personality
- * inherits its entity's industry; a personal account uses its career industry. It
- * renders nothing until the person turns it on in Settings → Preferences.
+ * A free (key-less) external service surfaced at the top of Home, on by default
+ * (people can opt out). Headlines are tuned to the identity the person is currently
+ * acting as: a virtual personality inherits its entity's industry; a personal
+ * account uses its career industry. The gear opens the feed's own preferences in
+ * place (scope + turn-off), with a link out to the full Settings page.
  */
 export function BusinessNewsFeed() {
   const nav = useNavigate()
@@ -21,8 +23,12 @@ export function BusinessNewsFeed() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const prefs = useStore((s) => s.newsFeed())
+  const setNewsFeedScope = useStore((s) => s.setNewsFeedScope)
+  const setNewsFeedEnabled = useStore((s) => s.setNewsFeedEnabled)
   const ctx = useActiveNewsContext()
   const { state, refresh } = useEgyptNews({ enabled: prefs.enabled, scope: prefs.scope, lang, ctx })
+
+  const [prefsOpen, setPrefsOpen] = useState(false)
 
   if (!prefs.enabled) return null
 
@@ -64,12 +70,12 @@ export function BusinessNewsFeed() {
           </button>
           <button
             type="button"
-            onClick={() => nav('/settings')}
-            aria-label={t('newsManage')}
-            title={t('newsManage')}
+            onClick={() => setPrefsOpen(true)}
+            aria-label={t('newsPrefs')}
+            title={t('newsPrefs')}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
           >
-            <Settings2 className="h-4 w-4" aria-hidden />
+            <SlidersHorizontal className="h-4 w-4" aria-hidden />
           </button>
         </div>
       </div>
@@ -116,6 +122,55 @@ export function BusinessNewsFeed() {
           ))}
         </ul>
       )}
+
+      {/* Feed preferences — opened from the gear, in place */}
+      <Sheet open={prefsOpen} onClose={() => setPrefsOpen(false)} title={t('businessNews')}>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <div className="text-sm font-semibold text-slate-700 text-start">{t('newsRelevance')}</div>
+            <p className="text-[12px] leading-snug text-slate-500 text-start">{t('businessNewsDesc')}</p>
+            <div className="flex gap-2 pt-1">
+              <Chip active={prefs.scope === 'auto'} onClick={() => setNewsFeedScope('auto')}>
+                {t('newsScopeAuto')}
+              </Chip>
+              <Chip active={prefs.scope === 'all'} onClick={() => setNewsFeedScope('all')}>
+                {t('newsScopeAll')}
+              </Chip>
+            </div>
+            {prefs.scope === 'auto' && (
+              <p className="text-[11px] text-slate-400 text-start">
+                {L('Now showing: ', 'يظهر الآن: ')}
+                {contextLabel}
+                {ctx.isVirtual && ctx.company ? ` · ${ctx.company}` : ''}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+            <Button
+              variant="secondary"
+              full
+              onClick={() => {
+                setPrefsOpen(false)
+                nav('/settings')
+              }}
+            >
+              {t('newsOpenSettings')}
+            </Button>
+            <Button
+              variant="ghost"
+              full
+              onClick={() => {
+                setNewsFeedEnabled(false)
+                setPrefsOpen(false)
+              }}
+            >
+              <Power size={16} />
+              {t('newsTurnOff')}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </Card>
   )
 }

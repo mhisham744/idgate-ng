@@ -87,6 +87,10 @@ export const STRINGS: Dict = {
   newsLoading: { en: 'Fetching headlines…', ar: 'جارٍ جلب العناوين…' },
   newsRefresh: { en: 'Refresh', ar: 'تحديث' },
   newsManage: { en: 'Manage in Settings', ar: 'الإدارة من الإعدادات' },
+  newsPrefs: { en: 'Feed preferences', ar: 'تفضيلات التغذية' },
+  newsRelevance: { en: 'Relevance', ar: 'التخصيص' },
+  newsOpenSettings: { en: 'Open all preferences', ar: 'فتح كل التفضيلات' },
+  newsTurnOff: { en: 'Turn off this feed', ar: 'إيقاف هذه التغذية' },
 
   // messages
   newMessage: { en: 'New Message', ar: 'رسالة جديدة' },

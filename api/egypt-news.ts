@@ -47,32 +47,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const company = str(req.query.company).slice(0, 80)
   const scope = String(req.query.scope ?? 'auto') === 'all' ? 'all' : 'auto'
 
-  // Build the relevance query. Always anchored to Egypt + business/economy.
-  const parts = ['Egypt', '(business OR economy OR market)']
-  if (scope === 'auto') {
-    if (company) parts.unshift(`"${company}"`)
-    const term = industry && INDUSTRY_TERMS[industry]
-    if (term) parts.push(`(${term.split(' ').join(' OR ')})`)
-  }
-  // Last 7 days keeps the feed fresh without a date cursor.
-  const query = `${parts.join(' ')} when:7d`
+  // Build a relevance CASCADE, most specific → broadest. We fetch each in order and
+  // keep the first that returns headlines, so a narrow company+industry match in a
+  // quiet week broadens to general Egypt business news instead of an empty feed.
+  const base = 'Egypt (business OR economy OR market)'
+  const term = scope === 'auto' && industry ? INDUSTRY_TERMS[industry] : ''
+  const industryGroup = term ? `(${term.split(' ').join(' OR ')})` : ''
+  const companyPhrase = scope === 'auto' && company ? `"${company}"` : ''
+
+  const candidates: string[] = []
+  if (companyPhrase && industryGroup) candidates.push(`${companyPhrase} ${base} ${industryGroup}`)
+  if (companyPhrase) candidates.push(`${companyPhrase} ${base}`)
+  if (industryGroup) candidates.push(`${base} ${industryGroup}`)
+  candidates.push(base)
+  const queries = [...new Set(candidates)] // de-dup, preserve order
 
   const hl = lang === 'ar' ? 'ar' : 'en-EG'
   const ceid = lang === 'ar' ? 'EG:ar' : 'EG:en'
-  const url = `${RSS_BASE}?q=${encodeURIComponent(query)}&hl=${hl}&gl=EG&ceid=${ceid}`
 
   try {
-    const upstream = await fetch(url, {
-      headers: { 'User-Agent': 'IDGate-NewsService/1.0 (+https://idgate-ng.vercel.app)' },
-    })
-    if (!upstream.ok) {
-      return res.status(502).json({ error: `News source returned ${upstream.status}.`, items: [] })
+    let items: NewsItem[] = []
+    let usedQuery = ''
+    for (const q of queries) {
+      // Last 7 days keeps the feed fresh without a date cursor.
+      const url = `${RSS_BASE}?q=${encodeURIComponent(`${q} when:7d`)}&hl=${hl}&gl=EG&ceid=${ceid}`
+      const upstream = await fetch(url, {
+        headers: { 'User-Agent': 'IDGate-NewsService/1.0 (+https://idgate-ng.vercel.app)' },
+      })
+      if (!upstream.ok) continue
+      const parsed = parseRss(await upstream.text())
+      if (parsed.length) {
+        items = parsed.slice(0, 12)
+        usedQuery = q
+        break
+      }
     }
-    const xml = await upstream.text()
-    const items = parseRss(xml).slice(0, 12)
     // Cache at the edge: fresh for 10 min, serve-stale for an hour while revalidating.
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=3600')
-    return res.status(200).json({ items, query, scope, industry: industry || null })
+    return res.status(200).json({ items, query: usedQuery, scope, industry: industry || null })
   } catch (e) {
     return res.status(502).json({ error: 'Could not reach the news service.', items: [] })
   }
