@@ -10,6 +10,8 @@ export interface NewsItem {
   source: string
   publishedAt: string
   snippet: string
+  /** Publisher-logo thumbnail (may be empty). */
+  image: string
 }
 
 /** Per-person preference for the business-news service feed. */

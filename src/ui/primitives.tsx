@@ -27,7 +27,7 @@ export function Button({
         size === 'sm' && 'px-3 py-1.5 text-xs',
         size === 'md' && 'px-4 py-2.5 text-sm',
         size === 'lg' && 'px-5 py-3 text-base',
-        variant === 'primary' && 'bg-gate-600 text-light shadow-sm hover:bg-gate-700 active:shadow-none',
+        variant === 'primary' && 'bg-gradient-to-br from-gate-500 to-gate-700 text-light shadow-sm shadow-gate-600/30 hover:shadow-md hover:shadow-gate-600/40 active:shadow-none',
         variant === 'secondary' && 'bg-gate-50 text-gate-700 hover:bg-gate-100 border border-gate-100',
         variant === 'ghost' && 'text-gate-700 hover:bg-gate-50',
         variant === 'subtle' && 'bg-slate-100 text-slate-700 hover:bg-slate-200',
@@ -49,8 +49,8 @@ export function Card({ className, children, onClick, style }: { className?: stri
       onClick={onClick}
       style={style}
       className={cx(
-        'rounded-3xl bg-white shadow-card border border-slate-100/80',
-        onClick && 'cursor-pointer transition-all hover:shadow-card-hover active:scale-[0.99]',
+        'glass-card rounded-3xl',
+        onClick && 'cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-card-hover active:scale-[0.99]',
         className,
       )}
     >
@@ -111,7 +111,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
         tone === 'slate' && 'bg-slate-100 text-slate-600',
         tone === 'green' && 'bg-emerald-100 text-emerald-700',
         tone === 'amber' && 'bg-amber-100 text-amber-700',
@@ -238,17 +238,17 @@ export function Sheet({
   return (
     <SheetCtx.Provider value={{ close: onClose }}>
       <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center sm:p-6">
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
-        <div className="relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl animate-slide-up sm:max-h-[80vh] sm:max-w-md sm:rounded-3xl">
-          <div className="flex items-center justify-between px-5 pt-4 pb-2">
-            <div className="mx-auto absolute inset-x-0 top-2 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
-            {title && <h2 className="text-base font-bold text-slate-800">{title}</h2>}
-            <button onClick={onClose} className="ms-auto rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+        <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+        <div className="glass-panel relative flex max-h-[92%] w-full flex-col overflow-hidden rounded-t-[2rem] shadow-2xl animate-slide-up sm:max-h-[86vh] sm:w-[min(40rem,92vw)] sm:max-w-none sm:rounded-3xl">
+          <div className="relative flex items-center justify-between px-5 pt-4 pb-2 sm:px-6 sm:pt-5">
+            <div className="mx-auto absolute inset-x-0 top-2 h-1 w-10 rounded-full bg-slate-300/70 sm:hidden" />
+            {title && <h2 className="text-lg font-bold text-slate-800">{title}</h2>}
+            <button onClick={onClose} aria-label="Close" className="ms-auto rounded-full p-1.5 text-slate-400 transition hover:bg-slate-500/10 hover:text-slate-600">
               <X size={18} />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto thin-scroll px-5 pb-4">{children}</div>
-          {footer && <div className="border-t border-slate-100 px-5 py-3">{footer}</div>}
+          <div className="flex-1 overflow-y-auto thin-scroll px-5 pb-5 sm:px-6">{children}</div>
+          {footer && <div className="border-t border-slate-200/60 px-5 py-3 sm:px-6">{footer}</div>}
         </div>
       </div>
     </SheetCtx.Provider>
@@ -259,9 +259,9 @@ export function Sheet({
 export function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto thin-scroll rounded-3xl bg-white p-5 shadow-2xl animate-scale-in">{children}</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 sm:p-6">
+      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div className="glass-panel relative w-full sm:w-[min(32rem,92vw)] max-w-lg max-h-[85vh] overflow-y-auto thin-scroll rounded-3xl p-6 shadow-2xl animate-scale-in">{children}</div>
     </div>
   )
 }

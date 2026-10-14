@@ -26,6 +26,9 @@ type NewsItem = {
   source: string
   publishedAt: string
   snippet: string
+  /** Publisher logo thumbnail (keyless Google favicon service). Google News search
+   *  RSS carries no inline article photos, so we show the real source's brand mark. */
+  image: string
 }
 
 const RSS_BASE = process.env.NEWS_RSS_BASE || 'https://news.google.com/rss/search'
@@ -77,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!upstream.ok) continue
       const parsed = parseRss(await upstream.text())
       if (parsed.length) {
-        items = parsed.slice(0, 12)
+        items = parsed.slice(0, 5)
         usedQuery = q
         break
       }
@@ -124,6 +127,7 @@ function parseRss(xml: string): NewsItem[] {
       source: source.trim(),
       publishedAt,
       snippet: snippet.trim(),
+      image: faviconFor(sourceUrlOf(b), link),
     })
   }
   return items
@@ -133,6 +137,27 @@ function tag(block: string, name: string): string {
   const re = new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, 'i')
   const m = re.exec(block)
   return m ? m[1] : ''
+}
+
+/** Capture the `url="..."` attribute on an item's <source> element, if present. */
+function sourceUrlOf(block: string): string {
+  const m = /<source[^>]*\burl="([^"]+)"/i.exec(block)
+  return m ? m[1] : ''
+}
+
+/** Build a publisher-logo thumbnail from the source (or article) domain. Keyless. */
+function faviconFor(sourceUrl: string, link: string): string {
+  const domain = hostOf(sourceUrl) || hostOf(link)
+  if (!domain) return ''
+  return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(domain)}`
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
 }
 
 function clean(s: string): string {

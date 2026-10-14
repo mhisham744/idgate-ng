@@ -91,6 +91,13 @@ export const STRINGS: Dict = {
   newsRelevance: { en: 'Relevance', ar: 'التخصيص' },
   newsOpenSettings: { en: 'Open all preferences', ar: 'فتح كل التفضيلات' },
   newsTurnOff: { en: 'Turn off this feed', ar: 'إيقاف هذه التغذية' },
+  newsShare: { en: 'Share to feed', ar: 'مشاركة في الصفحة' },
+  newsShareTitle: { en: 'Share headline', ar: 'مشاركة العنوان' },
+  newsSharePost: { en: 'Post to feed', ar: 'نشر في الصفحة' },
+  newsShareHint: {
+    en: 'This posts to your feed as the identity you are acting as.',
+    ar: 'يُنشر في صفحتك بالصفة التي تعمل بها.',
+  },
 
   // messages
   newMessage: { en: 'New Message', ar: 'رسالة جديدة' },

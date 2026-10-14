@@ -33,6 +33,32 @@ const CATEGORIES: Category[] = [
   'data',
 ]
 
+type CatTone = 'teal' | 'gate' | 'amber' | 'green' | 'red' | 'violet'
+const CAT_TONE: Record<Category, CatTone> = {
+  friend: 'teal',
+  news: 'gate',
+  report: 'amber',
+  event: 'green',
+  advertising: 'red',
+  data: 'violet',
+}
+const catLabelFor = (c: Category, L: (en: string, ar: string) => string): string => {
+  switch (c) {
+    case 'friend':
+      return L('Friend', 'صديق')
+    case 'news':
+      return L('News', 'أخبار')
+    case 'report':
+      return L('Report', 'تقرير')
+    case 'event':
+      return L('Event', 'فعالية')
+    case 'advertising':
+      return L('Advertising', 'إعلان')
+    case 'data':
+      return L('Data', 'بيانات')
+  }
+}
+
 export function Home() {
   const { t, lang, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
@@ -115,6 +141,16 @@ export function Home() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
+      {/* Hero */}
+      <div className="flex items-end justify-between gap-3 px-1 pt-1">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 text-glow">{t('home')}</h1>
+          <p className="text-[12px] font-medium text-slate-500">
+            {L('Your verified network, live.', 'شبكتك الموثّقة، مباشرة.')}
+          </p>
+        </div>
+      </div>
+
       {/* Composer */}
       <Card className="p-4 space-y-3">
         <Textarea
@@ -237,8 +273,9 @@ function PostCard({
   return (
     <Card className="p-4 space-y-3 animate-fade-in" style={{ animationDelay: `${index * 40}ms` }}>
       <div className="flex items-start justify-between gap-2">
-        <PresenceActorLine actor={post.author} size={40} showAddress />
-        <div className="flex flex-col items-end gap-0.5 shrink-0">
+        <PresenceActorLine actor={post.author} size={44} showAddress />
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <Badge tone={CAT_TONE[post.category]}>{catLabelFor(post.category, L)}</Badge>
           <span className="text-[11px] leading-none text-slate-500">
             {relativeTime(post.createdAt, lang)}
           </span>

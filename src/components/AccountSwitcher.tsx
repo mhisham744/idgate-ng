@@ -140,9 +140,11 @@ function AccountOption({
         selected ? 'border-gate-300 bg-gate-50/60 ring-1 ring-gate-200' : 'border-slate-100 bg-white hover:bg-slate-50',
       )}
     >
-      <ActorLine actor={actor} size={40} />
-      {trailing}
-      {selected && <Check size={18} className="ms-auto shrink-0 text-gate-600" />}
+      <div className="min-w-0 flex-1">
+        <ActorLine actor={actor} size={40} />
+      </div>
+      {trailing && <div className="flex max-w-[46%] shrink-0 flex-wrap items-center justify-end gap-1">{trailing}</div>}
+      {selected && <Check size={18} className="shrink-0 text-gate-600" />}
     </button>
   )
 }

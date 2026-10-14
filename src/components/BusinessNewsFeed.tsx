@@ -1,21 +1,21 @@
 import { useState } from 'react'
-import { Newspaper, ExternalLink, RefreshCw, SlidersHorizontal, Power } from 'lucide-react'
+import { Newspaper, ExternalLink, RefreshCw, SlidersHorizontal, Power, Share2, Send } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { relativeTime } from '@/lib/identity'
 import { useActiveNewsContext, useEgyptNews } from '@/lib/news'
+import type { NewsItem } from '@/lib/news'
 import { INDUSTRY_LABELS } from '@/data/reference'
-import { Badge, Button, Card, Chip, Sheet } from '@/ui/primitives'
+import { Badge, Button, Card, Chip, Sheet, Textarea } from '@/ui/primitives'
 
 /**
- * Egypt business-news service feed (Strategy edition).
+ * Egypt business-news service feed (Strategy edition) — Aurora Glass.
  *
  * A free (key-less) external service surfaced at the top of Home, on by default
  * (people can opt out). Headlines are tuned to the identity the person is currently
- * acting as: a virtual personality inherits its entity's industry; a personal
- * account uses its career industry. The gear opens the feed's own preferences in
- * place (scope + turn-off), with a link out to the full Settings page.
+ * acting as. Each item carries the publisher's logo, links out, and can be shared
+ * into the feed as a post. The gear opens the feed's own preferences in place.
  */
 export function BusinessNewsFeed() {
   const nav = useNavigate()
@@ -25,10 +25,15 @@ export function BusinessNewsFeed() {
   const prefs = useStore((s) => s.newsFeed())
   const setNewsFeedScope = useStore((s) => s.setNewsFeedScope)
   const setNewsFeedEnabled = useStore((s) => s.setNewsFeedEnabled)
+  const addPost = useStore((s) => s.addPost)
+  const can = useStore((s) => s.can)
   const ctx = useActiveNewsContext()
   const { state, refresh } = useEgyptNews({ enabled: prefs.enabled, scope: prefs.scope, lang, ctx })
 
   const [prefsOpen, setPrefsOpen] = useState(false)
+  const [shareItem, setShareItem] = useState<NewsItem | null>(null)
+  const [shareText, setShareText] = useState('')
+  const canShare = can('post.send')
 
   if (!prefs.enabled) return null
 
@@ -40,88 +45,135 @@ export function BusinessNewsFeed() {
         ? (isRtl ? INDUSTRY_LABELS[ctx.industry].ar : INDUSTRY_LABELS[ctx.industry].en)
         : L('General business', 'أعمال عامة')
 
+  const openShare = (item: NewsItem) => {
+    setShareText(`${item.title}\n\n${L('via', 'عبر')} ${item.source}\n${item.link}`)
+    setShareItem(item)
+  }
+  const submitShare = () => {
+    const text = shareText.trim()
+    if (!text || !canShare) return
+    addPost(text, 'news')
+    setShareItem(null)
+    setShareText('')
+  }
+
   return (
-    <Card className="p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gate-50 text-gate-600">
+    <Card className="glow-gate overflow-hidden p-0">
+      {/* Hero header band */}
+      <div className="flex items-start justify-between gap-2 bg-gradient-to-br from-gate-500/10 to-teal-500/5 px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gate-500 to-gate-700 text-light shadow-sm shadow-gate-600/40">
             <Newspaper className="h-5 w-5" aria-hidden />
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-sm font-bold text-slate-800">{t('businessNews')}</span>
+            <div className="flex items-center gap-2">
+              <span className="truncate text-[15px] font-bold text-slate-800 text-glow">{t('businessNews')}</span>
               <Badge tone="gate">{t('newsServiceLabel')}</Badge>
             </div>
-            <div className="truncate text-[11px] text-slate-500">
+            <div className="truncate text-[11px] font-medium text-slate-500">
               {contextLabel}
               {ctx.isVirtual && ctx.company ? ` · ${ctx.company}` : ''}
             </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            onClick={refresh}
-            aria-label={t('newsRefresh')}
-            title={t('newsRefresh')}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
-          >
+          <IconButton onClick={refresh} label={t('newsRefresh')}>
             <RefreshCw className="h-4 w-4" aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPrefsOpen(true)}
-            aria-label={t('newsPrefs')}
-            title={t('newsPrefs')}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
-          >
+          </IconButton>
+          <IconButton onClick={() => setPrefsOpen(true)} label={t('newsPrefs')}>
             <SlidersHorizontal className="h-4 w-4" aria-hidden />
-          </button>
+          </IconButton>
         </div>
       </div>
 
-      {state.status === 'loading' && (
-        <p className="py-3 text-center text-xs text-slate-400">{t('newsLoading')}</p>
-      )}
+      <div className="px-2 pb-2 sm:px-3 sm:pb-3">
+        {state.status === 'loading' && (
+          <p className="py-6 text-center text-xs text-slate-400">{t('newsLoading')}</p>
+        )}
+        {state.status === 'unavailable' && (
+          <p className="py-6 text-center text-xs text-slate-400">{t('newsUnavailable')}</p>
+        )}
+        {state.status === 'empty' && (
+          <p className="py-6 text-center text-xs text-slate-400">{t('newsEmpty')}</p>
+        )}
 
-      {state.status === 'unavailable' && (
-        <p className="py-3 text-center text-xs text-slate-400">{t('newsUnavailable')}</p>
-      )}
-
-      {state.status === 'empty' && (
-        <p className="py-3 text-center text-xs text-slate-400">{t('newsEmpty')}</p>
-      )}
-
-      {state.status === 'ready' && (
-        <ul className="divide-y divide-slate-100">
-          {state.items.map((item) => (
-            <li key={item.id}>
-              <a
-                href={item.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group -mx-1 flex items-start gap-2 rounded-xl px-1 py-2.5 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+        {state.status === 'ready' && (
+          <ul className="space-y-1">
+            {state.items.map((item) => (
+              <li
+                key={item.id}
+                className="group flex items-start gap-3 rounded-2xl p-2 transition hover:bg-slate-500/5"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium leading-snug text-slate-800 text-start">
-                    {item.title}
-                  </p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500">
-                    <span className="font-medium text-gate-700">{item.source}</span>
-                    {item.publishedAt && (
-                      <>
-                        <span aria-hidden>·</span>
-                        <span>{relativeTime(item.publishedAt, lang)}</span>
-                      </>
-                    )}
+                <a
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-w-0 flex-1 items-start gap-3 focus-visible:outline-none"
+                >
+                  <Thumb src={item.image} source={item.source} />
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-slate-800 text-start">
+                      {item.title}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500">
+                      <span className="font-semibold text-gate-700">{item.source}</span>
+                      {item.publishedAt && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span>{relativeTime(item.publishedAt, lang)}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                </a>
+                <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
+                  {canShare && (
+                    <IconButton onClick={() => openShare(item)} label={t('newsShare')} small>
+                      <Share2 className="h-3.5 w-3.5" aria-hidden />
+                    </IconButton>
+                  )}
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={L('Open article', 'فتح المقال')}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:bg-slate-500/10 hover:text-gate-600"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  </a>
                 </div>
-                <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-gate-500" aria-hidden />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Share a headline into the feed as a post */}
+      <Sheet
+        open={!!shareItem}
+        onClose={() => setShareItem(null)}
+        title={t('newsShareTitle')}
+        footer={
+          <Button full onClick={submitShare} disabled={!shareText.trim()}>
+            <Send size={16} />
+            {t('newsSharePost')}
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          {shareItem && (
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-500/5 p-3">
+              <Thumb src={shareItem.image} source={shareItem.source} />
+              <div className="min-w-0">
+                <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-800">{shareItem.title}</p>
+                <p className="text-[11px] text-slate-500">{shareItem.source}</p>
+              </div>
+            </div>
+          )}
+          <Textarea value={shareText} onChange={(e) => setShareText(e.target.value)} rows={5} />
+          <p className="text-[11px] text-slate-400">{t('newsShareHint')}</p>
+        </div>
+      </Sheet>
 
       {/* Feed preferences — opened from the gear, in place */}
       <Sheet open={prefsOpen} onClose={() => setPrefsOpen(false)} title={t('businessNews')}>
@@ -146,7 +198,7 @@ export function BusinessNewsFeed() {
             )}
           </div>
 
-          <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+          <div className="flex flex-col gap-2 border-t border-slate-200/60 pt-4">
             <Button
               variant="secondary"
               full
@@ -173,4 +225,51 @@ export function BusinessNewsFeed() {
       </Sheet>
     </Card>
   )
+}
+
+/** Publisher-logo thumbnail with a graceful first-letter fallback. */
+function Thumb({ src, source }: { src: string; source: string }) {
+  const [failed, setFailed] = useState(false)
+  if (src && !failed) {
+    return (
+      <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/40 bg-white/70 shadow-sm dark:border-white/10 dark:bg-white/5">
+        <img src={src} alt="" className="h-6 w-6 object-contain" loading="lazy" onError={() => setFailed(true)} />
+      </span>
+    )
+  }
+  return (
+    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-gate-500/80 to-gate-700/80 text-sm font-bold text-light shadow-sm">
+      {source.trim().charAt(0).toUpperCase() || 'N'}
+    </span>
+  )
+}
+
+function IconButton({
+  onClick,
+  label,
+  children,
+  small,
+}: {
+  onClick: () => void
+  label: string
+  children: React.ReactNode
+  small?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cxBtn(small)}
+    >
+      {children}
+    </button>
+  )
+}
+
+function cxBtn(small?: boolean): string {
+  const base =
+    'inline-flex items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-500/10 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400'
+  return `${base} ${small ? 'h-7 w-7' : 'h-9 w-9'}`
 }

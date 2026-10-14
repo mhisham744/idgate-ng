@@ -3,6 +3,16 @@ import { persist } from 'zustand/middleware'
 
 export type Theme = 'light' | 'dark'
 
+/** First-launch default: follow the device appearance. Once the person toggles,
+ *  the persisted choice wins (persist merges stored state over this initial). */
+function deviceTheme(): Theme {
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
 interface ThemeStore {
   theme: Theme
   setTheme: (t: Theme) => void
@@ -13,7 +23,7 @@ interface ThemeStore {
 export const useTheme = create<ThemeStore>()(
   persist(
     (set, get) => ({
-      theme: 'light',
+      theme: deviceTheme(),
       setTheme: (theme) => set({ theme }),
       toggle: () => set({ theme: get().theme === 'light' ? 'dark' : 'light' }),
     }),

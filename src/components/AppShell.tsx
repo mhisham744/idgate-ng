@@ -93,9 +93,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const wide = location.pathname.startsWith('/settings/entity/')
 
   return (
-    <div className="flex h-dvh w-full bg-slate-100 text-slate-900" dir={dir}>
+    <div className="flex h-dvh w-full aurora-app text-slate-900" dir={dir}>
       {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
-      <aside className="hidden w-72 shrink-0 flex-col border-e border-slate-200 bg-white lg:flex">
+      <aside className="hidden w-72 shrink-0 flex-col border-e border-white/10 glass-nav lg:flex">
         <div className="flex items-center gap-2.5 px-6 py-5">
           <img src="gate.svg" alt="" className="h-8 w-8" />
           <div className="leading-tight">
@@ -172,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="shrink-0 border-t border-slate-200 bg-white/95 px-1 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur lg:hidden">
+        <nav className="shrink-0 border-t border-white/10 glass-nav px-1 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-1.5 lg:hidden">
           <div className="flex items-stretch justify-around">
             {TABS.map((tab) => {
               const isActive = location.pathname.startsWith(tab.to)
