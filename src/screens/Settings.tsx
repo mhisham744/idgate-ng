@@ -25,6 +25,7 @@ import {
   Sun,
   Moon,
   Inbox,
+  Newspaper,
   RotateCcw,
   LogOut,
   Send,
@@ -52,6 +53,9 @@ export function Settings() {
   const canCommunicate = useStore((s) => s.canCommunicate)
   const inboxScope = useStore((s) => s.inboxScope())
   const setInboxScope = useStore((s) => s.setInboxScope)
+  const newsFeed = useStore((s) => s.newsFeed())
+  const setNewsFeedEnabled = useStore((s) => s.setNewsFeedEnabled)
+  const setNewsFeedScope = useStore((s) => s.setNewsFeedScope)
   const resolve = useResolveActor()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
@@ -230,7 +234,29 @@ export function Settings() {
               <Inbox size={18} className="shrink-0 text-slate-400" />
               {L('Unified inbox', 'صندوق موحّد')}
             </div>
-            <Toggle checked={inboxScope === 'unified'} onChange={(v) => setInboxScope(v ? 'unified' : 'active')} />
+            <Toggle checked={inboxScope === 'unified'} onChange={(v) => setInboxScope(v ? 'unified' : 'active')} label={L('Unified inbox', 'صندوق موحّد')} />
+          </div>
+          <div className="border-t border-slate-100 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Newspaper size={18} className="shrink-0 text-slate-400" />
+                {t('businessNews')}
+              </div>
+              <Toggle checked={newsFeed.enabled} onChange={setNewsFeedEnabled} label={t('businessNews')} />
+            </div>
+            <p className="mt-1 text-[11px] leading-snug text-slate-400 text-start">
+              {t('businessNewsDesc')}
+            </p>
+            {newsFeed.enabled && (
+              <div className="mt-2.5 flex gap-2">
+                <Chip active={newsFeed.scope === 'auto'} onClick={() => setNewsFeedScope('auto')}>
+                  {t('newsScopeAuto')}
+                </Chip>
+                <Chip active={newsFeed.scope === 'all'} onClick={() => setNewsFeedScope('all')}>
+                  {t('newsScopeAll')}
+                </Chip>
+              </div>
+            )}
           </div>
         </Card>
       </div>

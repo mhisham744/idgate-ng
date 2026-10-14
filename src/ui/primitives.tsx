@@ -139,6 +139,7 @@ export function Chip({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cx(
         'whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         active ? 'bg-gate-600 text-light shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50',
@@ -266,9 +267,22 @@ export function Modal({ open, onClose, children }: { open: boolean; onClose: () 
 }
 
 // ── Toggle ─────────────────────────────────────────────────────────────────────
-export function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+export function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  /** Accessible name for the switch (its on-screen label lives in an adjacent element). */
+  label?: string
+}) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
       onClick={() => onChange(!checked)}
       className={cx(
         'relative h-6 w-10 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',

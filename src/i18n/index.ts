@@ -70,6 +70,24 @@ export const STRINGS: Dict = {
   writePost: { en: "What's happening?", ar: 'بماذا تفكر؟' },
   writeComment: { en: 'Write a comment…', ar: 'اكتب تعليقًا…' },
 
+  // home — Egypt business-news service feed
+  businessNews: { en: 'Egypt business news', ar: 'أخبار الأعمال في مصر' },
+  businessNewsDesc: {
+    en: 'Free headlines from across the web, tuned to the identity you are acting as.',
+    ar: 'عناوين مجانية من مختلف المصادر، مخصّصة للصفة التي تعمل بها.',
+  },
+  newsServiceLabel: { en: 'Service feed', ar: 'تغذية خدمية' },
+  newsScopeAuto: { en: 'For this identity', ar: 'حسب هذه الصفة' },
+  newsScopeAll: { en: 'All Egypt business', ar: 'كل أعمال مصر' },
+  newsUnavailable: {
+    en: 'Live news needs the hosted build — not available here.',
+    ar: 'تحتاج الأخبار المباشرة النسخة المستضافة — غير متاحة هنا.',
+  },
+  newsEmpty: { en: 'No fresh headlines right now.', ar: 'لا توجد عناوين جديدة الآن.' },
+  newsLoading: { en: 'Fetching headlines…', ar: 'جارٍ جلب العناوين…' },
+  newsRefresh: { en: 'Refresh', ar: 'تحديث' },
+  newsManage: { en: 'Manage in Settings', ar: 'الإدارة من الإعدادات' },
+
   // messages
   newMessage: { en: 'New Message', ar: 'رسالة جديدة' },
   to: { en: 'To', ar: 'إلى' },

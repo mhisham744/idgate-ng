@@ -7,6 +7,7 @@ import { actorKey, relativeTime } from '@/lib/identity'
 import { useResolveActor } from '@/components/identity'
 import { PresenceAvatar } from '@/components/AccountSwitcher'
 import { useMyInbox } from '@/lib/userScope'
+import { BusinessNewsFeed } from '@/components/BusinessNewsFeed'
 
 import type { ActorRef, Post, ReactionKind } from '@/types'
 import { REACTION_EMOJI, REACTION_ORDER } from '@/types'
@@ -165,6 +166,9 @@ export function Home() {
           <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
         )}
       </Card>
+
+      {/* Egypt business-news service feed (opt-in; renders nothing when off) */}
+      <BusinessNewsFeed />
 
       {/* Feed */}
       {visible.length === 0 ? (

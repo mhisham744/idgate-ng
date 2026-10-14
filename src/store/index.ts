@@ -45,6 +45,14 @@ import { TRANSACTIONS, makeInternalCode } from '@/data/reference'
 // ─────────────────────────────────────────────────────────────────────────────
 export type Ability = 'create' | 'change' | 'display' | 'delete'
 
+/**
+ * Stable default for the business-news feed preference. MUST be a single shared
+ * reference: the `newsFeed()` selector is consumed via `useStore((s) => s.newsFeed())`,
+ * and zustand v5 compares snapshots with Object.is and no equality fn — returning a
+ * fresh object literal on every call would loop React forever ("Maximum update depth").
+ */
+const DEFAULT_NEWS_PREFS: { enabled: boolean; scope: 'auto' | 'all' } = { enabled: false, scope: 'auto' }
+
 /** Payload collected by the new-account KYC wizard. */
 export interface NewNormalInput {
   firstName: string
@@ -106,6 +114,9 @@ interface State extends AppData {
   /** Inbox scope for Messages/Notifications, keyed by normalId. 'unified' = all
    *  owned identities; 'active' = only the currently active account. */
   inboxScopeByNormal: Record<string, 'unified' | 'active'>
+  /** Egypt business-news service feed preference, keyed by normalId. Opt-in (off by
+   *  default); 'auto' scope tailors headlines to the active personality's industry. */
+  newsFeedByNormal: Record<string, { enabled: boolean; scope: 'auto' | 'all' }>
 
   // ── selectors ──────────────────────────────────────────────────────────────
   currentNormal: () => import('@/types').NormalCharacter | undefined
@@ -116,6 +127,8 @@ interface State extends AppData {
   myPresence: () => import('@/types').Presence
   /** The signed-in person's inbox scope (defaults to 'unified'). */
   inboxScope: () => 'unified' | 'active'
+  /** The signed-in person's business-news feed preference (defaults to off/auto). */
+  newsFeed: () => { enabled: boolean; scope: 'auto' | 'all' }
   /** Presence for any actor — resolves the underlying person (host for virtuals). */
   presenceOf: (ref: ActorRef) => Presence
   entity: (id: string) => LegalEntity | undefined
@@ -157,6 +170,10 @@ interface State extends AppData {
   setOnboarded: (v: boolean) => void
   setPresence: (p: import('@/types').Presence) => void
   setInboxScope: (v: 'unified' | 'active') => void
+  /** Opt into/out of the Egypt business-news service feed. */
+  setNewsFeedEnabled: (v: boolean) => void
+  /** Choose news relevance: 'auto' (by active personality's industry) or 'all'. */
+  setNewsFeedScope: (v: 'auto' | 'all') => void
 
   // ── posts ─────────────────────────────────────────────────────────────────────
   addPost: (body: string, category: Post['category'], audience?: string[], image?: string) => void
@@ -395,6 +412,7 @@ export const useStore = create<State>()(
       onboarded: false,
       presenceByNormal: { n_hossam: 'active', n_mohamed: 'busy', n_sara: 'away' },
       inboxScopeByNormal: {},
+      newsFeedByNormal: {},
 
       // ── selectors ────────────────────────────────────────────────────────────
       currentNormal: () => get().normals.find((n) => n.id === get().normalId),
@@ -414,6 +432,10 @@ export const useStore = create<State>()(
       inboxScope: () => {
         const { normalId, inboxScopeByNormal } = get()
         return (normalId && inboxScopeByNormal[normalId]) || 'unified'
+      },
+      newsFeed: () => {
+        const { normalId, newsFeedByNormal } = get()
+        return (normalId && newsFeedByNormal[normalId]) || DEFAULT_NEWS_PREFS
       },
       presenceOf: (ref) => {
         const normalId = ref.kind === 'normal' ? ref.normalId : get().virtual(ref.virtualId)?.linkedNormalId
@@ -637,6 +659,26 @@ export const useStore = create<State>()(
         const { normalId } = get()
         if (!normalId) return
         set((s) => ({ inboxScopeByNormal: { ...s.inboxScopeByNormal, [normalId]: v } }))
+      },
+      setNewsFeedEnabled: (v) => {
+        const { normalId } = get()
+        if (!normalId) return
+        set((s) => ({
+          newsFeedByNormal: {
+            ...s.newsFeedByNormal,
+            [normalId]: { scope: s.newsFeedByNormal[normalId]?.scope ?? 'auto', enabled: v },
+          },
+        }))
+      },
+      setNewsFeedScope: (v) => {
+        const { normalId } = get()
+        if (!normalId) return
+        set((s) => ({
+          newsFeedByNormal: {
+            ...s.newsFeedByNormal,
+            [normalId]: { enabled: s.newsFeedByNormal[normalId]?.enabled ?? false, scope: v },
+          },
+        }))
       },
 
       // ── posts ──────────────────────────────────────────────────────────────────
@@ -1600,11 +1642,12 @@ export const useStore = create<State>()(
           onboarded: false,
           presenceByNormal: {},
           inboxScopeByNormal: {},
+          newsFeedByNormal: {},
         }),
     }),
     {
       name: 'idgate.app',
-      version: 8,
+      version: 9,
       // v2: notifications gained per-recipient status + private threads.
       // v3: added communicationAreas; groups gained positionNames[] (from single positionName).
       // v4: structure node codes are strings (hierarchical); coerce any legacy numeric codes.
@@ -1669,6 +1712,12 @@ export const useStore = create<State>()(
           if (!Array.isArray(persisted.tawkeels)) persisted.tawkeels = []
           if (Array.isArray(persisted.vacancies)) {
             persisted.vacancies = persisted.vacancies.map((v: any) => ({ status: 'open', shortlisted: [], hires: [], ...v }))
+          }
+        }
+        // v9 (Strategy edition): per-person business-news service feed preference.
+        if (persisted && from < 9) {
+          if (typeof persisted.newsFeedByNormal !== 'object' || persisted.newsFeedByNormal === null) {
+            persisted.newsFeedByNormal = {}
           }
         }
         return persisted
