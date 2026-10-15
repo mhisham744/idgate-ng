@@ -101,6 +101,9 @@ export const STRINGS: Dict = {
 
   // notifications
   createNotification: { en: 'Create Notification', ar: 'إنشاء تنبيه' },
+  createValuation: { en: 'Create Valuation', ar: 'إنشاء تقييم' },
+  createVote: { en: 'Create Vote', ar: 'إنشاء تصويت' },
+  createElection: { en: 'Create Election', ar: 'إنشاء انتخاب' },
   pending: { en: 'Pending', ar: 'قيد الانتظار' },
   accept: { en: 'Accept', ar: 'قبول' },
   reject: { en: 'Reject', ar: 'رفض' },

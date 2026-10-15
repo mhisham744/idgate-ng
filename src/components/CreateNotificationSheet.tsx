@@ -95,7 +95,8 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
     to.length > 0 &&
     subject.trim().length > 0 &&
     body.trim().length > 0 &&
-    targetDate.length > 0
+    targetDate.length > 0 &&
+    targetTime.length > 0
 
   const onFiles = (files: FileList | null) => {
     if (!files) return
@@ -180,7 +181,7 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
         <Field label={t('targetDate')} required>
           <Input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
         </Field>
-        <Field label={t('targetTime')} hint={t('optional')}>
+        <Field label={t('targetTime')} required>
           <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
         </Field>
         <Field label={t('targetVenue')} hint={t('optional')}>

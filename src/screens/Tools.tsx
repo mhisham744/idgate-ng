@@ -221,7 +221,7 @@ function AssessmentComposeSheet({
     onClose()
   }
 
-  const title = toolKey ? t(kind === 'valuation' ? 'valuation' : kind === 'voting' ? 'voting' : 'election') : undefined
+  const title = toolKey ? t(kind === 'valuation' ? 'createValuation' : kind === 'voting' ? 'createVote' : 'createElection') : undefined
 
   return (
     <Sheet
