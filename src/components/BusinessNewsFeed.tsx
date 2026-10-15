@@ -8,6 +8,7 @@ import { useActiveNewsContext, useEgyptNews } from '@/lib/news'
 import type { NewsItem } from '@/lib/news'
 import { INDUSTRY_LABELS } from '@/data/reference'
 import { Badge, Button, Card, Chip, Sheet, Textarea } from '@/ui/primitives'
+import { LinkThumb } from '@/components/LinkCard'
 
 /**
  * Egypt business-news service feed (Strategy edition) — Aurora Glass.
@@ -46,13 +47,19 @@ export function BusinessNewsFeed() {
         : L('General business', 'أعمال عامة')
 
   const openShare = (item: NewsItem) => {
-    setShareText(`${item.title}\n\n${L('via', 'عبر')} ${item.source}\n${item.link}`)
+    setShareText('')
     setShareItem(item)
   }
   const submitShare = () => {
-    const text = shareText.trim()
-    if (!text || !canShare) return
-    addPost(text, 'news')
+    if (!shareItem || !canShare) return
+    // Attach the article as a structured link-card — never dump the raw URL in the body.
+    addPost(shareText.trim(), 'news', undefined, undefined, {
+      url: shareItem.link,
+      title: shareItem.title,
+      source: shareItem.source,
+      image: shareItem.image,
+      domain: shareItem.domain,
+    })
     setShareItem(null)
     setShareText('')
   }
@@ -102,7 +109,7 @@ export function BusinessNewsFeed() {
             {state.items.map((item) => (
               <li
                 key={item.id}
-                className="group flex items-start gap-3 rounded-2xl p-2 transition hover:bg-slate-500/5"
+                className="group flex items-start gap-3 rounded-2xl p-2 ring-1 ring-inset ring-transparent transition hover:bg-slate-500/[0.04] hover:ring-slate-900/5 dark:hover:ring-white/10"
               >
                 <a
                   href={item.link}
@@ -154,7 +161,7 @@ export function BusinessNewsFeed() {
         onClose={() => setShareItem(null)}
         title={t('newsShareTitle')}
         footer={
-          <Button full onClick={submitShare} disabled={!shareText.trim()}>
+          <Button full onClick={submitShare}>
             <Send size={16} />
             {t('newsSharePost')}
           </Button>
@@ -162,16 +169,24 @@ export function BusinessNewsFeed() {
       >
         <div className="space-y-3">
           {shareItem && (
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-500/5 p-3">
-              <Thumb src={shareItem.image} source={shareItem.source} />
-              <div className="min-w-0">
-                <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-800">{shareItem.title}</p>
-                <p className="text-[11px] text-slate-500">{shareItem.source}</p>
+            <div className="link-card pointer-events-none flex items-stretch overflow-hidden rounded-2xl">
+              <LinkThumb src={shareItem.image} source={shareItem.source} />
+              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-3.5 py-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gate-700">
+                  <span className="truncate">{shareItem.source}</span>
+                  {shareItem.domain && (
+                    <>
+                      <span className="text-slate-300" aria-hidden>·</span>
+                      <span className="truncate font-medium normal-case tracking-normal text-slate-500">{shareItem.domain}</span>
+                    </>
+                  )}
+                </div>
+                <p className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-slate-800 text-start">{shareItem.title}</p>
               </div>
             </div>
           )}
-          <Textarea value={shareText} onChange={(e) => setShareText(e.target.value)} rows={5} />
-          <p className="text-[11px] text-slate-400">{t('newsShareHint')}</p>
+          <Textarea value={shareText} onChange={(e) => setShareText(e.target.value)} rows={4} placeholder={t('newsShareCaption')} />
+          <p className="text-[11px] text-slate-500">{t('newsShareHint')}</p>
         </div>
       </Sheet>
 

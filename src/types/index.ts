@@ -435,12 +435,26 @@ export interface PostComment {
   reactionsBy: Record<string, ReactionKind>
 }
 
+/** A shared external article attached to a post (e.g. from the business-news feed).
+ *  Rendered as a tidy link-preview card — never a raw URL in the body. */
+export interface PostLink {
+  url: string
+  title: string
+  source: string
+  /** Publisher logo / thumbnail (remote URL). */
+  image?: string
+  /** Display domain, e.g. "ahram.org.eg". */
+  domain?: string
+}
+
 export interface Post {
   id: string
   author: ActorRef
   body: string
   /** Optional attached image (in-session dataUrl; stripped before persist like attachments). */
   image?: string
+  /** Optional shared article (link-preview card). */
+  link?: PostLink
   createdAt: string
   category: 'friend' | 'news' | 'report' | 'event' | 'advertising' | 'data'
   /** actorKey → reaction kind (👍👎😊😢). The source of truth for reaction counts. */

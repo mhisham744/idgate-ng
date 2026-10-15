@@ -176,7 +176,7 @@ interface State extends AppData {
   setNewsFeedScope: (v: 'auto' | 'all') => void
 
   // ── posts ─────────────────────────────────────────────────────────────────────
-  addPost: (body: string, category: Post['category'], audience?: string[], image?: string) => void
+  addPost: (body: string, category: Post['category'], audience?: string[], image?: string, link?: import('@/types').PostLink) => void
   /** Set/toggle the active account's reaction on a post (clicking the same kind clears it). */
   reactPost: (postId: string, kind: ReactionKind) => void
   /** Set/toggle the active account's reaction on a reply. */
@@ -684,7 +684,7 @@ export const useStore = create<State>()(
       },
 
       // ── posts ──────────────────────────────────────────────────────────────────
-      addPost: (body, category, audience, image) => {
+      addPost: (body, category, audience, image, link) => {
         const { active } = get()
         if (!active) return
         const post: Post = {
@@ -692,6 +692,7 @@ export const useStore = create<State>()(
           author: active as ActorRef,
           body,
           image,
+          link,
           category,
           createdAt: new Date().toISOString(),
           reactionsBy: {},

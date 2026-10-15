@@ -95,6 +95,7 @@ export const STRINGS: Dict = {
   newsShare: { en: 'Share to feed', ar: 'مشاركة في الصفحة' },
   newsShareTitle: { en: 'Share headline', ar: 'مشاركة العنوان' },
   newsSharePost: { en: 'Post to feed', ar: 'نشر في الصفحة' },
+  newsShareCaption: { en: 'Add a note (optional)…', ar: 'أضف تعليقًا (اختياري)…' },
   newsShareHint: {
     en: 'This posts to your feed as the identity you are acting as.',
     ar: 'يُنشر في صفحتك بالصفة التي تعمل بها.',
@@ -224,6 +225,7 @@ export const STRINGS: Dict = {
   reactDislike: { en: 'Dislike', ar: 'عدم إعجاب' },
   reactHappy: { en: 'Happy', ar: 'سعيد' },
   reactSad: { en: 'Sad', ar: 'حزين' },
+  reactions: { en: 'Reactions', ar: 'التفاعلات' },
   addImage: { en: 'Add image', ar: 'إضافة صورة' },
   removeImage: { en: 'Remove image', ar: 'إزالة الصورة' },
   addPhoto: { en: 'Add photo', ar: 'إضافة صورة' },

@@ -12,6 +12,8 @@ export interface NewsItem {
   snippet: string
   /** Publisher-logo thumbnail (may be empty). */
   image: string
+  /** Publisher display domain, e.g. "ahram.org.eg". */
+  domain: string
 }
 
 /** Per-person preference for the business-news service feed. */

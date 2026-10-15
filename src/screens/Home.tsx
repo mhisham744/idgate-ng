@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
-import { MessageCircle, Forward, Bookmark, Send, ImagePlus, X } from 'lucide-react'
+import { MessageCircle, Forward, Bookmark, Send, ImagePlus, X, BadgeCheck, ThumbsUp, ThumbsDown, Smile, Frown } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { actorKey, relativeTime } from '@/lib/identity'
@@ -8,9 +8,10 @@ import { useResolveActor } from '@/components/identity'
 import { PresenceAvatar } from '@/components/AccountSwitcher'
 import { useMyInbox } from '@/lib/userScope'
 import { BusinessNewsFeed } from '@/components/BusinessNewsFeed'
+import { LinkCard } from '@/components/LinkCard'
 
-import type { ActorRef, Post, ReactionKind } from '@/types'
-import { REACTION_EMOJI, REACTION_ORDER } from '@/types'
+import type { ActorRef, Post, PostLink, ReactionKind } from '@/types'
+import { REACTION_ORDER } from '@/types'
 import {
   cx,
   Button,
@@ -59,6 +60,15 @@ const catLabelFor = (c: Category, L: (en: string, ar: string) => string): string
   }
 }
 
+/** Reaction kind → lucide line icon (replaces raw system emoji). */
+const REACT_ICON: Record<ReactionKind, typeof ThumbsUp> = {
+  up: ThumbsUp,
+  down: ThumbsDown,
+  happy: Smile,
+  sad: Frown,
+}
+const isPositive = (k: ReactionKind) => k === 'up' || k === 'happy'
+
 export function Home() {
   const { t, lang, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
@@ -103,9 +113,12 @@ export function Home() {
   const addPost = useStore((s) => s.addPost)
   const reactPost = useStore((s) => s.reactPost)
   const savePost = useStore((s) => s.savePost)
+  const presenceOf = useStore((s) => s.presenceOf)
+  const resolve = useResolveActor()
   const inbox = useMyInbox()
 
   const canSend = can('post.send')
+  const me = active ? resolve(active) : null
 
   const [body, setBody] = useState('')
   const [image, setImage] = useState<string | null>(null)
@@ -144,7 +157,7 @@ export function Home() {
       {/* Hero */}
       <div className="flex items-end justify-between gap-3 px-1 pt-1">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 text-glow">{t('home')}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-aurora">{t('home')}</h1>
           <p className="text-[12px] font-medium text-slate-500">
             {L('Your verified network, live.', 'شبكتك الموثّقة، مباشرة.')}
           </p>
@@ -152,55 +165,68 @@ export function Home() {
       </div>
 
       {/* Composer */}
-      <Card className="p-4 space-y-3">
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={t('writePost')}
-          rows={3}
-          disabled={!canSend}
-        />
-        {image && (
-          <div className="relative inline-block">
-            <img
-              src={image}
-              alt=""
-              className="max-h-48 rounded-2xl border border-slate-100 object-cover"
+      <Card className="post-card p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          {me && (
+            <span className={cx('avatar-ring mt-0.5 shrink-0', me.isVirtual && 'sq')}>
+              <span className="block rounded-full bg-white p-[1.5px] dark:bg-white/10">
+                <PresenceAvatar
+                  name={me.displayName}
+                  color={me.color}
+                  size={40}
+                  square={me.isVirtual}
+                  presence={active ? presenceOf(active) : 'active'}
+                  photo={me.photo}
+                />
+              </span>
+            </span>
+          )}
+          <div className="min-w-0 flex-1 space-y-3">
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder={t('writePost')}
+              rows={3}
+              disabled={!canSend}
+              className="rounded-2xl border-transparent bg-slate-500/[0.05] ring-1 ring-inset ring-slate-900/[0.06] focus:bg-white focus:ring-gate-200 dark:bg-white/5 dark:ring-white/10 dark:focus:bg-white/10"
             />
-            <button
-              type="button"
-              onClick={() => setImage(null)}
-              aria-label={t('removeImage')}
-              className="absolute end-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-light transition hover:bg-black/70"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {image && (
+              <div className="relative inline-block">
+                <img
+                  src={image}
+                  alt=""
+                  className="max-h-48 rounded-2xl object-cover ring-1 ring-slate-900/5 dark:ring-white/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  aria-label={t('removeImage')}
+                  className="absolute end-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-light backdrop-blur-sm transition hover:bg-black/70"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {canSend ? (
+              <div className="flex items-center justify-between gap-2 border-t border-slate-900/[0.06] pt-3 dark:border-white/10">
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickImage} />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label={t('addImage')}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-2 text-slate-500 transition hover:bg-gate-500/10 hover:text-gate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
+                <Button onClick={submit} disabled={!body.trim() && !image} className="gap-1.5">
+                  <Send className="h-4 w-4" aria-hidden /> {t('send')}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
+            )}
           </div>
-        )}
-        {canSend ? (
-          <div className="flex items-center justify-between gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={pickImage}
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              aria-label={t('addImage')}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-            >
-              <ImagePlus className="h-5 w-5" />
-            </button>
-            <Button onClick={submit} disabled={!body.trim() && !image}>
-              {t('send')}
-            </Button>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500 text-start">{t('noPermission')}</p>
-        )}
+        </div>
       </Card>
 
       {/* Egypt business-news service feed (opt-in; renders nothing when off) */}
@@ -233,6 +259,46 @@ export function Home() {
   )
 }
 
+/** Render post body with bare URLs turned into tidy truncated links. */
+function Linkify({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g)
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!/^https?:\/\//.test(part)) return <span key={i}>{part}</span>
+        // Don't fold trailing sentence punctuation / closing brackets into the link.
+        const m = part.match(/[).,!?;:\]]+$/)
+        const url = m ? part.slice(0, part.length - m[0].length) : part
+        const tail = m ? m[0] : ''
+        return (
+          <span key={i}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              dir="ltr"
+              className="font-medium text-gate-700 underline decoration-gate-300 underline-offset-2 hover:text-gate-800"
+            >
+              {prettyUrl(url)}
+            </a>
+            {tail}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+function prettyUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '')
+    return u.pathname.length > 1 ? `${host}${u.pathname.length > 16 ? u.pathname.slice(0, 16) + '…' : u.pathname}` : host
+  } catch {
+    return url.length > 40 ? url.slice(0, 40) + '…' : url
+  }
+}
+
 function PostCard({
   post,
   index,
@@ -254,6 +320,9 @@ function PostCard({
   const can = useStore((s) => s.can)
   const commentPost = useStore((s) => s.commentPost)
   const reactComment = useStore((s) => s.reactComment)
+  const presenceOf = useStore((s) => s.presenceOf)
+  const resolve = useResolveActor()
+  const ra = resolve(post.author)
 
   const [open, setOpen] = useState(false)
   const [comment, setComment] = useState('')
@@ -271,46 +340,74 @@ function PostCard({
   }
 
   return (
-    <Card className="p-4 space-y-3 animate-fade-in" style={{ animationDelay: `${index * 40}ms` }}>
-      <div className="flex items-start justify-between gap-2">
-        <PresenceActorLine actor={post.author} size={44} showAddress />
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <Badge tone={CAT_TONE[post.category]}>{catLabelFor(post.category, L)}</Badge>
-          <span className="text-[11px] leading-none text-slate-500">
-            {relativeTime(post.createdAt, lang)}
+    <Card
+      className="post-card p-4 sm:p-5 space-y-3.5 animate-fade-in transition-transform duration-200 hover:-translate-y-0.5 active:scale-[0.997]"
+      style={{ animationDelay: `${index * 40}ms` }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={cx('avatar-ring shrink-0', ra.isVirtual && 'sq')}>
+            <span className="block rounded-full bg-white p-[1.5px] dark:bg-white/10">
+              <PresenceAvatar
+                name={ra.displayName}
+                color={ra.color}
+                size={44}
+                square={ra.isVirtual}
+                presence={presenceOf(post.author)}
+                photo={ra.photo}
+              />
+            </span>
           </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate text-[15px] font-semibold leading-tight text-slate-800">{ra.displayName}</span>
+              {!ra.isVirtual && <BadgeCheck className="h-4 w-4 shrink-0 text-gate-500" aria-label={L('Verified', 'موثّق')} />}
+            </div>
+            {ra.address && (
+              <div className="truncate font-address text-[11px] leading-tight text-gate-700">
+                <bdi>{ra.address}</bdi>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Badge tone={CAT_TONE[post.category]} className="shadow-sm">{catLabelFor(post.category, L)}</Badge>
+          <span className="text-[11px] leading-none text-slate-500 tabular-nums">{relativeTime(post.createdAt, lang)}</span>
         </div>
       </div>
 
       {post.body && (
-        <p className="text-[15px] leading-relaxed text-slate-800 whitespace-pre-wrap text-start">
-          {post.body}
+        <p className="text-[15px] leading-[1.6] text-slate-700 whitespace-pre-wrap text-start [overflow-wrap:anywhere]">
+          <Linkify text={post.body} />
         </p>
       )}
+
+      {post.link && <LinkCard link={post.link} />}
 
       {post.image && (
         <img
           src={post.image}
-          alt=""
-          className="max-h-80 w-full rounded-2xl border border-slate-100 object-cover"
+          alt={L('Attached image', 'صورة مرفقة')}
+          className="max-h-80 w-full rounded-2xl object-cover ring-1 ring-slate-900/5 dark:ring-white/10"
         />
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-1 text-slate-500 border-t border-slate-100 -mx-4 px-3 pt-2 mt-1">
+      <div className="mt-1 flex items-center gap-1 overflow-x-auto no-scrollbar rounded-2xl bg-slate-500/[0.04] px-1.5 py-1 ring-1 ring-inset ring-slate-900/5 dark:bg-white/[0.03] dark:ring-white/10">
         <Reactions reactionsBy={post.reactionsBy} mine={myReaction} onReact={onReact} />
         <ActionButton
           active={open}
           onClick={() => setOpen((v) => !v)}
-          icon={<MessageCircle className="w-4 h-4" />}
+          icon={<MessageCircle className="w-4 h-4" aria-hidden />}
           label={String(post.comments.length)}
-          activeClass="text-gate-600 bg-gate-50"
+          ariaLabel={t('comments')}
+          activeClass="text-gate-700 bg-gate-500/10"
         />
         <ActionButton
           onClick={() => {}}
           disabled={!canForward}
-          icon={<Forward className="w-4 h-4" />}
-          label={t('forward')}
+          icon={<Forward className="w-4 h-4" aria-hidden />}
+          ariaLabel={t('forward')}
         />
         <div className="flex-1" />
         <ActionButton
@@ -318,13 +415,13 @@ function PostCard({
           onClick={onSave}
           ariaLabel={saved ? t('saved') : t('save')}
           icon={<Bookmark className={cx('w-4 h-4', saved && 'fill-current')} aria-hidden />}
-          activeClass="text-gate-600 bg-gate-50"
+          activeClass="text-gate-700 bg-gate-500/10"
         />
       </div>
 
       {/* Comments */}
       {open && (
-        <div className="space-y-3 border-t border-slate-100 pt-3">
+        <div className="space-y-3 border-t border-slate-900/5 pt-3 dark:border-white/10">
           {post.comments.length === 0 ? (
             <p className="text-xs text-slate-500 text-start">{t('comments')}</p>
           ) : (
@@ -363,8 +460,9 @@ function PostCard({
                 size="sm"
                 onClick={submitComment}
                 disabled={!comment.trim()}
+                aria-label={t('send')}
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4" aria-hidden />
               </Button>
             </div>
           ) : (
@@ -406,7 +504,7 @@ function ActionButton({
           ? 'text-slate-300 cursor-not-allowed'
           : active
             ? activeClass
-            : 'text-slate-500 hover:bg-slate-100',
+            : 'text-slate-500 hover:bg-slate-500/10',
       )}
     >
       {icon}
@@ -440,10 +538,16 @@ function Reactions({
     }
   }
   return (
-    <div className="flex items-center gap-0.5">
+    <div
+      role="group"
+      aria-label={t('reactions')}
+      className="inline-flex items-center gap-0.5 rounded-full bg-slate-500/5 p-0.5 ring-1 ring-inset ring-slate-900/5 dark:bg-white/5 dark:ring-white/10"
+    >
       {REACTION_ORDER.map((kind) => {
+        const Icon = REACT_ICON[kind]
         const count = values.filter((v) => v === kind).length
         const active = mine === kind
+        const pos = isPositive(kind)
         return (
           <button
             key={kind}
@@ -453,12 +557,20 @@ function Reactions({
             aria-pressed={active}
             title={label(kind)}
             className={cx(
-              'inline-flex min-h-[32px] items-center gap-1 rounded-full px-1.5 py-1 text-xs font-medium transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
-              active ? 'bg-gate-50 text-gate-700 ring-1 ring-gate-200' : 'text-slate-500 hover:bg-slate-100',
+              'inline-flex min-h-[30px] items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold transition-all active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent',
+              active
+                ? pos
+                  ? 'bg-white text-gate-700 shadow-sm ring-1 ring-gate-200 dark:bg-white/10'
+                  : 'bg-white text-rose-600 shadow-sm ring-1 ring-rose-200 dark:bg-white/10 dark:text-rose-400'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-700',
             )}
           >
-            <span className="text-sm leading-none">{REACTION_EMOJI[kind]}</span>
-            {count > 0 && <span className="tabular-nums">{count}</span>}
+            <Icon
+              className={cx('h-4 w-4', active && (pos ? 'fill-gate-500/15' : 'fill-rose-500/15'))}
+              strokeWidth={active ? 2.3 : 2}
+              aria-hidden
+            />
+            {count > 0 && <span className="tabular-nums leading-none">{count}</span>}
           </button>
         )
       })}

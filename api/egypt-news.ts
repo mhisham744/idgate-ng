@@ -29,6 +29,8 @@ type NewsItem = {
   /** Publisher logo thumbnail (keyless Google favicon service). Google News search
    *  RSS carries no inline article photos, so we show the real source's brand mark. */
   image: string
+  /** Display domain of the publisher, e.g. "ahram.org.eg". */
+  domain: string
 }
 
 const RSS_BASE = process.env.NEWS_RSS_BASE || 'https://news.google.com/rss/search'
@@ -120,6 +122,7 @@ function parseRss(xml: string): NewsItem[] {
       const d = new Date(pub)
       if (!Number.isNaN(d.getTime())) publishedAt = d.toISOString()
     }
+    const srcUrl = sourceUrlOf(b)
     items.push({
       id: `news_${i}_${hashish(link)}`,
       title: title.trim(),
@@ -127,7 +130,8 @@ function parseRss(xml: string): NewsItem[] {
       source: source.trim(),
       publishedAt,
       snippet: snippet.trim(),
-      image: faviconFor(sourceUrlOf(b), link),
+      image: faviconFor(srcUrl, link),
+      domain: hostOf(srcUrl) || hostOf(link),
     })
   }
   return items
