@@ -1,5 +1,6 @@
 import type {
   Country,
+  EvalType,
   Industry,
   LegalEntityType,
   NoteKind,
@@ -10,6 +11,7 @@ import type {
   TransactionKey,
   AppArea,
 } from '@/types'
+export type { EvalType }
 
 /** Bilingual label. */
 export interface BL {
@@ -158,22 +160,34 @@ export const RATING_ORDER: RatingKey[] = [
   'outstanding',
 ]
 
-/** "Type" field options for assessment tools. */
-export type EvalType = 'subject' | 'event' | 'performance' | 'person' | 'organization'
-
+/** "Type" field options for assessment tools (EvalType re-exported from @/types). */
 export const EVAL_TYPE_LABELS: Record<EvalType, BL> = {
   subject: { en: 'Subject', ar: 'موضوع' },
   event: { en: 'Event', ar: 'حدث' },
   performance: { en: 'Performance', ar: 'أداء' },
   person: { en: 'Person', ar: 'شخص' },
   organization: { en: 'Organization', ar: 'منظمة' },
+  project: { en: 'Project', ar: 'مشروع' },
+  decision: { en: 'Decision', ar: 'قرار' },
+  improvement: { en: 'Improvement', ar: 'تحسين' },
+  others: { en: 'Others', ar: 'أخرى' },
+  statements: { en: 'Statements', ar: 'بيانات' },
+  reports: { en: 'Reports', ar: 'تقارير' },
+  items: { en: 'Items', ar: 'بنود' },
+  clauses: { en: 'Clauses', ar: 'فقرات' },
+  articles: { en: 'Articles', ar: 'مواد' },
+  persons: { en: 'Persons', ar: 'أشخاص' },
+  groups: { en: 'Groups', ar: 'مجموعات' },
+  committees: { en: 'Committees', ar: 'لجان' },
+  list: { en: 'List', ar: 'قائمة' },
+  other: { en: 'Other', ar: 'أخرى' },
 }
 
 /** Assessment tools (valuation/voting/election) and the Type options each offers. */
 export const ASSESSMENT_TYPE_OPTIONS: Partial<Record<TransactionKey, EvalType[]>> = {
-  'tool.valuation': ['subject', 'event', 'performance'],
-  'tool.voting': ['subject', 'event', 'performance'],
-  'tool.election': ['person', 'organization'],
+  'tool.valuation': ['subject', 'event', 'project', 'decision', 'performance', 'improvement', 'others'],
+  'tool.voting': ['statements', 'reports', 'items', 'clauses', 'articles', 'others'],
+  'tool.election': ['persons', 'groups', 'committees', 'list', 'other'],
 }
 
 /** Maps an assessment tool key to the note kind it creates. */
