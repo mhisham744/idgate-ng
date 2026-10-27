@@ -117,7 +117,10 @@ export function useMyInbox(): MyInbox {
       const mine = myRecipientOf(n, keys)
 
       if (mine && n.needsResponse && mine.status === 'pending' && !n.frozen) nonReactedNotes.push(n)
-      if (mine && mine.status === 'accepted') myDuties.push(n)
+      // Duties: a received note stays in Duties until it is CLOSED — even once
+      // accepted / rejected / clarified (Final Test 6: Top bar › Duties).
+      if (mine && (mine.status === 'accepted' || mine.status === 'rejected' || mine.status === 'clarify'))
+        myDuties.push(n)
 
       if (iAmSender) {
         const open = (n.recipients ?? []).some((rc) => rc.status !== 'closed')
