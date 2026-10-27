@@ -551,6 +551,35 @@ export type NoteKind =
 
 export type NoteStatus = 'pending' | 'accepted' | 'rejected' | 'clarify' | 'closed'
 
+/**
+ * Assessment "Type" options across valuation / voting / election. The first five
+ * are legacy values kept for backward-compatibility with already-persisted notes;
+ * the rest extend the per-function lists (see ASSESSMENT_TYPE_OPTIONS in reference).
+ */
+export type EvalType =
+  | 'subject'
+  | 'event'
+  | 'performance'
+  | 'person'
+  | 'organization'
+  // valuation
+  | 'project'
+  | 'decision'
+  | 'improvement'
+  | 'others'
+  // voting
+  | 'statements'
+  | 'reports'
+  | 'items'
+  | 'clauses'
+  | 'articles'
+  // election
+  | 'persons'
+  | 'groups'
+  | 'committees'
+  | 'list'
+  | 'other'
+
 /** Rating scale used by a Valuation note's recipient reaction (worst → best). */
 export type RatingKey =
   | 'nill'
@@ -612,7 +641,7 @@ export interface Notification {
   targetTime?: string
   targetVenue?: string
   /** Assessment subtype for valuation/voting/election notes (the "Type" field). */
-  evalType?: 'subject' | 'event' | 'performance' | 'person' | 'organization'
+  evalType?: EvalType
   /** Voting/Election ballot: the subjects / persons / organizations being decided on. */
   ballot?: string[]
   /** Whether this note type expects an accept/reject/clarify/close reaction. */
