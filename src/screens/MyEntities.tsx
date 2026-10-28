@@ -12,6 +12,7 @@ export function MyEntities() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const normalId = useStore((s) => s.normalId)
+  const active = useStore((s) => s.active)
   const entities = useStore((s) => s.entities)
   const positions = useStore((s) => s.positions)
   const virtuals = useStore((s) => s.virtuals)
@@ -33,9 +34,11 @@ export function MyEntities() {
       <SectionHeader
         title={t('myEntities')}
         action={
-          <Button size="sm" variant="secondary" onClick={() => navigate('/settings/entities/new')}>
-            <Plus size={14} /> {t('registerEntity')}
-          </Button>
+          active?.kind === 'normal' ? (
+            <Button size="sm" variant="secondary" onClick={() => navigate('/settings/entities/new')}>
+              <Plus size={14} /> {t('registerEntity')}
+            </Button>
+          ) : undefined
         }
       />
 

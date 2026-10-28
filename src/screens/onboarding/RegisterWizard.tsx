@@ -214,7 +214,6 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
     form.nationality &&
     form.residenceCountry &&
     form.motherTongue &&
-    form.motherTongueLevel &&
     form.city.trim() &&
     form.mobile.trim() &&
     form.dateOfBirth.trim() &&
@@ -569,14 +568,6 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
                   <option value="">{L('Select…', 'اختر…')}</option>
                   {LANGUAGES.map((l) => (
                     <option key={l} value={l}>{l}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={t('fluencyLevel')} required>
-                <Select value={form.motherTongueLevel} onChange={(e) => set('motherTongueLevel', e.target.value as Fluency)}>
-                  <option value="">{L('Select…', 'اختر…')}</option>
-                  {FLUENCY.map((f) => (
-                    <option key={f} value={f}>{t('level' + f)}</option>
                   ))}
                 </Select>
               </Field>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -63,7 +63,13 @@ export function EntityWizard() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const normalId = useStore((s) => s.normalId)
+  const active = useStore((s) => s.active)
   const registerEntity = useStore((s) => s.registerEntity)
+
+  // Only a personal account may create an organization (Final Test General).
+  useEffect(() => {
+    if (active && active.kind !== 'normal') navigate('/settings/entities', { replace: true })
+  }, [active, navigate])
   const addStructureNode = useStore((s) => s.addStructureNode)
   const addProfile = useStore((s) => s.addProfile)
   const addDelegation = useStore((s) => s.addDelegation)
