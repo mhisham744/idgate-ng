@@ -394,6 +394,26 @@ function AdminStep({
   adminNId: string
   setAdminNId: (id: string) => void
 }) {
+  const [fullName, setFullName] = useState('')
+  const [internalCode, setInternalCode] = useState('')
+  const [mobile, setMobile] = useState('')
+
+  const norm = (s: string) => s.trim().toLowerCase()
+  const digits = (s: string) => s.replace(/\D/g, '')
+  const matched =
+    fullName.trim() && internalCode.trim() && mobile.trim()
+      ? normals.find(
+          (n) =>
+            norm(n.fullName) === norm(fullName) &&
+            norm(n.internalCode ?? '') === norm(internalCode) &&
+            digits(n.contacts?.mobile ?? '') === digits(mobile),
+        )
+      : undefined
+
+  useEffect(() => {
+    setAdminNId(matched?.id ?? '')
+  }, [matched?.id, setAdminNId])
+
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
@@ -402,18 +422,30 @@ function AdminStep({
       </div>
       <p className="text-xs leading-relaxed text-slate-500">
         {L(
-          'Choose the natural person who will administer this organization. On activation they receive a full-authority Administrator account and control is handed over to them — you will no longer administer it (unless you choose yourself).',
-          'اختر الشخص الطبيعي الذي سيدير هذه المؤسسة. عند التفعيل يحصل على حساب "مدير" بصلاحية كاملة وتُسلَّم الإدارة إليه — ولن تديرها بعد ذلك (إلا إذا اخترت نفسك).',
+          'Identify the natural person who will administer this organization by Full name, Internal code and Mobile — all three must match the same person. On activation they receive a full-authority Administrator account.',
+          'حدِّد الشخص الطبيعي الذي سيدير هذه المؤسسة بالاسم الكامل والكود الداخلي والجوال — يجب أن تطابق الثلاثة الشخص نفسه. عند التفعيل يحصل على حساب "مدير" بصلاحية كاملة.',
         )}
       </p>
-      <Field label={L('Administrator', 'المدير')} required>
-        <Select value={adminNId} onChange={(e) => setAdminNId(e.target.value)}>
-          <option value="">—</option>
-          {normals.map((n) => (
-            <option key={n.id} value={n.id}>{n.fullName}</option>
-          ))}
-        </Select>
+      <Field label={L('Full name', 'الاسم الكامل')} required>
+        <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
       </Field>
+      <Field label={L('Internal code', 'الكود الداخلي')} required>
+        <Input dir="ltr" value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />
+      </Field>
+      <Field label={L('Mobile', 'الجوال')} required>
+        <Input dir="ltr" inputMode="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+      </Field>
+      {fullName.trim() && internalCode.trim() && mobile.trim() && (
+        matched ? (
+          <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+            {L('Matched', 'تطابق')}: {matched.fullName}
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
+            {L('No person matches all three fields.', 'لا يوجد شخص يطابق الحقول الثلاثة.')}
+          </div>
+        )
+      )}
     </Card>
   )
 }
