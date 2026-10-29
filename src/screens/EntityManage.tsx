@@ -99,7 +99,7 @@ export function EntityManage() {
   const [virtualAddOpen, setVirtualAddOpen] = useState(false)
   const [virtualEditId, setVirtualEditId] = useState<string | null>(null)
   const [virtualDisplayId, setVirtualDisplayId] = useState<string | null>(null)
-  const [structView, setStructView] = useState<'list' | 'chart'>('list')
+  const [structView, setStructView] = useState<'list' | 'chart' | 'childnode'>('list')
   const [chartKind, setChartKind] = useState<StructureKind>('corporate')
 
   const ent = id ? entity(id) : undefined
@@ -211,10 +211,19 @@ export function EntityManage() {
               >
                 <Network size={14} /> {L('Org chart', 'مخطط تنظيمي')}
               </button>
+              <button
+                onClick={() => setStructView('childnode')}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400',
+                  structView === 'childnode' ? 'bg-white text-gate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <Network size={14} /> {L('Child node', 'العقدة الفرعية')}
+              </button>
             </div>
           </div>
 
-          {structView === 'list' ? (
+          {structView === 'list' && (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 [&>*]:self-start">
               {STRUCTURE_KINDS.map((kind) => (
                 <StructureEditor
@@ -228,7 +237,9 @@ export function EntityManage() {
                 />
               ))}
             </div>
-          ) : (
+          )}
+
+          {structView === 'chart' && (
             <div className="space-y-3">
               {/* kind selector */}
               <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 thin-scroll">
@@ -247,6 +258,40 @@ export function EntityManage() {
                 rootLabel={bl(STRUCTURE_LABELS[chartKind], lang)}
                 canDelete={false}
               />
+            </div>
+          )}
+
+          {structView === 'childnode' && (
+            <div className="space-y-3">
+              {STRUCTURE_KINDS.map((kind) => {
+                const nodes = entStructures.filter((n) => n.kind === kind)
+                if (!nodes.length) return null
+                return (
+                  <Card key={kind} className="space-y-2 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{bl(STRUCTURE_LABELS[kind], lang)}</div>
+                    {nodes.map((node) => {
+                      const inNode = entVirtuals.filter((v) => v.structure?.[kind] === node.id)
+                      return (
+                        <div key={node.id} className="rounded-xl bg-slate-50 px-3 py-2">
+                          <div className="text-sm font-medium text-slate-700">{node.name}</div>
+                          {inNode.length === 0 ? (
+                            <div className="text-[11px] text-slate-400">{L('No virtual entities', 'لا توجد كيانات افتراضية')}</div>
+                          ) : (
+                            <ul className="mt-1 space-y-0.5">
+                              {inNode.map((v) => (
+                                <li key={v.id} className="text-[12px] text-slate-600">
+                                  · {v.positionName}
+                                  {!v.linkedNormalId && <span className="text-slate-400"> ({L('unlinked', 'غير مرتبط')})</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </Card>
+                )
+              })}
             </div>
           )}
         </div>
