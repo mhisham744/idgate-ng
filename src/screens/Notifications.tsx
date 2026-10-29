@@ -563,6 +563,7 @@ function NoteThreadSheet({
   const freezeNotification = useStore((s) => s.freezeNotification)
   const unfreezeNotification = useStore((s) => s.unfreezeNotification)
   const cancelNotification = useStore((s) => s.cancelNotification)
+  const messageAllRecipients = useStore((s) => s.messageAllRecipients)
   const editNotification = useStore((s) => s.editNotification)
   const markNoteThreadRead = useStore((s) => s.markNoteThreadRead)
   const rateNotification = useStore((s) => s.rateNotification)
@@ -571,6 +572,8 @@ function NoteThreadSheet({
   const payNote = useStore((s) => s.payNote)
 
   const [editing, setEditing] = useState(false)
+  const [msgAllOpen, setMsgAllOpen] = useState(false)
+  const [msgAllText, setMsgAllText] = useState('')
 
   const isSender = !!note && keys.has(actorKey(note.from))
   const myRec = note ? (note.recipients ?? []).find((rc) => keys.has(actorKey(rc.ref))) : undefined
@@ -648,11 +651,38 @@ function NoteThreadSheet({
             <Button size="sm" variant="secondary" onClick={() => freezeNotification(note.id)}>
               <Lock size={14} /> {t('freeze')}
             </Button>
+            <Button size="sm" variant="secondary" onClick={() => { setMsgAllText(''); setMsgAllOpen(true) }}>
+              <Send size={14} /> {t('messageAll')}
+            </Button>
             <Button size="sm" variant="danger" onClick={() => cancelNotification(note.id)}>
               <Ban size={14} /> {t('cancel')}
             </Button>
           </div>
         )}
+
+        <Sheet
+          open={msgAllOpen}
+          onClose={() => setMsgAllOpen(false)}
+          title={t('messageAll')}
+          footer={
+            <Button
+              full
+              disabled={!msgAllText.trim()}
+              onClick={() => {
+                messageAllRecipients(note.id, msgAllText)
+                setMsgAllOpen(false)
+                setMsgAllText('')
+              }}
+            >
+              <Send size={16} /> {t('send')}
+            </Button>
+          }
+        >
+          <div className="space-y-2 py-1">
+            <p className="text-[12px] text-slate-500">{t('messageAllHint')}</p>
+            <Textarea rows={5} value={msgAllText} onChange={(e) => setMsgAllText(e.target.value)} />
+          </div>
+        </Sheet>
 
         {isSender && note.frozen && !note.cancelled && (
           <div className="flex flex-wrap gap-2">

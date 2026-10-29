@@ -270,6 +270,8 @@ interface State extends AppData {
     /** Author as this identity instead of the active account (unified inbox threads). */
     as?: ActorRef,
   ) => void
+  /** Sender messages ALL recipients at once (one entry appended to every thread). */
+  messageAllRecipients: (id: string, text: string) => void
   /** Sender edits the note envelope; records a system entry in every thread. */
   editNotification: (
     id: string,
@@ -1079,6 +1081,31 @@ export const useStore = create<State>()(
                 ],
               }
             })
+            return { ...n, recipients }
+          }),
+        }))
+      },
+      messageAllRecipients: (id, text) => {
+        const { active } = get()
+        if (!active || !text.trim()) return
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen || n.cancelled) return n
+            // Only the sender may broadcast.
+            if (actorKey(n.from) !== actorKey(active)) return n
+            const entry = {
+              id: uid('nte'),
+              at,
+              by: active as ActorRef,
+              type: 'message' as const,
+              text: text.trim(),
+              readBy: [actorKey(active)],
+            }
+            const recipients = (n.recipients ?? []).map((rc) => ({
+              ...rc,
+              thread: [...rc.thread, { ...entry, id: uid('nte') }],
+            }))
             return { ...n, recipients }
           }),
         }))
