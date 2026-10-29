@@ -226,13 +226,6 @@ export function Settings() {
               </Chip>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              <Inbox size={18} className="shrink-0 text-slate-400" />
-              {L('Unified inbox', 'صندوق موحّد')}
-            </div>
-            <Toggle checked={inboxScope === 'unified'} onChange={(v) => setInboxScope(v ? 'unified' : 'active')} />
-          </div>
         </Card>
       </div>
 

@@ -55,23 +55,15 @@ export function threadHasUnseen(rc: NoteRecipient, keys: Set<string>): boolean {
  * The single source of truth shared by the screens and the tab badges.
  */
 export function useInboxScopeKeys(): Set<string> {
-  const scope = useStore((s) => s.inboxScope())
-  const normalId = useStore((s) => s.normalId)
-  const virtuals = useStore((s) => s.virtuals)
+  // Per-account independence (Final Test): each account's inbox/statements are its
+  // own — the scope is always the ACTIVE account, never a unified view.
   const active = useStore((s) => s.active)
 
   return useMemo(() => {
     const keys = new Set<string>()
-    if (scope === 'active') {
-      if (active) keys.add(actorKey(active))
-      return keys
-    }
-    if (normalId) {
-      keys.add(`n:${normalId}`)
-      virtuals.filter((v) => v.linkedNormalId === normalId).forEach((v) => keys.add(`v:${v.id}`))
-    }
+    if (active) keys.add(actorKey(active))
     return keys
-  }, [scope, normalId, virtuals, active])
+  }, [active])
 }
 
 /**
@@ -80,6 +72,7 @@ export function useInboxScopeKeys(): Set<string> {
  */
 export function useMyInbox(): MyInbox {
   const normalId = useStore((s) => s.normalId)
+  const active = useStore((s) => s.active)
   const virtuals = useStore((s) => s.virtuals)
   const messages = useStore((s) => s.messages)
   const notifications = useStore((s) => s.notifications)
@@ -88,13 +81,10 @@ export function useMyInbox(): MyInbox {
   const entities = useStore((s) => s.entities)
 
   return useMemo(() => {
+    // Per-account independence: Home posts + top-bar counts reflect the ACTIVE
+    // account only, not a union across all owned identities.
     const keys = new Set<string>()
-    if (normalId) {
-      keys.add(`n:${normalId}`)
-      virtuals
-        .filter((v) => v.linkedNormalId === normalId)
-        .forEach((v) => keys.add(`v:${v.id}`))
-    }
+    if (active) keys.add(actorKey(active))
 
     const addressedToMe = (m: Message) =>
       anyKey(m.to, keys) || anyKey(m.cc, keys) || anyKey(m.bcc, keys)
@@ -143,7 +133,7 @@ export function useMyInbox(): MyInbox {
     const incomingLinks = linkRequests.filter((l) => l.status === 'pending' && l.targetNormalId === normalId)
 
     return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts, sentPendingLinks, incomingContacts, incomingLinks }
-  }, [normalId, virtuals, messages, notifications, contactRequests, linkRequests, entities])
+  }, [normalId, active, virtuals, messages, notifications, contactRequests, linkRequests, entities])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
