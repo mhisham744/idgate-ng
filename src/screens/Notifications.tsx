@@ -568,6 +568,7 @@ function NoteThreadSheet({
   const markNoteThreadRead = useStore((s) => s.markNoteThreadRead)
   const rateNotification = useStore((s) => s.rateNotification)
   const setBallotChoice = useStore((s) => s.setBallotChoice)
+  const toggleSectionChoice = useStore((s) => s.toggleSectionChoice)
   const signNoteAccept = useStore((s) => s.signNoteAccept)
   const payNote = useStore((s) => s.payNote)
 
@@ -742,6 +743,7 @@ function NoteThreadSheet({
               frozen={!!note.frozen || !!note.cancelled}
               onRate={(rating) => rateNotification(note.id, myKey, rating)}
               onChoice={(i, choice) => setBallotChoice(note.id, myKey, i, choice)}
+              onToggleSection={(si, opt) => toggleSectionChoice(note.id, myKey, si, opt)}
               onClose={() => respondNotification(note.id, myKey, 'closed')}
               isRtl={isRtl}
               lang={lang}
@@ -1000,6 +1002,25 @@ function AssessmentResult({
   t: (k: string) => string
 }) {
   if (isBallotKind(note.kind)) {
+    if ((note.sections?.length ?? 0) > 0) {
+      return (
+        <div className="space-y-1.5">
+          {(note.sections ?? []).map((sec, si) => {
+            const picked = rc.sectionChoices?.[si] ?? []
+            return (
+              <div key={si} className="text-sm">
+                <span className="text-slate-500">{sec.name || `${t('sections')} ${si + 1}`}: </span>
+                {picked.length ? (
+                  <span className="font-medium text-slate-700">{picked.join('، ')}</span>
+                ) : (
+                  <Badge tone="amber">{statusLabel('pending', isRtl)}</Badge>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
     return (
       <div className="space-y-1">
         {(note.ballot ?? []).map((item, i) => {
@@ -1045,6 +1066,30 @@ function AssessmentTally({
   const pct = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
 
   if (isBallotKind(note.kind)) {
+    if ((note.sections?.length ?? 0) > 0) {
+      const totalVoters = recipients.length
+      return (
+        <div className="space-y-2 rounded-2xl bg-slate-50 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('tally')}</div>
+          {(note.sections ?? []).map((sec, si) => (
+            <div key={si} className="space-y-0.5 text-[12px]">
+              <div className="truncate text-slate-700">{sec.name || `${t('sections')} ${si + 1}`}</div>
+              <div className="ps-3">
+                {sec.options.map((opt) => {
+                  const n = recipients.filter((rc) => (rc.sectionChoices?.[si] ?? []).includes(opt)).length
+                  return (
+                    <div key={opt} className="flex items-center justify-between gap-2 text-slate-500">
+                      <span className="truncate">{opt}</span>
+                      <span className="tabular-nums">{n} ({pct(n, totalVoters)}%)</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
     const ballot = note.ballot ?? []
     if (ballot.length === 0) return null
     return (
@@ -1122,6 +1167,7 @@ function AssessmentReaction({
   frozen,
   onRate,
   onChoice,
+  onToggleSection,
   onClose,
   isRtl,
   lang,
@@ -1132,14 +1178,19 @@ function AssessmentReaction({
   frozen: boolean
   onRate: (rating: RatingKey) => void
   onChoice: (index: number, choice: 'agree' | 'disagree') => void
+  onToggleSection: (sectionIndex: number, option: string) => void
   onClose: () => void
   isRtl: boolean
   lang: 'en' | 'ar'
   t: (k: string) => string
 }) {
   const locked = frozen || rc.status === 'closed'
+  const sections = note.sections ?? []
+  const hasSections = sections.length > 0
   const ballot = note.ballot ?? []
-  const allChosen = isBallotKind(note.kind) && ballot.every((_, i) => (rc.ballotChoices?.[i] ?? null) != null)
+  const allChosen = hasSections
+    ? sections.every((s, i) => (rc.sectionChoices?.[i]?.length ?? 0) >= Math.min(s.max, s.options.length))
+    : isBallotKind(note.kind) && ballot.every((_, i) => (rc.ballotChoices?.[i] ?? null) != null)
 
   return (
     <div className="space-y-3">
@@ -1152,6 +1203,46 @@ function AssessmentReaction({
         <>
           <AssessmentResult note={note} rc={rc} isRtl={isRtl} lang={lang} t={t} />
           <LockedNote frozen={frozen} cancelled={!!note.cancelled} isRtl={isRtl} t={t} />
+        </>
+      ) : hasSections ? (
+        <>
+          {sections.map((sec, si) => {
+            const picked = rc.sectionChoices?.[si] ?? []
+            const cap = Math.min(sec.max, sec.options.length)
+            const full = picked.length >= cap
+            return (
+              <div key={si} className="space-y-2 rounded-2xl border border-slate-100 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-800">{sec.name || `${t('sections')} ${si + 1}`}</span>
+                  <span className="text-[11px] text-slate-400">
+                    {t('selectUpTo')} {sec.max} · {picked.length}/{cap}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {sec.options.map((opt) => {
+                    const on = picked.includes(opt)
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        disabled={!on && full}
+                        onClick={() => onToggleSection(si, opt)}
+                        className={cx(
+                          'rounded-full px-3 py-1.5 text-xs font-medium transition disabled:opacity-40',
+                          on ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+          <Button size="sm" disabled={!allChosen} onClick={onClose}>
+            <CheckCheck size={14} /> {t('close')}
+          </Button>
         </>
       ) : isBallotKind(note.kind) ? (
         <>

@@ -249,6 +249,7 @@ interface State extends AppData {
     targetVenue?: string
     evalType?: import('@/types').Notification['evalType']
     ballot?: string[]
+    sections?: { name?: string; max: number; options: string[] }[]
     attachments?: import('@/types').AttachmentMeta[]
     /** Recipient must e-sign to accept (Strategy edition). */
     requiresSignature?: boolean
@@ -261,6 +262,8 @@ interface State extends AppData {
   rateNotification: (id: string, recipientKey: string, rating: import('@/types').RatingKey) => void
   /** A voting/election recipient sets one ballot item's choice. */
   setBallotChoice: (id: string, recipientKey: string, index: number, choice: 'agree' | 'disagree') => void
+  /** An election recipient toggles one option within a section (capped at section.max). */
+  toggleSectionChoice: (id: string, recipientKey: string, sectionIndex: number, option: string) => void
   /** Post a message into one recipient's private thread (sender reply or recipient follow-up). */
   postNoteMessage: (
     id: string,
@@ -950,16 +953,20 @@ export const useStore = create<State>()(
       },
 
       // ── notifications ──────────────────────────────────────────────────────────
-      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, evalType, ballot, attachments, requiresSignature, payment }) => {
+      createNotification: ({ kind, to, subject, body, targetDate, targetTime, targetVenue, evalType, ballot, sections, attachments, requiresSignature, payment }) => {
         const { active } = get()
         if (!active) return
         const RESPONSE = ['task', 'calendar', 'offer', 'voting', 'event', 'training', 'tender', 'meeting', 'conference', 'valuation', 'election']
         const cleanBallot = ballot?.map((b) => b.trim()).filter(Boolean)
+        const cleanSections = sections
+          ?.map((s) => ({ name: s.name?.trim() || undefined, max: Math.max(1, s.max || 1), options: s.options.map((o) => o.trim()).filter(Boolean) }))
+          .filter((s) => s.options.length > 0)
         const recipients = dedupeRefs(to).map((ref) => ({
           ref,
           status: 'pending' as NoteStatus,
           thread: [],
           ...(cleanBallot && cleanBallot.length ? { ballotChoices: cleanBallot.map(() => null) } : {}),
+          ...(cleanSections && cleanSections.length ? { sectionChoices: cleanSections.map(() => [] as string[]) } : {}),
           ...(payment && payment.amountEGP > 0 ? { payment: { status: 'unpaid' as const } } : {}),
         }))
         const note: Notification = {
@@ -975,6 +982,7 @@ export const useStore = create<State>()(
           targetVenue,
           evalType,
           ballot: cleanBallot && cleanBallot.length ? cleanBallot : undefined,
+          sections: cleanSections && cleanSections.length ? cleanSections : undefined,
           attachments: attachments && attachments.length ? attachments : undefined,
           needsResponse: RESPONSE.includes(kind),
           status: 'pending',
@@ -1053,6 +1061,32 @@ export const useStore = create<State>()(
               const next = base.slice()
               next[index] = choice
               return { ...rc, ballotChoices: next }
+            })
+            return { ...n, recipients }
+          }),
+        }))
+      },
+      toggleSectionChoice: (id, recipientKey, sectionIndex, option) => {
+        const { active } = get()
+        if (!active) return
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.frozen || n.cancelled) return n
+            const section = n.sections?.[sectionIndex]
+            if (!section) return n
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (actorKey(rc.ref) !== recipientKey || rc.status === 'closed') return rc
+              const base = rc.sectionChoices ?? (n.sections ?? []).map(() => [] as string[])
+              const current = base[sectionIndex] ?? []
+              let nextSel: string[]
+              if (current.includes(option)) {
+                nextSel = current.filter((o) => o !== option) // toggle off
+              } else {
+                if (current.length >= section.max) return rc // cap reached — ignore
+                nextSel = [...current, option]
+              }
+              const next = base.map((sel, i) => (i === sectionIndex ? nextSel : sel))
+              return { ...rc, sectionChoices: next }
             })
             return { ...n, recipients }
           }),

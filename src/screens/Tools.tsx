@@ -239,13 +239,14 @@ function AssessmentComposeSheet({
   const [toGroups, setToGroups] = useState<string[]>([])
   const [subject, setSubject] = useState('')
   const [ballot, setBallot] = useState<string[]>([''])
+  const [sections, setSections] = useState<{ max: number; options: string[] }[]>([{ max: 1, options: [''] }])
   const [targetDate, setTargetDate] = useState('')
   const [targetTime, setTargetTime] = useState('')
 
   const kind = toolKey ? ASSESSMENT_TOOL_KIND[toolKey] : undefined
   const typeOptions = toolKey ? ASSESSMENT_TYPE_OPTIONS[toolKey] ?? [] : []
-  const isBallot = kind === 'voting' || kind === 'election'
-  const ballotLabel = kind === 'election' ? EVAL_TYPE_LABELS[evalType || 'person'] : undefined
+  const isElection = kind === 'election'
+  const isBallot = kind === 'voting'
 
   const reset = () => {
     setEvalType('')
@@ -253,6 +254,7 @@ function AssessmentComposeSheet({
     setToGroups([])
     setSubject('')
     setBallot([''])
+    setSections([{ max: 1, options: [''] }])
     setTargetDate('')
     setTargetTime('')
   }
@@ -271,10 +273,13 @@ function AssessmentComposeSheet({
   }, [toRefs, toGroups, expandGroup])
 
   const cleanBallot = ballot.map((b) => b.trim()).filter(Boolean)
+  const cleanSections = sections
+    .map((s) => ({ max: Math.max(1, s.max || 1), options: s.options.map((o) => o.trim()).filter(Boolean) }))
+    .filter((s) => s.options.length > 0)
   const valid =
     !!evalType &&
     to.length > 0 &&
-    (isBallot ? cleanBallot.length > 0 : subject.trim().length > 0) &&
+    (isElection ? cleanSections.length > 0 : isBallot ? cleanBallot.length > 0 : subject.trim().length > 0) &&
     targetDate.length > 0 &&
     targetTime.length > 0
 
@@ -296,11 +301,13 @@ function AssessmentComposeSheet({
           disabled={!valid}
           onClick={() => {
             if (!kind || !evalType) return
-            const envelope = isBallot
-              ? cleanBallot.length === 1
-                ? cleanBallot[0]
-                : `${cleanBallot[0]} (+${cleanBallot.length - 1})`
-              : subject.trim()
+            const envelope = isElection
+              ? `${cleanSections[0].options[0]}${cleanSections.length > 1 || cleanSections[0].options.length > 1 ? ' …' : ''}`
+              : isBallot
+                ? cleanBallot.length === 1
+                  ? cleanBallot[0]
+                  : `${cleanBallot[0]} (+${cleanBallot.length - 1})`
+                : subject.trim()
             createNotification({
               kind,
               to,
@@ -308,6 +315,7 @@ function AssessmentComposeSheet({
               body: '',
               evalType,
               ballot: isBallot ? cleanBallot : undefined,
+              sections: isElection ? cleanSections : undefined,
               targetDate: targetDate || undefined,
               targetTime: targetTime || undefined,
             })
@@ -346,11 +354,86 @@ function AssessmentComposeSheet({
           isRtl={isRtl}
         />
 
-        {isBallot ? (
+        {isElection ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-700">{t('sections')}</span>
+              <span className="text-rose-500">*</span>
+            </div>
+            {sections.map((sec, si) => (
+              <div key={si} className="space-y-2 rounded-2xl border border-slate-200 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-slate-500">#{si + 1}</span>
+                  {sections.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setSections((prev) => prev.filter((_, i) => i !== si))}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-rose-500"
+                      aria-label={L('Remove', 'إزالة')}
+                    >
+                      <XIcon size={14} />
+                    </button>
+                  )}
+                </div>
+                <Field label={t('numberOfSelections')}>
+                  <Input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={String(sec.max)}
+                    onChange={(e) =>
+                      setSections((prev) => prev.map((s, i) => (i === si ? { ...s, max: Math.max(1, Number(e.target.value) || 1) } : s)))
+                    }
+                  />
+                </Field>
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-slate-500">{t('nameOfSelections')}</span>
+                  {sec.options.map((opt, oi) => (
+                    <div key={oi} className="flex items-center gap-2">
+                      <Input
+                        value={opt}
+                        onChange={(e) =>
+                          setSections((prev) =>
+                            prev.map((s, i) => (i === si ? { ...s, options: s.options.map((o, j) => (j === oi ? e.target.value : o)) } : s)),
+                          )
+                        }
+                        className="flex-1"
+                      />
+                      {sec.options.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSections((prev) => prev.map((s, i) => (i === si ? { ...s, options: s.options.filter((_, j) => j !== oi) } : s)))
+                          }
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-rose-500"
+                          aria-label={L('Remove', 'إزالة')}
+                        >
+                          <XIcon size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    onClick={() => setSections((prev) => prev.map((s, i) => (i === si ? { ...s, options: [...s.options, ''] } : s)))}
+                  >
+                    <Plus size={14} className="me-1" />
+                    {t('addSelection')}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button size="sm" variant="secondary" onClick={() => setSections((prev) => [...prev, { max: 1, options: [''] }])}>
+              <Plus size={14} className="me-1" />
+              {t('addSection')}
+            </Button>
+          </div>
+        ) : isBallot ? (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-slate-700">
-                {ballotLabel ? bl(ballotLabel, lang) : t('subject')}
+                {evalType ? bl(EVAL_TYPE_LABELS[evalType], lang) : t('subject')}
               </span>
               <span className="text-rose-500">*</span>
             </div>
