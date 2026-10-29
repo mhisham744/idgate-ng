@@ -179,6 +179,8 @@ export const STRINGS: Dict = {
   vacancies: { en: 'Vacancies', ar: 'الوظائف' },
   postVacancy: { en: 'Post a Vacancy', ar: 'نشر وظيفة' },
   createVacancy: { en: 'Create Vacancy', ar: 'إنشاء وظيفة' },
+  findVacancy: { en: 'Find Vacancy', ar: 'البحث عن وظيفة' },
+  clear: { en: 'Clear', ar: 'مسح' },
   saveAndPost: { en: 'Save & post', ar: 'حفظ ونشر' },
   jobDetails: { en: 'Job details', ar: 'تفاصيل الوظيفة' },
   preferredCriteria: { en: 'Preferred criteria', ar: 'المعايير المفضلة' },

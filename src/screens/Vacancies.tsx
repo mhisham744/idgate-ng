@@ -38,7 +38,7 @@ export function Vacancies() {
   const sendMessage = useStore((s) => s.sendMessage)
 
   const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
-  const canApply = active?.kind === 'normal' && can('tool.displayVacancy')
+  const canApply = active?.kind === 'normal' && can('tool.displayVacancy', 'display')
   const canPost = active?.kind === 'virtual' && can('tool.createVacancy') && !!activeVirtual
 
   const [open, setOpen] = useState(false)
@@ -78,6 +78,32 @@ export function Vacancies() {
     form.workingLocation &&
     form.validUntil
 
+  const [findOpen, setFindOpen] = useState(false)
+  const emptyFind = {
+    organization: '',
+    jobName: '',
+    country: '',
+    city: '',
+    workingHours: '' as '' | 'full-time' | 'part-time',
+    workingLocation: '' as '' | 'on-site' | 'remote',
+    requiredQualification: '',
+    requiredSkills: '',
+    mandatoryRequirements: '',
+  }
+  const [find, setFind] = useState(emptyFind)
+  const setF = <K extends keyof typeof emptyFind>(k: K, v: (typeof emptyFind)[K]) => setFind((f) => ({ ...f, [k]: v }))
+  const has = (hay: string | undefined, needle: string) => !needle.trim() || (hay ?? '').toLowerCase().includes(needle.trim().toLowerCase())
+  const matchesFind = (v: Vacancy): boolean =>
+    has(entity(v.entityId)?.commercialName, find.organization) &&
+    has(v.title, find.jobName) &&
+    has(v.country, find.country) &&
+    has(v.city, find.city) &&
+    (!find.workingHours || v.workingHours === find.workingHours) &&
+    (!find.workingLocation || v.workingLocation === find.workingLocation) &&
+    has(v.requiredQualification, find.requiredQualification) &&
+    has(v.requiredSkills, find.requiredSkills) &&
+    has(v.mandatoryRequirements, find.mandatoryRequirements)
+
   const sorted = [...vacancies]
     .filter((v) => v.status !== 'draft' || (activeVirtual && v.entityId === activeVirtual.entityId))
     .filter((v) => {
@@ -85,6 +111,7 @@ export function Vacancies() {
       if ((v.searchVisibility ?? 'public') === 'public') return true
       return !!activeVirtual && v.entityId === activeVirtual.entityId
     })
+    .filter(matchesFind)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   const isExpired = (v: Vacancy) => !!v.validUntil && new Date(`${v.validUntil}T23:59:59`).getTime() < Date.now()
@@ -154,6 +181,46 @@ export function Vacancies() {
           {t('createVacancy')}
         </Button>
       )}
+
+      {/* Find Vacancy — search/filter the visible list by Job Details criteria. */}
+      <Card className="p-3">
+        <button
+          type="button"
+          onClick={() => setFindOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-sm font-semibold text-slate-700"
+        >
+          <span className="flex items-center gap-1.5"><Briefcase size={14} className="text-slate-400" /> {t('findVacancy')}</span>
+          <span className="text-xs text-slate-400">{findOpen ? '−' : '+'}</span>
+        </button>
+        {findOpen && (
+          <div className="mt-3 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <Field label={L('Organization', 'المؤسسة')}><Input value={find.organization} onChange={(e) => setF('organization', e.target.value)} /></Field>
+              <Field label={L('Job name', 'اسم الوظيفة')}><Input value={find.jobName} onChange={(e) => setF('jobName', e.target.value)} /></Field>
+              <Field label={L('Country', 'الدولة')}><Input value={find.country} onChange={(e) => setF('country', e.target.value)} /></Field>
+              <Field label={L('City', 'المدينة')}><Input value={find.city} onChange={(e) => setF('city', e.target.value)} /></Field>
+              <Field label={L('Working hours', 'ساعات العمل')}>
+                <Select value={find.workingHours} onChange={(e) => setF('workingHours', e.target.value as typeof emptyFind.workingHours)}>
+                  <option value="">{L('Any', 'الكل')}</option>
+                  <option value="full-time">{L('Full-time', 'دوام كامل')}</option>
+                  <option value="part-time">{L('Part-time', 'دوام جزئي')}</option>
+                </Select>
+              </Field>
+              <Field label={L('Working location', 'مكان العمل')}>
+                <Select value={find.workingLocation} onChange={(e) => setF('workingLocation', e.target.value as typeof emptyFind.workingLocation)}>
+                  <option value="">{L('Any', 'الكل')}</option>
+                  <option value="on-site">{L('On-site', 'في الموقع')}</option>
+                  <option value="remote">{L('Remote', 'عن بُعد')}</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label={L('Required qualification', 'المؤهل المطلوب')}><Input value={find.requiredQualification} onChange={(e) => setF('requiredQualification', e.target.value)} /></Field>
+            <Field label={L('Required skills', 'المهارات المطلوبة')}><Input value={find.requiredSkills} onChange={(e) => setF('requiredSkills', e.target.value)} /></Field>
+            <Field label={L('Mandatory requirements', 'متطلبات إلزامية')}><Input value={find.mandatoryRequirements} onChange={(e) => setF('mandatoryRequirements', e.target.value)} /></Field>
+            <Button size="sm" variant="subtle" full onClick={() => setFind(emptyFind)}>{t('clear')}</Button>
+          </div>
+        )}
+      </Card>
 
       {sorted.length === 0 ? (
         <EmptyState icon={<Briefcase size={28} />} title={t('empty')} subtitle={t('vacancies')} />
