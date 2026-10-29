@@ -38,7 +38,7 @@ import type {
 import { buildSeed } from '@/data/seed'
 import type { AppData } from '@/data/seed'
 import { actorKey, colorFor, mergedPermission, uid } from '@/lib/identity'
-import { TRANSACTIONS, makeInternalCode } from '@/data/reference'
+import { TRANSACTIONS, makeInternalCode, nextInternalSeq } from '@/data/reference'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived-helper (pure) — resolve what an active account is allowed to do.
@@ -600,8 +600,9 @@ export const useStore = create<State>()(
         if (get().findDuplicateNormal(input.mobile, input.nationalId, nationality)) return ''
         const id = uid('n')
         const fullName = `${input.firstName} ${input.middleName} ${input.surname}`.replace(/\s+/g, ' ').trim()
-        // Internal-code sequence is counted PER COUNTRY (primary nationality), not globally.
-        const seq = get().normals.filter((n) => (n.nationalities && n.nationalities[0]) === nationality).length + 1
+        // Internal-code sequence is per COUNTRY and monotonic (max+1), so a later
+        // nationality edit can never regenerate an already-used code.
+        const seq = nextInternalSeq(get().normals, nationality)
         const nationalities = [nationality, input.nationality2, input.nationality3].filter(
           (c, i, arr): c is import('@/types').Country => !!c && arr.indexOf(c) === i,
         )
