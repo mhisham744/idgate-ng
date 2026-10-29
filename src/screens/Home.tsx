@@ -371,7 +371,6 @@ function PostCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <Badge tone={CAT_TONE[post.category]} className="shadow-sm">{catLabelFor(post.category, L)}</Badge>
           <span className="text-[11px] leading-none text-slate-500 tabular-nums">{relativeTime(post.createdAt, lang)}</span>
         </div>
       </div>
