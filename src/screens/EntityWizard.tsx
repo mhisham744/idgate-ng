@@ -503,30 +503,50 @@ function DelegationStep({
 }) {
   const [subject, setSubject] = useState('')
   const [limit, setLimit] = useState('')
+  const [authReq, setAuthReq] = useState('')
+  const [delegateOthers, setDelegateOthers] = useState<'no' | 'yes'>('no')
   if (!entityId) return <NeedDraft L={L} />
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-slate-800">
         <Shield size={18} className="text-gate-600" />
-        <h3 className="text-sm font-bold">{L('Delegation Objects', 'كائنات التفويض')}</h3>
+        <h3 className="text-sm font-bold">{L('Delegation Profile', 'ملف التفويض')}</h3>
       </div>
       <p className="text-xs text-slate-500">
-        {L('Define delegation objects (subject + numeric limit) to grant to virtual accounts when linking.', 'عرّف كائنات التفويض (الموضوع + حد رقمي) لمنحها للحسابات الافتراضية عند الربط.')}
+        {L('Define delegation profiles (subject + limits) to grant to virtual accounts when linking.', 'عرّف ملفات التفويض (الموضوع + الحدود) لمنحها للحسابات الافتراضية عند الربط.')}
       </p>
       <Field label={L('Subject', 'الموضوع')}>
         <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={L('Approve purchase orders', 'اعتماد أوامر الشراء')} />
       </Field>
-      <Field label={L('Limit (amount)', 'الحد (قيمة)')} hint={L('numeric', 'رقمي')}>
+      <Field label={L('Max. amount per subject', 'أقصى مبلغ لكل موضوع')} hint={L('numeric', 'رقمي')}>
         <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder="1000000" />
+      </Field>
+      <Field label={L('Number of authorization required', 'عدد التفويضات المطلوبة')} hint={L('numeric', 'رقمي')}>
+        <Input inputMode="numeric" dir="ltr" value={authReq} onChange={(e) => setAuthReq(e.target.value.replace(/[^\d]/g, ''))} placeholder="1" />
+      </Field>
+      <Field label={L('Delegate others', 'تفويض الآخرين')}>
+        <Select value={delegateOthers} onChange={(e) => setDelegateOthers(e.target.value as 'no' | 'yes')}>
+          <option value="no">{L('No', 'لا')}</option>
+          <option value="yes">{L('Yes', 'نعم')}</option>
+        </Select>
       </Field>
       <Button
         size="sm"
         variant="secondary"
         disabled={!subject.trim()}
         onClick={() => {
-          addDelegation({ entityId, subject: subject.trim(), limit: limit.trim(), limitAmount: limit ? Number(limit) : undefined })
+          addDelegation({
+            entityId,
+            subject: subject.trim(),
+            limit: limit.trim(),
+            limitAmount: limit ? Number(limit) : undefined,
+            authorizationsRequired: authReq ? Number(authReq) : undefined,
+            delegateOthers: delegateOthers === 'yes',
+          })
           setSubject('')
           setLimit('')
+          setAuthReq('')
+          setDelegateOthers('no')
         }}
       >
         <Plus size={14} /> {L('Add delegation', 'إضافة تفويض')}
@@ -537,6 +557,8 @@ function DelegationStep({
             <div key={d.id} className="rounded-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
               <span className="font-medium text-slate-700">{d.subject}</span>
               {(d.limitAmount != null || d.limit) && <span className="text-slate-400"> · {d.limitAmount != null ? d.limitAmount.toLocaleString() : d.limit}</span>}
+              {d.authorizationsRequired != null && <span className="text-slate-400"> · {L('auth', 'تفويضات')}: {d.authorizationsRequired}</span>}
+              {d.delegateOthers && <span className="text-slate-400"> · {L('delegable', 'قابل للتفويض')}</span>}
             </div>
           ))}
         </div>

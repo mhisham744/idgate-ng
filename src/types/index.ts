@@ -296,8 +296,12 @@ export interface DelegationItem {
   entityId: string
   subject: string
   limit: string
-  /** Numeric limit amount (the delegation object value). */
+  /** Numeric limit amount — the "Max. amount per subject". */
   limitAmount?: number
+  /** Number of authorizations required to exercise this delegation. */
+  authorizationsRequired?: number
+  /** Whether the grantee may further delegate this to others. */
+  delegateOthers?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

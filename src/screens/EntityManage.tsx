@@ -520,7 +520,7 @@ function DelegationsTab({
       <Field label={L('Subject', 'الموضوع')}>
         <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
       </Field>
-      <Field label={L('Limit (amount)', 'الحد (قيمة)')} hint={L('numeric', 'رقمي')}>
+      <Field label={L('Max. amount per subject', 'أقصى مبلغ لكل موضوع')} hint={L('numeric', 'رقمي')}>
         <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} />
       </Field>
       <Button
