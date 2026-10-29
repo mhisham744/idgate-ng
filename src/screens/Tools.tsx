@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Send, Info, Plus, X as XIcon, Bell } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
@@ -34,6 +35,7 @@ export function Tools() {
   const { lang, t, isRtl } = useLang()
   const L = (en: string, ar: string) => (isRtl ? ar : en)
   const resolve = useResolveActor()
+  const navigate = useNavigate()
 
   const active = useStore((s) => s.active)
   const can = useStore((s) => s.can)
@@ -56,6 +58,8 @@ export function Tools() {
   const { options: recipientOptions, pickerGroups, expandGroup } = useRecipientSources()
 
   function openTool(key: TransactionKey) {
+    if (key === 'tool.createVacancy' || key === 'tool.displayVacancy') return navigate('/tools/vacancies')
+    if (key === 'tool.talentAcquisition') return navigate('/tools/talent')
     if (INTERACTIVE_TOOLS.includes(key)) setAssessKey(key)
     else setDemoKey(key)
   }

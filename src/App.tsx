@@ -12,6 +12,7 @@ import { Notifications } from '@/screens/Notifications'
 import { Tools } from '@/screens/Tools'
 import { IDGateCode } from '@/screens/IDGateCode'
 import { Vacancies } from '@/screens/Vacancies'
+import { TalentAcquisition } from '@/screens/TalentAcquisition'
 import { GroupsScreen } from '@/screens/Groups'
 import { Settings } from '@/screens/Settings'
 import { PersonalMasterData } from '@/screens/PersonalMasterData'
@@ -34,6 +35,7 @@ function Shell() {
         <Route path="/tools" element={<Tools />} />
         <Route path="/tools/idgate" element={<IDGateCode />} />
         <Route path="/tools/vacancies" element={<Vacancies />} />
+        <Route path="/tools/talent" element={<TalentAcquisition />} />
         <Route path="/tools/groups" element={<GroupsScreen />} />
         <Route path="/settings/groups" element={<GroupsScreen />} />
         <Route path="/directory" element={<Directory />} />
