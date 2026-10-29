@@ -58,6 +58,12 @@ export default function App() {
   const lang = useI18n((s) => s.lang)
   const theme = useTheme((s) => s.theme)
 
+  // Fire overdue-note alerts / auto-close assessments on load (idempotent).
+  const sweepDeadlines = useStore((s) => s.sweepDeadlines)
+  useEffect(() => {
+    sweepDeadlines()
+  }, [sweepDeadlines])
+
   // Reflect language on <html> for global dir + font.
   useEffect(() => {
     document.documentElement.lang = lang

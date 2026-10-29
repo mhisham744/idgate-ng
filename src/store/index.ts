@@ -246,6 +246,9 @@ interface State extends AppData {
   unfreezeNotification: (id: string) => void
   /** Sender cancels the note — terminal like closed (drops from Pending/Duties). */
   cancelNotification: (id: string) => void
+  /** Scan notes past their target date/time: alert overdue response-notes, and
+   *  auto-close assessment notes (valuation/voting/election). Idempotent. */
+  sweepDeadlines: () => void
   voteNotification: (id: string, choice: 'accept' | 'reject') => void
   /** Mark a note read by the given identity (defaults to the active account). */
   markNotificationRead: (id: string, as?: ActorRef) => void
@@ -1108,6 +1111,36 @@ export const useStore = create<State>()(
             return { ...n, cancelled: true, recipients }
           }),
         }))
+      },
+      sweepDeadlines: () => {
+        const now = Date.now()
+        set((s) => {
+          let changed = false
+          const notifications = s.notifications.map((n) => {
+            if (n.deadlineNotified || n.cancelled || !n.targetDate) return n
+            // Deadline = targetDate at targetTime (end-of-day if no time given).
+            const deadline = new Date(`${n.targetDate.slice(0, 10)}T${n.targetTime || '23:59'}:00`).getTime()
+            if (Number.isNaN(deadline) || now <= deadline) return n
+            changed = true
+            const isEval = n.kind === 'valuation' || n.kind === 'voting' || n.kind === 'election'
+            const at = new Date(now).toISOString()
+            const recipients = (n.recipients ?? []).map((rc) => {
+              if (rc.status === 'closed') return rc
+              const sysEntry = {
+                id: uid('nte'),
+                at,
+                by: n.from,
+                type: 'system' as const,
+                text: isEval ? 'deadline-closed' : 'deadline-open',
+                readBy: [actorKey(n.from)],
+              }
+              // Assessment notes auto-close (hold updates); response notes stay open (just alerted).
+              return { ...rc, status: isEval ? ('closed' as const) : rc.status, thread: [...rc.thread, sysEntry] }
+            })
+            return { ...n, deadlineNotified: true, recipients }
+          })
+          return changed ? { notifications } : {}
+        })
       },
       voteNotification: (id, choice) => {
         const { active } = get()

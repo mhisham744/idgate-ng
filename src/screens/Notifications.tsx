@@ -1093,7 +1093,18 @@ function ThreadEntryView({
   resolveName?: (r: ActorRef) => string
 }) {
   if (e.type === 'system') {
-    const label = e.text === 'frozen' ? t('frozen') : L(isRtl, 'Note updated', 'تم تحديث التنبيه')
+    const label =
+      e.text === 'frozen'
+        ? t('frozen')
+        : e.text === 'unfrozen'
+          ? L(isRtl, 'Unfrozen', 'تم إلغاء التجميد')
+          : e.text === 'cancelled'
+            ? t('cancelled')
+            : e.text === 'deadline-open'
+              ? L(isRtl, 'Overdue — target date passed, still open (no reply).', 'تجاوز الموعد المستهدف ولا يزال مفتوحًا (بلا رد).')
+              : e.text === 'deadline-closed'
+                ? L(isRtl, 'Closed automatically — target date passed (no reply).', 'أُغلق تلقائيًا بعد تجاوز الموعد المستهدف (بلا رد).')
+                : L(isRtl, 'Note updated', 'تم تحديث التنبيه')
     return (
       <div className="text-center text-[11px] text-slate-400">
         {label} · {relativeTime(e.at, lang)}

@@ -623,6 +623,8 @@ export interface Notification {
   /** Sender cancelled the note — terminal like closed; drops from sender Pending
    *  and recipient Duties, regardless of how recipients had reacted. */
   cancelled?: boolean
+  /** Set once the deadline sweep has fired for this note (prevents repeat alerts). */
+  deadlineNotified?: boolean
   /** Voting tally when kind === 'voting'. */
   votes?: { accept: number; reject: number }
   /** actorKeys who have opened/read this notification (missing → unread). */
