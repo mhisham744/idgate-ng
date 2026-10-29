@@ -854,13 +854,13 @@ function ThreadSheet({
       title={latest.subject}
       footer={
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" disabled={!canReply} onClick={onReply}>
+          <Button size="sm" variant="secondary" disabled={!canReply || latest.system} onClick={onReply}>
             <Reply size={15} /> {t('reply')}
           </Button>
-          <Button size="sm" variant="secondary" disabled={!canReplyAll} onClick={onReplyAll}>
+          <Button size="sm" variant="secondary" disabled={!canReplyAll || latest.system} onClick={onReplyAll}>
             <ReplyAll size={15} /> {t('replyAll')}
           </Button>
-          <Button size="sm" variant="subtle" disabled={!canForward} onClick={onForward}>
+          <Button size="sm" variant="subtle" disabled={!canForward || latest.system} onClick={onForward}>
             <ForwardIcon size={15} /> {t('forward')}
           </Button>
           <Button size="sm" variant="subtle" onClick={onMove}>
@@ -957,16 +957,6 @@ function ThreadSheet({
                   >
                     <Star size={13} fill={starred ? 'currentColor' : 'none'} />
                   </button>
-                  {canDelete && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(m.id)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                      aria-label={t('delete')}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
