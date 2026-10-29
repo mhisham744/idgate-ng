@@ -78,7 +78,7 @@ export const STRINGS: Dict = {
   writeComment: { en: 'Write a comment…', ar: 'اكتب تعليقًا…' },
 
   // home — Egypt business-news service feed
-  businessNews: { en: 'Egypt business news', ar: 'أخبار الأعمال في مصر' },
+  businessNews: { en: 'Information, News & Reports', ar: 'معلومات وأخبار وتقارير' },
   businessNewsDesc: {
     en: 'Free headlines from across the web, tuned to the identity you are acting as.',
     ar: 'عناوين مجانية من مختلف المصادر، مخصّصة للصفة التي تعمل بها.',
