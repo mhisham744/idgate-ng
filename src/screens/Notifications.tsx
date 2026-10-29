@@ -969,26 +969,30 @@ function AssessmentTally({
 
   if (isBallotKind(note.kind)) {
     if ((note.sections?.length ?? 0) > 0) {
-      const totalVoters = recipients.length
       return (
         <div className="space-y-2 rounded-2xl bg-slate-50 p-3">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('tally')}</div>
-          {(note.sections ?? []).map((sec, si) => (
-            <div key={si} className="space-y-0.5 text-[12px]">
-              <div className="truncate text-slate-700">{sec.name || `${t('sections')} ${si + 1}`}</div>
-              <div className="ps-3">
-                {sec.options.map((opt) => {
-                  const n = recipients.filter((rc) => (rc.sectionChoices?.[si] ?? []).includes(opt)).length
-                  return (
-                    <div key={opt} className="flex items-center justify-between gap-2 text-slate-500">
-                      <span className="truncate">{opt}</span>
-                      <span className="tabular-nums">{n} ({pct(n, totalVoters)}%)</span>
-                    </div>
-                  )
-                })}
+          {(note.sections ?? []).map((sec, si) => {
+            // Percent base = recipients who voted in THIS section (responders), matching
+            // the ballot/valuation tallies rather than all recipients.
+            const voters = recipients.filter((rc) => (rc.sectionChoices?.[si] ?? []).length > 0).length
+            return (
+              <div key={si} className="space-y-0.5 text-[12px]">
+                <div className="truncate text-slate-700">{sec.name || `${t('sections')} ${si + 1}`}</div>
+                <div className="ps-3">
+                  {sec.options.map((opt) => {
+                    const n = recipients.filter((rc) => (rc.sectionChoices?.[si] ?? []).includes(opt)).length
+                    return (
+                      <div key={opt} className="flex items-center justify-between gap-2 text-slate-500">
+                        <span className="truncate">{opt}</span>
+                        <span className="tabular-nums">{n} ({pct(n, voters)}%)</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )
     }
