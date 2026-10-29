@@ -486,9 +486,6 @@ function PositionsTab({
                     <button onClick={() => { setEditId(p.id); setEditName(p.name) }} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700" aria-label={L('Edit', 'تعديل')}>
                       <Pencil size={13} />
                     </button>
-                    <button onClick={() => removePosition(p.id)} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
-                      <Trash2 size={13} />
-                    </button>
                   </>
                 )}
               </div>
