@@ -1049,12 +1049,21 @@ function ComposeEditor({
       return dedupe(base).filter((r) => actorKey(r) !== meKey)
     }
     if (mode === 'replyAll') {
-      return dedupe([source.from, ...source.to, ...(source.cc ?? [])]).filter(
-        (r) => actorKey(r) !== meKey,
-      )
+      // Keep the original To/Cc split: To = sender + original To (Cc seeded separately).
+      return dedupe([source.from, ...source.to]).filter((r) => actorKey(r) !== meKey)
     }
     return []
   }, [mode, source, meKey, draft])
+
+  // Reply-all preserves the original Cc recipients as Cc (not folded into To).
+  const seedCc = useMemo<ActorRef[]>(() => {
+    if (draft?.cc) return dedupe(draft.cc)
+    if (mode === 'replyAll' && source?.cc?.length) {
+      const toKeys = new Set(seedTo.map(actorKey))
+      return dedupe(source.cc).filter((r) => actorKey(r) !== meKey && !toKeys.has(actorKey(r)))
+    }
+    return []
+  }, [mode, source, meKey, draft, seedTo])
 
   const seedSubject = useMemo(() => {
     if (draft) return draft.subject
@@ -1065,11 +1074,11 @@ function ComposeEditor({
 
   const [toRefs, setToRefs] = useState<ActorRef[]>(seedTo)
   const [toGroups, setToGroups] = useState<string[]>([])
-  const [ccRefs, setCcRefs] = useState<ActorRef[]>(draft?.cc ? dedupe(draft.cc) : [])
+  const [ccRefs, setCcRefs] = useState<ActorRef[]>(seedCc)
   const [ccGroups, setCcGroups] = useState<string[]>([])
   const [bccRefs, setBccRefs] = useState<ActorRef[]>(draft?.bcc ? dedupe(draft.bcc) : [])
   const [bccGroups, setBccGroups] = useState<string[]>([])
-  const [showCc, setShowCc] = useState(!!draft?.cc?.length)
+  const [showCc, setShowCc] = useState(!!draft?.cc?.length || seedCc.length > 0)
   const [showBcc, setShowBcc] = useState(!!draft?.bcc?.length)
   const [subject, setSubject] = useState(seedSubject)
   const [body, setBody] = useState(draft?.body ?? '')
