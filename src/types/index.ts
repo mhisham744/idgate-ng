@@ -649,6 +649,27 @@ export interface Vacancy {
   description: string
   createdAt: string
   applicants: string[] // normalIds
+  status?: 'open' | 'closed' | 'draft'
+  // ── Final Test: structured Job Details ──────────────────────────────────────
+  country?: string
+  city?: string
+  workingHours?: 'full-time' | 'part-time'
+  workingLocation?: 'on-site' | 'remote'
+  requiredQualification?: string
+  requiredSkills?: string
+  mandatoryRequirements?: string
+  keyResponsibilities?: string
+  whatWeOffer?: string
+  // ── Preferred Criteria (demo subset used for matching) ──────────────────────
+  prefGender?: 'Male' | 'Female'
+  prefAgeFrom?: number
+  prefAgeTo?: number
+  prefNationalities?: Country[]
+  prefResidence?: Country[]
+  // ── Visibility / validity / alerts ──────────────────────────────────────────
+  searchVisibility?: 'public' | 'directory' | 'closed'
+  validUntil?: string
+  notificationAlert?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
