@@ -703,6 +703,7 @@ function NoteThreadSheet({
             {isAssessment(note.kind) && (
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('results')}</span>
             )}
+            {isAssessment(note.kind) && <AssessmentTally note={note} isRtl={isRtl} lang={lang} t={t} />}
             {(note.recipients ?? []).map((rc) =>
               isAssessment(note.kind) ? (
                 <AssessmentSenderSection key={actorKey(rc.ref)} note={note} rc={rc} isRtl={isRtl} lang={lang} t={t} />
@@ -926,6 +927,67 @@ function AssessmentResult({
     <Badge tone="gate">{bl(RATING_LABELS[rc.rating], lang)}</Badge>
   ) : (
     <Badge tone="amber">{statusLabel('pending', isRtl)}</Badge>
+  )
+}
+
+// Sender-side aggregate tally: totals + percent per rating (valuation) or per
+// subject agree/disagree (voting/election) — one summary row across all recipients.
+function AssessmentTally({
+  note,
+  isRtl,
+  lang,
+  t,
+}: {
+  note: Notification
+  isRtl: boolean
+  lang: 'en' | 'ar'
+  t: (k: string) => string
+}) {
+  const recipients = note.recipients ?? []
+  const pct = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
+
+  if (isBallotKind(note.kind)) {
+    const ballot = note.ballot ?? []
+    if (ballot.length === 0) return null
+    return (
+      <div className="space-y-2 rounded-2xl bg-slate-50 p-3">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('tally')}</div>
+        {ballot.map((item, i) => {
+          const choices = recipients.map((rc) => rc.ballotChoices?.[i] ?? null)
+          const agree = choices.filter((c) => c === 'agree').length
+          const disagree = choices.filter((c) => c === 'disagree').length
+          const total = agree + disagree
+          return (
+            <div key={i} className="space-y-0.5 text-[12px]">
+              <div className="truncate text-slate-700">{i + 1}. {item}</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 ps-3 text-slate-500">
+                <span><span className="font-semibold text-emerald-600">{t('agree')}</span>: {agree} ({pct(agree, total)}%)</span>
+                <span><span className="font-semibold text-rose-600">{t('disagree')}</span>: {disagree} ({pct(disagree, total)}%)</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const rated = recipients.map((rc) => rc.rating).filter(Boolean) as RatingKey[]
+  const total = rated.length
+  const rows = RATING_ORDER.map((k) => ({ k, n: rated.filter((r) => r === k).length })).filter((row) => row.n > 0)
+  return (
+    <div className="space-y-1.5 rounded-2xl bg-slate-50 p-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('tally')}</div>
+      {rows.length === 0 ? (
+        <div className="text-[12px] text-slate-400">{t('empty')}</div>
+      ) : (
+        rows.map(({ k, n }) => (
+          <div key={k} className="flex items-center justify-between gap-2 text-[12px]">
+            <span className="text-slate-700">{bl(RATING_LABELS[k], lang)}</span>
+            <span className="tabular-nums text-slate-500">{n} ({pct(n, total)}%)</span>
+          </div>
+        ))
+      )}
+    </div>
   )
 }
 

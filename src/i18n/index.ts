@@ -166,6 +166,7 @@ export const STRINGS: Dict = {
   disagree: { en: 'Disagree', ar: 'غير موافق' },
   addSubject: { en: 'Add subject', ar: 'إضافة موضوع' },
   results: { en: 'Results', ar: 'النتائج' },
+  tally: { en: 'Tally', ar: 'الإجمالي' },
   contactRequest: { en: 'Contact Request', ar: 'طلب تواصل' },
   delegationDisplay: { en: 'Delegation Display Request', ar: 'طلب عرض صلاحيات' },
 
