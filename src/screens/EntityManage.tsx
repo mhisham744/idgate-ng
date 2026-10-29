@@ -350,6 +350,7 @@ export function EntityManage() {
                     onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
                     onEdit={() => setVirtualEditId(v.id)}
                     onDisplay={() => setVirtualDisplayId(v.id)}
+                    locked={v.positionName === 'Administrator' && !!v.linkedNormalId && (v.linkedNormalId === ent.managingDirectorNormalId || v.linkedNormalId === ent.adminNormalId)}
                   />
                 ))}
             </div>
@@ -579,6 +580,7 @@ function VirtualRow({
   onBlock,
   onEdit,
   onDisplay,
+  locked,
 }: {
   L: (en: string, ar: string) => string
   t: (k: string) => string
@@ -587,6 +589,7 @@ function VirtualRow({
   onBlock: () => void
   onEdit: () => void
   onDisplay: () => void
+  locked?: boolean
 }) {
   const resolve = useResolveActor()
   const r = resolve({ kind: 'virtual', virtualId: v.id })
@@ -631,17 +634,23 @@ function VirtualRow({
       </div>
 
       {/* Entity-level control */}
-      <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
-        <Button size="sm" variant="subtle" onClick={onDisplay}>
-          <Eye size={13} /> {t('display')}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={onEdit}>
-          <Pencil size={13} /> {t('edit')}
-        </Button>
-        <Button size="sm" variant={v.status === 'blocked' ? 'secondary' : 'danger'} onClick={onBlock}>
-          <Ban size={13} /> {v.status === 'blocked' ? L('Unblock entity', 'إلغاء حظر الكيان') : L('Block entity', 'حظر الكيان')}
-        </Button>
-      </div>
+      {locked ? (
+        <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2 text-[11px] font-medium text-slate-400">
+          <Shield size={12} /> {L('Administrator entity — not subject to display, edit or block.', 'كيان المدير — غير قابل للعرض أو التعديل أو الحظر.')}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
+          <Button size="sm" variant="subtle" onClick={onDisplay}>
+            <Eye size={13} /> {t('display')}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onEdit}>
+            <Pencil size={13} /> {t('edit')}
+          </Button>
+          <Button size="sm" variant={v.status === 'blocked' ? 'secondary' : 'danger'} onClick={onBlock}>
+            <Ban size={13} /> {v.status === 'blocked' ? L('Unblock entity', 'إلغاء حظر الكيان') : L('Block entity', 'حظر الكيان')}
+          </Button>
+        </div>
+      )}
     </Card>
   )
 }
