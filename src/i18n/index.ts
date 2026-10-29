@@ -40,6 +40,11 @@ export const STRINGS: Dict = {
   save: { en: 'Save', ar: 'حفظ' },
   cancel: { en: 'Cancel', ar: 'إلغاء' },
   cancelled: { en: 'Cancelled', ar: 'ملغى' },
+  messageAll: { en: 'Message all', ar: 'مراسلة الكل' },
+  messageAllHint: {
+    en: 'Sends this message to every recipient of this note at once.',
+    ar: 'يرسل هذه الرسالة إلى كل مستلمي هذه الإفادة دفعة واحدة.',
+  },
   next: { en: 'Next', ar: 'التالي' },
   back: { en: 'Back', ar: 'رجوع' },
   done: { en: 'Done', ar: 'تم' },
