@@ -297,7 +297,9 @@ interface State extends AppData {
   markNoteThreadRead: (id: string, recipientKey: string, as?: ActorRef) => void
 
   // ── vacancies ───────────────────────────────────────────────────────────────
-  postVacancy: (v: Omit<Vacancy, 'id' | 'createdAt' | 'applicants' | 'postedByVirtualId'>) => void
+  postVacancy: (v: Omit<Vacancy, 'id' | 'createdAt' | 'applicants' | 'postedByVirtualId'>) => string
+  /** Normal accounts matching a vacancy's preferred criteria AND opted into vacancy alerts. */
+  matchVacancyCandidates: (v: Vacancy) => string[]
   applyVacancy: (vacancyId: string) => void
 
   // ── contact / link ────────────────────────────────────────────────────────────
@@ -1337,22 +1339,50 @@ export const useStore = create<State>()(
       // ── vacancies ──────────────────────────────────────────────────────────────
       postVacancy: (v) => {
         const { active } = get()
-        if (!active || active.kind !== 'virtual') return
+        if (!active || active.kind !== 'virtual') return ''
+        const id = uid('vac')
         const vac: Vacancy = {
           ...v,
-          id: uid('vac'),
+          id,
           postedByVirtualId: active.virtualId,
           createdAt: new Date().toISOString(),
           applicants: [],
-          status: 'open',
+          status: v.status ?? 'open',
           shortlisted: [],
           hires: [],
         }
         set((s) => ({ vacancies: [vac, ...s.vacancies] }))
+        return id
+      },
+      matchVacancyCandidates: (v) => {
+        const { normals } = get()
+        const ageOf = (dob?: string): number | null => {
+          if (!dob) return null
+          const d = new Date(dob)
+          if (Number.isNaN(d.getTime())) return null
+          const now = new Date()
+          let a = now.getFullYear() - d.getFullYear()
+          const m = now.getMonth() - d.getMonth()
+          if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--
+          return a
+        }
+        return normals
+          .filter((n) => n.vacancyNotification)
+          .filter((n) => {
+            if (v.prefGender && n.gender !== v.prefGender) return false
+            const age = ageOf(n.dateOfBirth)
+            if (v.prefAgeFrom != null && (age == null || age < v.prefAgeFrom)) return false
+            if (v.prefAgeTo != null && (age == null || age > v.prefAgeTo)) return false
+            if (v.prefNationalities && v.prefNationalities.length && !(n.nationalities ?? []).some((c) => v.prefNationalities!.includes(c))) return false
+            if (v.prefResidence && v.prefResidence.length && !v.prefResidence.includes(n.residenceCountry)) return false
+            return true
+          })
+          .map((n) => n.id)
       },
       applyVacancy: (vacancyId) => {
-        const { normalId } = get()
+        const { normalId, vacancies, virtual } = get()
         if (!normalId) return
+        const vac = vacancies.find((v) => v.id === vacancyId)
         set((s) => ({
           vacancies: s.vacancies.map((v) =>
             v.id === vacancyId && !v.applicants.includes(normalId)
@@ -1360,6 +1390,18 @@ export const useStore = create<State>()(
               : v,
           ),
         }))
+        // Notify the vacancy creator that this candidate wants to apply.
+        if (vac && !vac.applicants.includes(normalId)) {
+          const creator = virtual(vac.postedByVirtualId)
+          if (creator) {
+            get().sendMessage({
+              to: [{ kind: 'virtual', virtualId: vac.postedByVirtualId }],
+              subject: `Apply — ${vac.title}`,
+              body: `A candidate applied for "${vac.title}".`,
+              as: { kind: 'normal', normalId },
+            })
+          }
+        }
       },
 
       // ── contact / link ───────────────────────────────────────────────────────

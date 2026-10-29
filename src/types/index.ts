@@ -688,9 +688,29 @@ export interface Vacancy {
   createdAt: string
   applicants: string[] // normalIds
   /** Verified hiring loop (Strategy edition). */
-  status?: 'open' | 'closed'
+  status?: 'open' | 'closed' | 'draft'
   shortlisted?: string[] // normalIds
   hires?: { normalId: string; virtualId?: string; credentialId?: string; hiredAt: string }[]
+  // ── Final Test: structured Job Details ──────────────────────────────────────
+  country?: string
+  city?: string
+  workingHours?: 'full-time' | 'part-time'
+  workingLocation?: 'on-site' | 'remote'
+  requiredQualification?: string
+  requiredSkills?: string
+  mandatoryRequirements?: string
+  keyResponsibilities?: string
+  whatWeOffer?: string
+  // ── Preferred Criteria (demo subset used for matching) ──────────────────────
+  prefGender?: 'Male' | 'Female'
+  prefAgeFrom?: number
+  prefAgeTo?: number
+  prefNationalities?: Country[]
+  prefResidence?: Country[]
+  // ── Visibility / validity / alerts ──────────────────────────────────────────
+  searchVisibility?: 'public' | 'directory' | 'closed'
+  validUntil?: string
+  notificationAlert?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
