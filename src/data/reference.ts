@@ -52,6 +52,26 @@ export function makeInternalCode(country: Country, city: string, seq: number): s
   return `${COUNTRY_DIAL[country] ?? '0'}-${cityCode(city)}-${String(seq).padStart(12, '0')}`
 }
 
+/**
+ * Next per-COUNTRY internal-code sequence: max existing sequence among codes that
+ * carry this country's dial prefix, plus one. Monotonic (never reuses a number)
+ * even if a person later changes nationality — their frozen code still reserves
+ * its sequence — so internal codes stay unique within a country.
+ */
+export function nextInternalSeq(existing: { internalCode?: string }[], country: Country): number {
+  const dial = COUNTRY_DIAL[country] ?? '0'
+  let mx = 0
+  for (const n of existing) {
+    const code = n.internalCode
+    if (!code) continue
+    const parts = code.split('-')
+    if (parts[0] !== dial) continue
+    const s = parseInt(parts[2] ?? '', 10)
+    if (Number.isFinite(s)) mx = Math.max(mx, s)
+  }
+  return mx + 1
+}
+
 export const ORG_TYPE_LABELS: Record<OrgType, BL> = {
   Com: { en: 'Company', ar: 'شركة' },
   Uni: { en: 'University', ar: 'جامعة' },
