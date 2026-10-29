@@ -928,6 +928,18 @@ function ThreadSheet({
                       ))}
                     </div>
                   )}
+                  {/* Recipients on every message in the thread; Bcc only on the sender's own copy. */}
+                  {m.to.length > 0 && (
+                    <p className={cx('mt-1.5 border-t pt-1 text-[10px] leading-snug', mine ? 'border-light/20 text-light/70' : 'border-slate-200 text-slate-400')}>
+                      <span className="font-semibold">{t('to')}:</span> <bdi>{namesOf(m.to)}</bdi>
+                      {m.cc && m.cc.length > 0 && (
+                        <> · <span className="font-semibold">{t('cc')}:</span> <bdi>{namesOf(m.cc)}</bdi></>
+                      )}
+                      {mine && m.bcc && m.bcc.length > 0 && (
+                        <> · <span className="font-semibold">{t('bcc')}:</span> <bdi>{namesOf(m.bcc)}</bdi></>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className={cx('mt-1 flex items-center gap-2', mine ? 'justify-end' : 'justify-start')}>
                   <span className="text-[11px] text-slate-400">{relativeTime(m.createdAt, lang)}</span>
@@ -1072,8 +1084,11 @@ function ComposeEditor({
     dedupe([...refs, ...gids.flatMap(expandGroup)]).filter((r) => actorKey(r) !== meKey)
 
   const to = resolveLevel(toRefs, toGroups)
-  const cc = resolveLevel(ccRefs, ccGroups)
-  const bcc = resolveLevel(bccRefs, bccGroups)
+  // A recipient must not repeat across To / Cc / Bcc: To wins over Cc wins over Bcc.
+  const toKeys = new Set(to.map(actorKey))
+  const cc = resolveLevel(ccRefs, ccGroups).filter((r) => !toKeys.has(actorKey(r)))
+  const ccKeys = new Set(cc.map(actorKey))
+  const bcc = resolveLevel(bccRefs, bccGroups).filter((r) => !toKeys.has(actorKey(r)) && !ccKeys.has(actorKey(r)))
 
   const valid =
     to.length > 0 && (isForward || (subject.trim().length > 0 && body.trim().length > 0))
