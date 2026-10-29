@@ -70,6 +70,12 @@ export default function App() {
   // Strategy edition: fill integrity hashes for seeded credentials/tawkeels once.
   useSeedHashBackfill()
 
+  // Fire overdue-note alerts / auto-close assessments on load (idempotent).
+  const sweepDeadlines = useStore((s) => s.sweepDeadlines)
+  useEffect(() => {
+    sweepDeadlines()
+  }, [sweepDeadlines])
+
   // Reflect language on <html> for global dir + font.
   useEffect(() => {
     document.documentElement.lang = lang

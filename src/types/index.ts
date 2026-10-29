@@ -657,6 +657,8 @@ export interface Notification {
   /** Sender cancelled the note — terminal like closed; drops from sender Pending
    *  and recipient Duties, regardless of how recipients had reacted. */
   cancelled?: boolean
+  /** Set once the deadline sweep has fired for this note (prevents repeat alerts). */
+  deadlineNotified?: boolean
   /** Recipient must e-sign to accept, producing a tamper-evident receipt (Strategy edition). */
   requiresSignature?: boolean
   /** Request-to-pay: a payable amount attached to this note (Strategy edition). */
