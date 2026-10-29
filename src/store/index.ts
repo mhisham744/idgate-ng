@@ -600,7 +600,8 @@ export const useStore = create<State>()(
         if (get().findDuplicateNormal(input.mobile, input.nationalId, nationality)) return ''
         const id = uid('n')
         const fullName = `${input.firstName} ${input.middleName} ${input.surname}`.replace(/\s+/g, ' ').trim()
-        const seq = get().normals.length + 1
+        // Internal-code sequence is counted PER COUNTRY (primary nationality), not globally.
+        const seq = get().normals.filter((n) => (n.nationalities && n.nationalities[0]) === nationality).length + 1
         const nationalities = [nationality, input.nationality2, input.nationality3].filter(
           (c, i, arr): c is import('@/types').Country => !!c && arr.indexOf(c) === i,
         )
