@@ -242,6 +242,8 @@ interface State extends AppData {
   freezeNotification: (id: string) => void
   /** Sender unfreezes the note — re-opens reactions/messages. */
   unfreezeNotification: (id: string) => void
+  /** Sender cancels the note — terminal like closed (drops from Pending/Duties). */
+  cancelNotification: (id: string) => void
   voteNotification: (id: string, choice: 'accept' | 'reject') => void
   /** Mark a note read by the given identity (defaults to the active account). */
   markNotificationRead: (id: string, as?: ActorRef) => void
@@ -1050,6 +1052,31 @@ export const useStore = create<State>()(
               thread: [...rc.thread, sysEntry],
             }))
             return { ...n, frozen: false, recipients }
+          }),
+        }))
+      },
+      cancelNotification: (id) => {
+        const { active } = get()
+        if (!active) return
+        const at = new Date().toISOString()
+        set((s) => ({
+          notifications: s.notifications.map((n) => {
+            if (n.id !== id || n.cancelled) return n
+            // Only the sender may cancel.
+            if (actorKey(n.from) !== actorKey(active)) return n
+            const sysEntry = {
+              id: uid('nte'),
+              at,
+              by: active as ActorRef,
+              type: 'system' as const,
+              text: 'cancelled',
+              readBy: [actorKey(active)],
+            }
+            const recipients = (n.recipients ?? []).map((rc) => ({
+              ...rc,
+              thread: [...rc.thread, sysEntry],
+            }))
+            return { ...n, cancelled: true, recipients }
           }),
         }))
       },

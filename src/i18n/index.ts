@@ -39,6 +39,7 @@ export const STRINGS: Dict = {
   delete: { en: 'Delete', ar: 'حذف' },
   save: { en: 'Save', ar: 'حفظ' },
   cancel: { en: 'Cancel', ar: 'إلغاء' },
+  cancelled: { en: 'Cancelled', ar: 'ملغى' },
   next: { en: 'Next', ar: 'التالي' },
   back: { en: 'Back', ar: 'رجوع' },
   done: { en: 'Done', ar: 'تم' },

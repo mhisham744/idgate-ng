@@ -620,6 +620,9 @@ export interface Notification {
   attachments?: AttachmentMeta[]
   /** Sender froze the note — no further reactions or messages by anyone. */
   frozen?: boolean
+  /** Sender cancelled the note — terminal like closed; drops from sender Pending
+   *  and recipient Duties, regardless of how recipients had reacted. */
+  cancelled?: boolean
   /** Voting tally when kind === 'voting'. */
   votes?: { accept: number; reject: number }
   /** actorKeys who have opened/read this notification (missing → unread). */
