@@ -78,6 +78,8 @@ export function Tools() {
     groupRecipients(id).filter((r) => actorKey(r) !== meKey)
 
   function openTool(key: TransactionKey) {
+    if (key === 'tool.createVacancy' || key === 'tool.displayVacancy') return navigate('/tools/vacancies')
+    if (key === 'tool.talentAcquisition') return navigate('/tools/talent')
     if (INTERACTIVE_TOOLS.includes(key)) setAssessKey(key)
     else setDemoKey(key)
   }
