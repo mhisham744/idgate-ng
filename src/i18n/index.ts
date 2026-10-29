@@ -201,7 +201,7 @@ export const STRINGS: Dict = {
   nameOfSelections: { en: 'Name of selections', ar: 'أسماء الاختيارات' },
   addSelection: { en: 'Add selection', ar: 'إضافة اختيار' },
   addSection: { en: 'Add section', ar: 'إضافة قسم' },
-  selectUpTo: { en: 'Select up to', ar: 'اختر حتى' },
+  selectUpTo: { en: 'Select', ar: 'اختر' },
   results: { en: 'Results', ar: 'النتائج' },
   tally: { en: 'Tally', ar: 'الإجمالي' },
   contactRequest: { en: 'Contact Request', ar: 'طلب تواصل' },

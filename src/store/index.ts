@@ -959,7 +959,7 @@ export const useStore = create<State>()(
         const RESPONSE = ['task', 'calendar', 'offer', 'voting', 'event', 'training', 'tender', 'meeting', 'conference', 'valuation', 'election']
         const cleanBallot = ballot?.map((b) => b.trim()).filter(Boolean)
         const cleanSections = sections
-          ?.map((s) => ({ name: s.name?.trim() || undefined, max: Math.max(1, s.max || 1), options: s.options.map((o) => o.trim()).filter(Boolean) }))
+          ?.map((s) => ({ name: s.name?.trim() || undefined, max: Math.max(1, s.max || 1), options: [...new Set(s.options.map((o) => o.trim()).filter(Boolean))] }))
           .filter((s) => s.options.length > 0)
         const recipients = dedupeRefs(to).map((ref) => ({
           ref,

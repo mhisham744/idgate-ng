@@ -274,7 +274,7 @@ function AssessmentComposeSheet({
 
   const cleanBallot = ballot.map((b) => b.trim()).filter(Boolean)
   const cleanSections = sections
-    .map((s) => ({ max: Math.max(1, s.max || 1), options: s.options.map((o) => o.trim()).filter(Boolean) }))
+    .map((s) => ({ max: Math.max(1, s.max || 1), options: [...new Set(s.options.map((o) => o.trim()).filter(Boolean))] }))
     .filter((s) => s.options.length > 0)
   const valid =
     !!evalType &&
