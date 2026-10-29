@@ -40,6 +40,7 @@ export const STRINGS: Dict = {
   save: { en: 'Save', ar: 'حفظ' },
   saved: { en: 'Saved', ar: 'محفوظ' },
   cancel: { en: 'Cancel', ar: 'إلغاء' },
+  cancelled: { en: 'Cancelled', ar: 'ملغى' },
   next: { en: 'Next', ar: 'التالي' },
   back: { en: 'Back', ar: 'رجوع' },
   done: { en: 'Done', ar: 'تم' },

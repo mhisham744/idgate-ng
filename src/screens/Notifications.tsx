@@ -6,6 +6,7 @@ import {
   CheckCheck,
   Lock,
   LockOpen,
+  Ban,
   Pencil,
   Search,
   SlidersHorizontal,
@@ -179,7 +180,7 @@ export function Notifications() {
     () =>
       mine.filter((n) => {
         const rc = myRecipientOf(n, keys)
-        return !!rc && n.needsResponse && rc.status === 'pending' && !n.frozen
+        return !!rc && n.needsResponse && rc.status === 'pending' && !n.frozen && !n.cancelled
       }).length,
     [mine, keys],
   )
@@ -480,6 +481,11 @@ function NoteCard({
               <Lock size={11} /> {t('frozen')}
             </span>
           )}
+          {note.cancelled && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-rose-500">
+              <Ban size={11} /> {t('cancelled')}
+            </span>
+          )}
         </div>
       </div>
 
@@ -502,7 +508,7 @@ function NoteCard({
             {t('targetTime')}: <span dir="ltr">{note.targetTime}</span>
           </span>
         )}
-        {note.targetVenue && <span className="font-medium text-slate-500">{note.targetVenue}</span>}
+        {note.targetVenue && <span className="font-medium text-slate-500">{t('targetVenue')}: {note.targetVenue}</span>}
       </div>
 
       {/* Status: received → my own; sent → roll-up across recipients */}
@@ -556,6 +562,7 @@ function NoteThreadSheet({
   const postNoteMessage = useStore((s) => s.postNoteMessage)
   const freezeNotification = useStore((s) => s.freezeNotification)
   const unfreezeNotification = useStore((s) => s.unfreezeNotification)
+  const cancelNotification = useStore((s) => s.cancelNotification)
   const editNotification = useStore((s) => s.editNotification)
   const markNoteThreadRead = useStore((s) => s.markNoteThreadRead)
   const rateNotification = useStore((s) => s.rateNotification)
@@ -594,6 +601,11 @@ function NoteThreadSheet({
                 <Lock size={12} /> {t('frozen')}
               </span>
             )}
+            {note.cancelled && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-500">
+                <Ban size={12} /> {t('cancelled')}
+              </span>
+            )}
           </div>
           <ActorLine actor={note.from} size={32} />
           {note.body && <p className="whitespace-pre-wrap text-sm text-slate-700">{note.body}</p>}
@@ -618,27 +630,37 @@ function NoteThreadSheet({
                 {t('targetTime')}: <span dir="ltr">{note.targetTime}</span>
               </span>
             )}
-            {note.targetVenue && <span>{note.targetVenue}</span>}
+            {note.targetVenue && (
+              <span>
+                {t('targetVenue')}: <span>{note.targetVenue}</span>
+              </span>
+            )}
           </div>
           {note.attachments && note.attachments.length > 0 && <AttachmentList items={note.attachments} />}
         </div>
 
         {/* Sender controls */}
-        {isSender && !note.frozen && (
+        {isSender && !note.frozen && !note.cancelled && (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => setEditing((v) => !v)}>
               <Pencil size={14} /> {t('editNote')}
             </Button>
-            <Button size="sm" variant="danger" onClick={() => freezeNotification(note.id)}>
+            <Button size="sm" variant="secondary" onClick={() => freezeNotification(note.id)}>
               <Lock size={14} /> {t('freeze')}
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => cancelNotification(note.id)}>
+              <Ban size={14} /> {t('cancel')}
             </Button>
           </div>
         )}
 
-        {isSender && note.frozen && (
+        {isSender && note.frozen && !note.cancelled && (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => unfreezeNotification(note.id)}>
               <LockOpen size={14} /> {t('unfreeze')}
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => cancelNotification(note.id)}>
+              <Ban size={14} /> {t('cancel')}
             </Button>
           </div>
         )}
@@ -671,7 +693,7 @@ function NoteThreadSheet({
                   note={note}
                   rc={rc}
                   keys={keys}
-                  frozen={!!note.frozen}
+                  frozen={!!note.frozen || !!note.cancelled}
                   onReply={(text) => postNoteMessage(note.id, actorKey(rc.ref), text, undefined, note.from)}
                   resolveName={resolveName}
                   isRtl={isRtl}
@@ -686,7 +708,7 @@ function NoteThreadSheet({
             <AssessmentReaction
               note={note}
               rc={myRec}
-              frozen={!!note.frozen}
+              frozen={!!note.frozen || !!note.cancelled}
               onRate={(rating) => rateNotification(note.id, myKey, rating)}
               onChoice={(i, choice) => setBallotChoice(note.id, myKey, i, choice)}
               onClose={() => respondNotification(note.id, myKey, 'closed')}
@@ -699,7 +721,7 @@ function NoteThreadSheet({
               note={note}
               rc={myRec}
               keys={keys}
-              frozen={!!note.frozen}
+              frozen={!!note.frozen || !!note.cancelled}
               onRespond={(status, text) => respondNotification(note.id, myKey, status, text)}
               onMessage={(text) => postNoteMessage(note.id, myKey, text, undefined, myRec.ref)}
               onSign={async () => {

@@ -98,6 +98,9 @@ export function useMyInbox(): MyInbox {
       const iAmSender = keys.has(actorKey(n.from))
       const mine = myRecipientOf(n, keys)
 
+      // A cancelled note is terminal like closed: it drops from Pending and Duties.
+      if (n.cancelled) continue
+
       if (mine && n.needsResponse && mine.status === 'pending' && !n.frozen) nonReactedNotes.push(n)
       // Duties: a received note stays in Duties until it is CLOSED — even once
       // accepted / rejected / clarified (Final Test 6: Top bar › Duties).
