@@ -799,6 +799,7 @@ function NoteThreadSheet({
 
 // Sender-side view of ONE recipient's private thread + reply box.
 function RecipientSection({
+  note,
   rc,
   keys,
   frozen,
@@ -836,7 +837,7 @@ function RecipientSection({
       {!locked ? (
         <Composer placeholder={t('replyToClarification')} onSend={onReply} isRtl={isRtl} />
       ) : (
-        <LockedNote frozen={frozen} isRtl={isRtl} t={t} />
+        <LockedNote frozen={frozen} cancelled={!!note.cancelled} isRtl={isRtl} t={t} />
       )}
     </div>
   )
@@ -908,7 +909,7 @@ function RecipientView({
       <ThreadList thread={rc.thread} keys={keys} lang={lang} isRtl={isRtl} t={t} />
 
       {locked ? (
-        <LockedNote frozen={frozen} isRtl={isRtl} t={t} />
+        <LockedNote frozen={frozen} cancelled={!!note.cancelled} isRtl={isRtl} t={t} />
       ) : (
         <>
           {needsPay && (
@@ -1087,7 +1088,7 @@ function AssessmentReaction({
       {locked ? (
         <>
           <AssessmentResult note={note} rc={rc} isRtl={isRtl} lang={lang} t={t} />
-          <LockedNote frozen={frozen} isRtl={isRtl} t={t} />
+          <LockedNote frozen={frozen} cancelled={!!note.cancelled} isRtl={isRtl} t={t} />
         </>
       ) : isBallotKind(note.kind) ? (
         <>
@@ -1134,11 +1135,16 @@ function AssessmentReaction({
   )
 }
 
-function LockedNote({ frozen, isRtl, t }: { frozen: boolean; isRtl: boolean; t: (k: string) => string }) {
+function LockedNote({ frozen, cancelled, isRtl, t }: { frozen: boolean; cancelled?: boolean; isRtl: boolean; t: (k: string) => string }) {
+  const msg = cancelled
+    ? L(isRtl, 'The sender cancelled this note.', 'قام المُرسِل بإلغاء هذا التنبيه.')
+    : frozen
+      ? L(isRtl, 'The sender froze this note.', 'قام المُرسِل بتجميد هذا التنبيه.')
+      : `${t('closed')} — ${L(isRtl, 'no further changes.', 'لا مزيد من التغييرات.')}`
   return (
     <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
       <Lock size={12} />
-      {frozen ? L(isRtl, 'The sender froze this note.', 'قام المُرسِل بتجميد هذا التنبيه.') : `${t('closed')} — ${L(isRtl, 'no further changes.', 'لا مزيد من التغييرات.')}`}
+      {msg}
     </div>
   )
 }

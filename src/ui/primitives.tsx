@@ -1,12 +1,16 @@
 import { clsx } from 'clsx'
 import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { createContext, useContext, useEffect } from 'react'
+import { createContext, useContext, useEffect, useRef } from 'react'
 import { X, ChevronDown } from 'lucide-react'
 
 // A tiny classnames helper so screens don't each re-import clsx.
 export function cx(...args: Parameters<typeof clsx>) {
   return clsx(...args)
 }
+
+// Stack of currently-open Sheets so Escape only dismisses the topmost one
+// (nested sheets must not all close on a single Escape press).
+const sheetStack: symbol[] = []
 
 // ── Button ──────────────────────────────────────────────────────────────────
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle'
@@ -227,11 +231,22 @@ export function Sheet({
   children: ReactNode
   footer?: ReactNode
 }) {
+  const sheetId = useRef<symbol>()
+  if (!sheetId.current) sheetId.current = Symbol('sheet')
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const id = sheetId.current as symbol
+    sheetStack.push(id)
+    const onKey = (e: KeyboardEvent) => {
+      // Only the topmost open sheet responds to Escape.
+      if (e.key === 'Escape' && sheetStack[sheetStack.length - 1] === id) onClose()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      const i = sheetStack.lastIndexOf(id)
+      if (i >= 0) sheetStack.splice(i, 1)
+    }
   }, [open, onClose])
 
   if (!open) return null
