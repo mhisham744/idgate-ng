@@ -24,6 +24,9 @@ export function BusinessNewsFeed() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const prefs = useStore((s) => s.newsFeed())
+  // The "Unified inbox" setting also drives news layout: unified → a boxed,
+  // scrollable widget; per-account (active) → headlines roll inline in the feed.
+  const boxed = useStore((s) => s.inboxScope()) === 'unified'
   const setNewsFeedScope = useStore((s) => s.setNewsFeedScope)
   const setNewsFeedEnabled = useStore((s) => s.setNewsFeedEnabled)
   const addPost = useStore((s) => s.addPost)
@@ -64,97 +67,31 @@ export function BusinessNewsFeed() {
     setShareText('')
   }
 
-  return (
-    <Card className="glow-gate overflow-hidden p-0">
-      {/* Hero header band */}
-      <div className="flex items-start justify-between gap-2 bg-gradient-to-br from-gate-500/10 to-teal-500/5 px-4 py-3.5 sm:px-5">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gate-500 to-gate-700 text-light shadow-sm shadow-gate-600/40">
-            <Newspaper className="h-5 w-5" aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-[15px] font-bold text-slate-800 text-glow">{t('businessNews')}</span>
-              <Badge tone="gate">{t('newsServiceLabel')}</Badge>
-            </div>
-            <div className="truncate text-[11px] font-medium text-slate-500">
-              {contextLabel}
-              {ctx.isVirtual && ctx.company ? ` · ${ctx.company}` : ''}
-            </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <IconButton onClick={refresh} label={t('newsRefresh')}>
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          </IconButton>
-          <IconButton onClick={() => setPrefsOpen(true)} label={t('newsPrefs')}>
-            <SlidersHorizontal className="h-4 w-4" aria-hidden />
-          </IconButton>
-        </div>
-      </div>
+  // Cap at 5 on the client too (the service also caps server-side).
+  const items = state.status === 'ready' ? state.items.slice(0, 5) : []
 
-      <div className="px-2 pb-2 sm:px-3 sm:pb-3">
-        {state.status === 'loading' && (
-          <p className="py-6 text-center text-xs text-slate-500">{t('newsLoading')}</p>
-        )}
-        {state.status === 'unavailable' && (
-          <p className="py-6 text-center text-xs text-slate-500">{t('newsUnavailable')}</p>
-        )}
-        {state.status === 'empty' && (
-          <p className="py-6 text-center text-xs text-slate-500">{t('newsEmpty')}</p>
-        )}
+  const statusMsg =
+    state.status === 'loading' ? (
+      <p className="py-6 text-center text-xs text-slate-500">{t('newsLoading')}</p>
+    ) : state.status === 'unavailable' ? (
+      <p className="py-6 text-center text-xs text-slate-500">{t('newsUnavailable')}</p>
+    ) : state.status === 'empty' ? (
+      <p className="py-6 text-center text-xs text-slate-500">{t('newsEmpty')}</p>
+    ) : null
 
-        {state.status === 'ready' && (
-          <ul className="space-y-1">
-            {state.items.map((item) => (
-              <li
-                key={item.id}
-                className="group flex items-start gap-3 rounded-2xl p-2 ring-1 ring-inset ring-transparent transition hover:bg-slate-500/[0.04] hover:ring-slate-900/5 dark:hover:ring-white/10"
-              >
-                <a
-                  href={item.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex min-w-0 flex-1 items-start gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
-                >
-                  <Thumb src={item.image} source={item.source} />
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-slate-800 text-start">
-                      {item.title}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500">
-                      <span className="font-semibold text-gate-700">{item.source}</span>
-                      {item.publishedAt && (
-                        <>
-                          <span aria-hidden>·</span>
-                          <span>{relativeTime(item.publishedAt, lang)}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </a>
-                <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
-                  {canShare && (
-                    <IconButton onClick={() => openShare(item)} label={t('newsShare')} small>
-                      <Share2 className="h-3.5 w-3.5" aria-hidden />
-                    </IconButton>
-                  )}
-                  <a
-                    href={item.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={L('Open article', 'فتح المقال')}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-500/10 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                  </a>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+  const headerControls = (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <IconButton onClick={refresh} label={t('newsRefresh')}>
+        <RefreshCw className="h-4 w-4" aria-hidden />
+      </IconButton>
+      <IconButton onClick={() => setPrefsOpen(true)} label={t('newsPrefs')}>
+        <SlidersHorizontal className="h-4 w-4" aria-hidden />
+      </IconButton>
+    </div>
+  )
 
+  const sheets = (
+    <>
       {/* Share a headline into the feed as a post */}
       <Sheet
         open={!!shareItem}
@@ -238,7 +175,131 @@ export function BusinessNewsFeed() {
           </div>
         </div>
       </Sheet>
+    </>
+  )
+
+  // ── Inline mode (per-account): headlines roll as standalone feed cards ───────
+  if (!boxed) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <Newspaper className="h-4 w-4 shrink-0 text-gate-600" aria-hidden />
+            <span className="truncate text-sm font-bold text-slate-800">{t('businessNews')}</span>
+            <Badge tone="gate">{t('newsServiceLabel')}</Badge>
+          </div>
+          {headerControls}
+        </div>
+        {statusMsg}
+        {items.map((item) => (
+          <Card key={item.id} className="group flex items-start gap-3 p-3">
+            <NewsRow item={item} onShare={openShare} canShare={canShare} lang={lang} L={L} t={t} />
+          </Card>
+        ))}
+        {sheets}
+      </div>
+    )
+  }
+
+  // ── Boxed mode (unified): a bordered, scrollable max-5 widget ────────────────
+  return (
+    <Card className="glow-gate overflow-hidden p-0">
+      {/* Hero header band */}
+      <div className="flex items-start justify-between gap-2 bg-gradient-to-br from-gate-500/10 to-teal-500/5 px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gate-500 to-gate-700 text-light shadow-sm shadow-gate-600/40">
+            <Newspaper className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-[15px] font-bold text-slate-800 text-glow">{t('businessNews')}</span>
+              <Badge tone="gate">{t('newsServiceLabel')}</Badge>
+            </div>
+            <div className="truncate text-[11px] font-medium text-slate-500">
+              {contextLabel}
+              {ctx.isVirtual && ctx.company ? ` · ${ctx.company}` : ''}
+            </div>
+          </div>
+        </div>
+        {headerControls}
+      </div>
+
+      <div className="px-2 pb-2 sm:px-3 sm:pb-3">
+        {statusMsg}
+        {state.status === 'ready' && (
+          <ul className="max-h-[22rem] space-y-1 overflow-y-auto thin-scroll pe-1">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                className="group flex items-start gap-3 rounded-2xl p-2 ring-1 ring-inset ring-transparent transition hover:bg-slate-500/[0.04] hover:ring-slate-900/5 dark:hover:ring-white/10"
+              >
+                <NewsRow item={item} onShare={openShare} canShare={canShare} lang={lang} L={L} t={t} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {sheets}
     </Card>
+  )
+}
+
+/** One headline row — shared by the boxed and inline layouts. */
+function NewsRow({
+  item,
+  onShare,
+  canShare,
+  lang,
+  L,
+  t,
+}: {
+  item: NewsItem
+  onShare: (i: NewsItem) => void
+  canShare: boolean
+  lang: 'en' | 'ar'
+  L: (en: string, ar: string) => string
+  t: (k: string) => string
+}) {
+  return (
+    <>
+      <a
+        href={item.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+      >
+        <Thumb src={item.image} source={item.source} />
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-slate-800 text-start">{item.title}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500">
+            <span className="font-semibold text-gate-700">{item.source}</span>
+            {item.publishedAt && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{relativeTime(item.publishedAt, lang)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </a>
+      <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
+        {canShare && (
+          <IconButton onClick={() => onShare(item)} label={t('newsShare')} small>
+            <Share2 className="h-3.5 w-3.5" aria-hidden />
+          </IconButton>
+        )}
+        <a
+          href={item.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={L('Open article', 'فتح المقال')}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-500/10 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
+        >
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+        </a>
+      </div>
+    </>
   )
 }
 

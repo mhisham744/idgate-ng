@@ -233,6 +233,25 @@ export function Settings() {
               </Chip>
             </div>
           </div>
+          <div className="border-t border-slate-100 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Inbox size={18} className="shrink-0 text-slate-400" />
+                {L('Unified inbox', 'صندوق موحّد')}
+              </div>
+              <Toggle
+                checked={inboxScope === 'unified'}
+                onChange={(v) => setInboxScope(v ? 'unified' : 'active')}
+                label={L('Unified inbox', 'صندوق موحّد')}
+              />
+            </div>
+            <p className="mt-1 text-[11px] leading-snug text-slate-400 text-start">
+              {L(
+                'On: Messages, Notifications & posts are combined across all your accounts, and news shows as a scrollable box. Off: each account is separate and news rolls inline.',
+                'عند التفعيل: تُجمع الرسائل والإشعارات والمنشورات عبر جميع حساباتك، وتظهر الأخبار في صندوق قابل للتمرير. عند الإيقاف: كل حساب منفصل وتظهر الأخبار ضمن التدفق.',
+              )}
+            </p>
+          </div>
           <div className="border-t border-slate-100 pt-3 space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <Newspaper size={18} className="shrink-0 text-slate-400" />
