@@ -230,6 +230,8 @@ export interface NormalCharacter {
     contactsInfo: PrivacyLevel
     education: PrivacyLevel
     career: PrivacyLevel
+    /** Visibility of the person's language proficiencies. */
+    languages?: PrivacyLevel
   }
   avatarColor: string // deterministic avatar tint
   /** Optional profile photo (in-session dataUrl; stripped before persist). Added at creation (optional). */

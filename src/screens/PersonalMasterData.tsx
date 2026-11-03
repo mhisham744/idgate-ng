@@ -113,7 +113,7 @@ function toForm(n: NormalCharacter): Form {
     targetJob: n.career?.targetJob ?? '',
     cv: n.career?.cv,
     vacancyNotification: n.vacancyNotification ?? false,
-    privacy: n.privacy,
+    privacy: { ...n.privacy, languages: n.privacy.languages ?? 'contacts' },
   }
 }
 
@@ -629,6 +629,7 @@ export function PersonalMasterData() {
               { key: 'contactsInfo', label: L('Contacts', 'جهات الاتصال') },
               { key: 'education', label: L('Education', 'التعليم') },
               { key: 'career', label: L('Career', 'المسار المهني') },
+              { key: 'languages', label: L('Languages', 'اللغات') },
             ] as { key: keyof Form['privacy']; label: string }[]
           ).map(({ key, label }) => (
             <div key={key} className="flex items-center justify-between gap-3">
@@ -641,7 +642,7 @@ export function PersonalMasterData() {
                       onClick={() => setPrivacy(key, o.value)}
                       className={cx(
                         'inline-flex min-h-[40px] items-center rounded-full px-2.5 py-2 text-xs font-medium',
-                        form.privacy[key] === o.value ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-500',
+                        (form.privacy[key] ?? 'contacts') === o.value ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-500',
                       )}
                     >
                       {o.label}
@@ -649,7 +650,7 @@ export function PersonalMasterData() {
                   ))}
                 </div>
               ) : (
-                <span className="text-sm font-medium text-slate-800">{privacyLabel(form.privacy[key])}</span>
+                <span className="text-sm font-medium text-slate-800">{privacyLabel(form.privacy[key] ?? 'contacts')}</span>
               )}
             </div>
           ))}
