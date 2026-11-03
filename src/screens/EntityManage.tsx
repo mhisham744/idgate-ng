@@ -372,21 +372,31 @@ export function EntityManage() {
             <EmptyState icon={<Users size={36} />} title={t('empty')} />
           ) : (
             <div className="space-y-2">
-              {entVirtuals
-                .filter((v) => v.positionName.toLowerCase().includes(virtualQuery.trim().toLowerCase()))
-                .map((v) => (
-                  <VirtualRow
-                    key={v.id}
-                    L={L}
-                    t={t}
-                    v={v}
-                    normals={normals}
-                    onBlock={() => handleBlockEntity(v)}
-                    onEdit={() => setVirtualEditId(v.id)}
-                    onDisplay={() => setVirtualDisplayId(v.id)}
-                    locked={v.positionName === 'Administrator' && !!v.linkedNormalId && (v.linkedNormalId === ent.managingDirectorNormalId || v.linkedNormalId === ent.adminNormalId)}
-                  />
-                ))}
+              {(() => {
+                // Admin entity lock: the Administrator virtual linked to the MD/admin
+                // person is not subject to display/edit/block — UNLESS another admin
+                // is still active, in which case it becomes manageable.
+                const isAdminV = (x: VirtualCharacter) =>
+                  x.positionName === 'Administrator' && !!x.linkedNormalId &&
+                  (x.linkedNormalId === ent.managingDirectorNormalId || x.linkedNormalId === ent.adminNormalId)
+                const otherActiveAdmin = (v: VirtualCharacter) =>
+                  entVirtuals.some((x) => x.id !== v.id && isAdminV(x) && x.status === 'active')
+                return entVirtuals
+                  .filter((v) => v.positionName.toLowerCase().includes(virtualQuery.trim().toLowerCase()))
+                  .map((v) => (
+                    <VirtualRow
+                      key={v.id}
+                      L={L}
+                      t={t}
+                      v={v}
+                      normals={normals}
+                      onBlock={() => handleBlockEntity(v)}
+                      onEdit={() => setVirtualEditId(v.id)}
+                      onDisplay={() => setVirtualDisplayId(v.id)}
+                      locked={isAdminV(v) && !otherActiveAdmin(v)}
+                    />
+                  ))
+              })()}
             </div>
           )}
         </div>
