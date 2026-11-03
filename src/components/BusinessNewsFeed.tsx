@@ -71,7 +71,7 @@ export function BusinessNewsFeed() {
   const items = state.status === 'ready' ? state.items.slice(0, 5) : []
 
   const statusMsg =
-    state.status === 'loading' ? (
+    state.status === 'loading' || state.status === 'idle' ? (
       <p className="py-6 text-center text-xs text-slate-500">{t('newsLoading')}</p>
     ) : state.status === 'unavailable' ? (
       <p className="py-6 text-center text-xs text-slate-500">{t('newsUnavailable')}</p>

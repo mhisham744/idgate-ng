@@ -80,6 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ).length
   const pendingNotes = notifications.filter(
     (n) =>
+      !n.cancelled &&
       n.needsResponse &&
       !n.frozen &&
       (n.recipients ?? []).some((rc) => keys.has(actorKey(rc.ref)) && rc.status === 'pending'),
