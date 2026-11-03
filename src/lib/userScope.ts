@@ -214,7 +214,12 @@ export function useDirectory(): Directory {
       scopeKeys.add(`n:${normalId}`)
       virtualsFor(normalId).forEach((v) => scopeKeys.add(`v:${v.id}`))
     }
-    const myGroups = groups.filter((g) => groupRecipients(g.id).some((r) => scopeKeys.has(actorKey(r))))
+    const myGroups = groups.filter((g) => {
+      // Groups I own always appear in my directory (even if I'm not a member)…
+      if (active.kind === 'virtual' ? g.ownerVirtualId === active.virtualId : normalId && g.ownerNormalId === normalId) return true
+      // …as do groups I'm a member of.
+      return groupRecipients(g.id).some((r) => scopeKeys.has(actorKey(r)))
+    })
 
     // Nodes (virtual only) — the structure nodes the acting virtual is placed in.
     let nodes: StructureNode[] = []
