@@ -792,7 +792,7 @@ export type TawkeelStatus = 'active' | 'revoked' | 'expired'
 export interface TawkeelAudit {
   at: string
   by: ActorRef
-  action: 'granted' | 'revoked' | 'exercised'
+  action: 'granted' | 'revoked' | 'exercised' | 'shown'
   note?: string
 }
 
@@ -815,6 +815,8 @@ export interface Tawkeel {
   signature: string
   /** The wallet credential minted alongside this tawkeel. */
   credentialId?: string
+  /** Actors the grantee has "shown" (forwarded) this tawkeel to. */
+  shownTo?: ActorRef[]
   audit: TawkeelAudit[]
 }
 

@@ -371,6 +371,8 @@ interface State extends AppData {
   grantTawkeel: (t: Tawkeel) => string
   revokeTawkeel: (id: string, reason?: string) => void
   exerciseTawkeel: (id: string) => void
+  /** Record that the grantee has "shown" (forwarded) a tawkeel to other actors. */
+  showTawkeel: (id: string, to: ActorRef[]) => void
   /** Patch a tawkeel in place (used by the async seed-hash backfill). */
   updateTawkeel: (id: string, patch: Partial<Tawkeel>) => void
   verifyEntity: (id: string, authority: 'GAFI' | 'ETA') => void
@@ -1753,6 +1755,22 @@ export const useStore = create<State>()(
         const at = new Date().toISOString()
         set((s) => ({
           tawkeels: s.tawkeels.map((x) => (x.id === id ? { ...x, audit: [...x.audit, { at, by: x.grantee, action: 'exercised' }] } : x)),
+        }))
+      },
+      showTawkeel: (id, to) => {
+        const at = new Date().toISOString()
+        set((s) => ({
+          tawkeels: s.tawkeels.map((x) => {
+            if (x.id !== id) return x
+            const seen = new Set((x.shownTo ?? []).map(actorKey))
+            const added = dedupeRefs(to).filter((r) => !seen.has(actorKey(r)))
+            if (added.length === 0) return x
+            return {
+              ...x,
+              shownTo: [...(x.shownTo ?? []), ...added],
+              audit: [...x.audit, { at, by: x.grantee, action: 'shown', note: `${added.length}` }],
+            }
+          }),
         }))
       },
       updateTawkeel: (id, patch) =>
