@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Plus, ScrollText, ShieldCheck, History, Send, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { ActorRef, Tawkeel as TawkeelT, Validity } from '@/types'
@@ -22,15 +22,16 @@ export function Tawkeel() {
   const revokeTawkeel = useStore((s) => s.revokeTawkeel)
   const sendSystemMessage = useStore((s) => s.sendSystemMessage)
   const resolve = useResolveActor()
-  useStore((s) => s.tawkeels)
+  // Subscribe to the tawkeels array so grant/revoke/show re-run the memos below.
+  const tawkeels = useStore((s) => s.tawkeels)
 
   const [tab, setTab] = useState<'by' | 'to'>('by')
   const [grantOpen, setGrantOpen] = useState(false)
   const [auditOf, setAuditOf] = useState<TawkeelT | null>(null)
   const [showOf, setShowOf] = useState<TawkeelT | null>(null)
 
-  const granted = useMemo(() => (active ? tawkeelsGrantedBy(active as ActorRef) : []), [active, tawkeelsGrantedBy])
-  const received = useMemo(() => (active ? tawkeelsGrantedTo(active as ActorRef) : []), [active, tawkeelsGrantedTo])
+  const granted = useMemo(() => (active ? tawkeelsGrantedBy(active as ActorRef) : []), [active, tawkeelsGrantedBy, tawkeels])
+  const received = useMemo(() => (active ? tawkeelsGrantedTo(active as ActorRef) : []), [active, tawkeelsGrantedTo, tawkeels])
   const list = tab === 'by' ? granted : received
 
   // Revoke (grantor side) → no-reply notices to the grantee and to anyone the
@@ -232,6 +233,13 @@ function GrantTawkeelSheet({ open, onClose }: { open: boolean; onClose: () => vo
   const reset = () => {
     setRefs([]); setDelId(''); setSubject(''); setValidity({ open: true })
   }
+
+  // Reset the form whenever the sheet is dismissed (the component stays mounted),
+  // so reopening never shows a stale grantee / delegation / validity.
+  useEffect(() => {
+    if (!open) reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const submit = async () => {
     if (!grantee || !active || !canSubmit || busy) return
