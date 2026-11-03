@@ -235,7 +235,6 @@ export function Settings() {
               <Toggle
                 checked={inboxScope === 'unified'}
                 onChange={(v) => setInboxScope(v ? 'unified' : 'active')}
-                label={L('Unified inbox', 'صندوق موحّد')}
               />
             </div>
             <p className="mt-1 text-[11px] leading-snug text-slate-400 text-start">
