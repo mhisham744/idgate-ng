@@ -215,6 +215,15 @@ export const PAY_METHOD_LABELS: Record<PayMethod, BL> = {
   instapay: { en: 'InstaPay', ar: 'إنستاباي' },
 }
 
+/**
+ * Feature flag: the "Pay Now" / request-to-pay flow (attach a payable amount to
+ * a notification; recipient pays via Meeza/InstaPay) is hidden for now — it is a
+ * complicated feature parked for later. All store actions, types, i18n and seed
+ * data are kept intact; only the two UI entry points are gated on this flag.
+ * Flip to `true` to bring the feature back. See memory: paynow-hidden.
+ */
+export const PAY_NOW_ENABLED = false
+
 /** "Type" field options for assessment tools (EvalType re-exported from @/types). */
 export const EVAL_TYPE_LABELS: Record<EvalType, BL> = {
   subject: { en: 'Subject', ar: 'موضوع' },

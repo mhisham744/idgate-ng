@@ -21,7 +21,7 @@ import { useLang, bl } from '@/i18n'
 import { actorKey, formatDate, relativeTime, uid } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { ReceiptCard } from '@/components/ReceiptCard'
-import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS, PAY_METHOD_LABELS } from '@/data/reference'
+import { NOTE_KIND_LABELS, RATING_LABELS, RATING_ORDER, EVAL_TYPE_LABELS, PAY_METHOD_LABELS, PAY_NOW_ENABLED } from '@/data/reference'
 import type { EvalType } from '@/data/reference'
 import { useInboxScopeKeys, myRecipientOf } from '@/lib/userScope'
 import { GENESIS_HASH, credentialPayload, hashObject, makeSerial, receiptPayload, simulatedSignature } from '@/lib/crypto'
@@ -915,7 +915,7 @@ function RecipientView({
         <LockedNote frozen={frozen} cancelled={!!note.cancelled} isRtl={isRtl} t={t} />
       ) : (
         <>
-          {needsPay && (
+          {PAY_NOW_ENABLED && needsPay && (
             <div className="space-y-2 rounded-2xl border border-gate-200 bg-gate-50/50 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-slate-700">{t('amountDue')}</span>

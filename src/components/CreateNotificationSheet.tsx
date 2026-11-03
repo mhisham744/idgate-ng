@@ -7,7 +7,7 @@ import { useResolveActor } from '@/components/identity'
 import { useDirectory } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
-import { NOTE_KIND_LABELS } from '@/data/reference'
+import { NOTE_KIND_LABELS, PAY_NOW_ENABLED } from '@/data/reference'
 import { Button, Field, Input, Textarea, Select, Sheet, Toggle } from '@/ui/primitives'
 import type { ActorRef, AttachmentMeta, NoteKind, TransactionKey } from '@/types'
 
@@ -218,9 +218,11 @@ export function CreateNotificationSheet({ open, onClose }: { open: boolean; onCl
           </div>
           <Toggle checked={requiresSignature} onChange={setRequiresSignature} />
         </div>
-        <Field label={t('requestPayment')} hint={t('optional')}>
-          <Input type="number" min={0} inputMode="numeric" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0" />
-        </Field>
+        {PAY_NOW_ENABLED && (
+          <Field label={t('requestPayment')} hint={t('optional')}>
+            <Input type="number" min={0} inputMode="numeric" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0" />
+          </Field>
+        )}
 
         <div>
           <input
