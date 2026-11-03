@@ -55,15 +55,22 @@ export function threadHasUnseen(rc: NoteRecipient, keys: Set<string>): boolean {
  * The single source of truth shared by the screens and the tab badges.
  */
 export function useInboxScopeKeys(): Set<string> {
-  // Per-account independence (Final Test): each account's inbox/statements are its
-  // own — the scope is always the ACTIVE account, never a unified view.
+  // Driven by the "Unified inbox" setting:
+  //  - 'unified' → the signed-in person + every owned/linked virtual identity.
+  //  - 'active'  → only the currently active account (per-account independence).
   const active = useStore((s) => s.active)
+  const normalId = useStore((s) => s.normalId)
+  const virtuals = useStore((s) => s.virtuals)
+  const scope = useStore((s) => s.inboxScope())
+  const myActorKeys = useStore((s) => s.myActorKeys)
 
   return useMemo(() => {
+    if (scope === 'unified') return new Set(myActorKeys())
     const keys = new Set<string>()
     if (active) keys.add(actorKey(active))
     return keys
-  }, [active])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, scope, normalId, virtuals, myActorKeys])
 }
 
 /**
@@ -79,12 +86,15 @@ export function useMyInbox(): MyInbox {
   const contactRequests = useStore((s) => s.contactRequests)
   const linkRequests = useStore((s) => s.linkRequests)
   const entities = useStore((s) => s.entities)
+  const scope = useStore((s) => s.inboxScope())
+  const myActorKeys = useStore((s) => s.myActorKeys)
 
   return useMemo(() => {
-    // Per-account independence: Home posts + top-bar counts reflect the ACTIVE
-    // account only, not a union across all owned identities.
+    // "Unified inbox" setting: unified → union across the person + all owned
+    // identities; active → the active account only (per-account independence).
     const keys = new Set<string>()
-    if (active) keys.add(actorKey(active))
+    if (scope === 'unified') myActorKeys().forEach((k) => keys.add(k))
+    else if (active) keys.add(actorKey(active))
 
     const addressedToMe = (m: Message) =>
       anyKey(m.to, keys) || anyKey(m.cc, keys) || anyKey(m.bcc, keys)
@@ -136,7 +146,7 @@ export function useMyInbox(): MyInbox {
     const incomingLinks = linkRequests.filter((l) => l.status === 'pending' && l.targetNormalId === normalId)
 
     return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts, sentPendingLinks, incomingContacts, incomingLinks }
-  }, [normalId, active, virtuals, messages, notifications, contactRequests, linkRequests, entities])
+  }, [normalId, active, virtuals, messages, notifications, contactRequests, linkRequests, entities, scope, myActorKeys])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
