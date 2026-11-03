@@ -26,6 +26,10 @@ import {
   Moon,
   Inbox,
   Newspaper,
+  TrendingUp,
+  Percent,
+  Package,
+  FileText,
   RotateCcw,
   LogOut,
   Send,
@@ -229,27 +233,80 @@ export function Settings() {
               </Chip>
             </div>
           </div>
-          <div className="border-t border-slate-100 pt-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Newspaper size={18} className="shrink-0 text-slate-400" />
-                {t('businessNews')}
-              </div>
-              <Toggle checked={newsFeed.enabled} onChange={setNewsFeedEnabled} label={t('businessNews')} />
+          <div className="border-t border-slate-100 pt-3 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Newspaper size={18} className="shrink-0 text-slate-400" />
+              {t('businessNews')}
             </div>
-            <p className="mt-1 text-[11px] leading-snug text-slate-400 text-start">
-              {t('businessNewsDesc')}
-            </p>
-            {newsFeed.enabled && (
-              <div className="mt-2.5 flex gap-2">
-                <Chip active={newsFeed.scope === 'auto'} onClick={() => setNewsFeedScope('auto')}>
-                  {t('newsScopeAuto')}
-                </Chip>
-                <Chip active={newsFeed.scope === 'all'} onClick={() => setNewsFeedScope('all')}>
-                  {t('newsScopeAll')}
-                </Chip>
+
+            {/* Information — market data sources (linked later; inactive placeholders). */}
+            <div className="space-y-1">
+              <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                {L('Information', 'معلومات')}
               </div>
-            )}
+              <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100">
+                {([
+                  [L('Stock Market', 'البورصة'), TrendingUp],
+                  [L('Interest Rate', 'سعر الفائدة'), Percent],
+                  [L('Commodities', 'السلع'), Package],
+                ] as const).map(([label, Icon]) => (
+                  <div key={label} className="flex items-center justify-between gap-2 px-3 py-2 opacity-70">
+                    <span className="flex items-center gap-2 text-sm text-slate-600">
+                      <Icon size={15} className="text-slate-400" /> {label}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                      {L('Soon', 'قريبًا')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* News — the live Egypt business-news feed (the only wired source). */}
+            <div className="space-y-1">
+              <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                {L('News', 'أخبار')}
+              </div>
+              <div className="rounded-2xl border border-slate-100 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <Newspaper size={16} className="shrink-0 text-slate-400" />
+                    {L('Egypt business news', 'أخبار أعمال مصر')}
+                  </div>
+                  <Toggle checked={newsFeed.enabled} onChange={setNewsFeedEnabled} label={t('businessNews')} />
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-slate-400 text-start">
+                  {t('businessNewsDesc')}
+                </p>
+                {newsFeed.enabled && (
+                  <div className="mt-2.5 flex gap-2">
+                    <Chip active={newsFeed.scope === 'auto'} onClick={() => setNewsFeedScope('auto')}>
+                      {t('newsScopeAuto')}
+                    </Chip>
+                    <Chip active={newsFeed.scope === 'all'} onClick={() => setNewsFeedScope('all')}>
+                      {t('newsScopeAll')}
+                    </Chip>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Reports — document feed (linked later; inactive placeholder). */}
+            <div className="space-y-1">
+              <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                {L('Reports', 'تقارير')}
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-slate-100">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 opacity-70">
+                  <span className="flex items-center gap-2 text-sm text-slate-600">
+                    <FileText size={15} className="text-slate-400" /> {L('Market & sector reports', 'تقارير السوق والقطاعات')}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                    {L('Soon', 'قريبًا')}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
