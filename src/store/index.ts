@@ -385,7 +385,9 @@ export const useStore = create<State>()(
       myActorKeys: () => {
         const { normalId } = get()
         if (!normalId) return []
-        return [`n:${normalId}`, ...get().virtualsFor(normalId).map((v) => `v:${v.id}`)]
+        // Only identities the person can currently ACT AS — exclude blocked
+        // virtuals so the unified inbox matches the account switcher.
+        return [`n:${normalId}`, ...get().virtualsFor(normalId).filter((v) => v.status !== 'blocked').map((v) => `v:${v.id}`)]
       },
       myPresence: () => {
         const { normalId, presenceByNormal } = get()
