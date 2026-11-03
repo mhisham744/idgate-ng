@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, ChevronDown } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { TRANSACTIONS, PROFILE_GRANTABLE, txLabel, APP_AREA_LABELS } from '@/data/reference'
@@ -39,18 +39,35 @@ export function ProfileEditor({
   const [name, setName] = useState('')
   const [enabled, setEnabled] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!open) return
     setName(profile?.name ?? '')
     setEnabled(new Set(profile ? Object.keys(profile.permissions) : []))
     setQuery('')
+    setCollapsed(new Set())
   }, [open, profile])
 
   const toggle = (key: string) =>
     setEnabled((prev) => {
       const next = new Set(prev)
       next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+
+  const toggleCollapse = (g: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      next.has(g) ? next.delete(g) : next.add(g)
+      return next
+    })
+
+  // Grant / clear every transaction in a group at once (tree-level action).
+  const setGroup = (keys: TransactionKey[], on: boolean) =>
+    setEnabled((prev) => {
+      const next = new Set(prev)
+      keys.forEach((k) => (on ? next.add(k) : next.delete(k)))
       return next
     })
 
@@ -111,22 +128,48 @@ export function ProfileEditor({
           {enabled.size} {L('enabled', 'مفعّلة')}
         </div>
 
-        {groups.map(({ group, keys }) => (
-          <div key={group} className="space-y-1">
-            <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">{groupLabel(group)}</div>
-            <div className="overflow-hidden rounded-2xl border border-slate-100">
-              {keys.map((key) => {
-                const on = enabled.has(key)
-                return (
-                  <div key={key} className={cx('flex items-center justify-between gap-2 px-3 py-2', on && 'bg-gate-50/50')}>
-                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{bl(txLabel(key), lang)}</span>
-                    <Toggle checked={on} onChange={() => toggle(key)} />
-                  </div>
-                )
-              })}
+        {groups.map(({ group, keys }) => {
+          const onCount = keys.filter((k) => enabled.has(k)).length
+          const allOn = onCount === keys.length
+          const isCollapsed = collapsed.has(group)
+          return (
+            <div key={group} className="space-y-1">
+              <div className="flex items-center gap-2 px-1">
+                <button
+                  type="button"
+                  onClick={() => toggleCollapse(group)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400"
+                >
+                  <ChevronDown size={13} className={cx('shrink-0 transition', isCollapsed && '-rotate-90')} />
+                  <span className="truncate">{groupLabel(group)}</span>
+                  <span className={cx('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', onCount > 0 ? 'bg-gate-100 text-gate-700' : 'bg-slate-100 text-slate-400')}>
+                    {onCount}/{keys.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroup(keys, !allOn)}
+                  className="shrink-0 text-[11px] font-semibold text-gate-600"
+                >
+                  {allOn ? L('Clear', 'مسح') : L('Select all', 'تحديد الكل')}
+                </button>
+              </div>
+              {!isCollapsed && (
+                <div className="overflow-hidden rounded-2xl border border-slate-100">
+                  {keys.map((key) => {
+                    const on = enabled.has(key)
+                    return (
+                      <div key={key} className={cx('flex items-center justify-between gap-2 px-3 py-2', on && 'bg-gate-50/50')}>
+                        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{bl(txLabel(key), lang)}</span>
+                        <Toggle checked={on} onChange={() => toggle(key)} />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </Sheet>
   )
