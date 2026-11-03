@@ -185,7 +185,7 @@ export function DelegationShow() {
                           <div className="mt-2 space-y-1.5 border-t border-slate-200/60 pt-2">
                             <div className="text-[11px] font-medium text-slate-500">{L('Validity', 'الصلاحية')}</div>
                             <div className="flex gap-2">
-                              <button type="button" onClick={() => setDelValidity(d.id, { open: true })} className={cx('rounded-full px-3 py-1 text-xs font-medium', v.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}>{L('Open', 'مفتوح')}</button>
+                              <button type="button" onClick={() => setDelValidity(d.id, { open: true, from: v.from, to: v.to })} className={cx('rounded-full px-3 py-1 text-xs font-medium', v.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}>{L('Open', 'مفتوح')}</button>
                               <button type="button" onClick={() => setDelValidity(d.id, { open: false, from: v.from, to: v.to })} className={cx('rounded-full px-3 py-1 text-xs font-medium', !v.open ? 'bg-gate-600 text-light' : 'bg-slate-100 text-slate-600')}>{L('Limited', 'محدود')}</button>
                             </div>
                             {!v.open && (
