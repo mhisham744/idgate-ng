@@ -208,10 +208,12 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
 
   const nidValid = /^\d{14}$/.test(form.nationalId.trim())
   const age = ageFrom(form.dateOfBirth)
+  const todayISO = new Date().toISOString().slice(0, 10)
   const nidRequired = age != null && age > 17
   // A person 17 or younger has no National ID yet → they skip all ID-based KYC
   // (capture, liveness, registry) and finish as a basic (unverified) account.
-  const isMinor = age != null && age <= 17
+  // Guard against a future/negative age so a bad DOB can't masquerade as a minor.
+  const isMinor = age != null && age >= 0 && age <= 17
   const nidOk = nidRequired ? nidValid : !form.nationalId.trim() || nidValid
   const duplicate = useStore((s) => s.findDuplicateNormal)(form.mobile, form.nationalId, form.nationality || 'Egypt')
   const claimValid =
@@ -475,7 +477,7 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
               </Select>
             </Field>
             <Field label={L('Date of birth', 'تاريخ الميلاد')} required>
-              <Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
+              <Input type="date" max={todayISO} value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
             </Field>
             <Field label={t('nationality1')} required>
               <Select value={form.nationality} onChange={(e) => set('nationality', e.target.value as Country)}>
@@ -514,6 +516,11 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
                 placeholder="__ ____ __ ______"
                 className={cx(form.nationalId && !nidValid && 'border-rose-300 focus:border-rose-400 focus:ring-rose-100')}
               />
+              {form.nationalId && !nidValid && (
+                <p className="mt-1 text-[11px] font-medium text-rose-500">
+                  {L('Enter all 14 digits, or leave it blank.', 'أدخل 14 رقمًا كاملة أو اترك الحقل فارغًا.')}
+                </p>
+              )}
             </Field>
             <Field label={t('passport')} hint={t('optional')}>
               <Input dir="ltr" value={form.passport} onChange={(e) => set('passport', e.target.value)} />
