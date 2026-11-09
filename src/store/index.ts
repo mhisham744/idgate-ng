@@ -90,6 +90,8 @@ export interface NewNormalInput {
   }
   /** Optional profile photo (dataUrl) captured at creation. */
   photo?: string
+  /** Opt-in to receive vacancy-match notifications (set at creation). */
+  vacancyNotification?: boolean
   verification: import('@/types').VerificationInfo
 }
 
@@ -569,6 +571,7 @@ export const useStore = create<State>()(
           },
           verification: input.verification,
           privacy: input.privacy ?? { personalInfo: 'contacts', contactsInfo: 'contacts', education: 'public', career: 'public' },
+          vacancyNotification: input.vacancyNotification ?? false,
           avatarColor: colorFor(fullName || id),
           photo: input.photo,
         }

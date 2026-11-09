@@ -18,7 +18,7 @@ import {
   cx,
 } from '@/ui/primitives'
 import type { AttachmentMeta, Country, Language, NormalCharacter, PrivacyLevel } from '@/types'
-import { ChevronLeft, Pencil, X, User, Phone, GraduationCap, Briefcase, ShieldCheck, Paperclip, FileText, Camera } from 'lucide-react'
+import { ChevronLeft, Pencil, X, User, Phone, GraduationCap, Briefcase, ShieldCheck, Paperclip, FileText, Camera, ExternalLink } from 'lucide-react'
 
 type Fluency = 'Basic' | 'Average' | 'Fluent'
 const COUNTRIES: Country[] = ['Egypt', 'USA', 'France', 'Germany', 'India']
@@ -190,11 +190,8 @@ export function PersonalMasterData() {
     !!form.nat1 &&
     !!form.residenceCountry &&
     !!form.motherTongue &&
-    !!form.motherFluency &&
-    !!form.lang1 &&
-    !!form.lang1Fluency &&
-    !!form.lang2 &&
-    !!form.lang2Fluency
+    !!form.motherFluency
+  // Language 1 & 2 (and their fluency) are optional when changing.
 
   const save = () => {
     if (!mandatoryOk) return
@@ -322,7 +319,7 @@ export function PersonalMasterData() {
 
       {/* Identity */}
       <div className="space-y-2">
-        <Head icon={<User size={15} />} label={L('Identity', 'الهوية')} />
+        <Head icon={<User size={15} />} label={L('Personal Information', 'المعلومات الشخصية')} />
         <Card className="p-4">
           {editing ? (
             <div className="space-y-3">
@@ -595,9 +592,21 @@ export function PersonalMasterData() {
                 </div>
               )}
               {form.cv && (
-                <div className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
-                  <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span> <span className="shrink-0 text-slate-400">{humanSize(form.cv.size)}</span>
-                </div>
+                form.cv.dataUrl ? (
+                  <a
+                    href={form.cv.dataUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-gate-700 transition hover:bg-slate-200"
+                  >
+                    <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span>
+                    <ExternalLink size={12} className="shrink-0" />
+                  </a>
+                ) : (
+                  <div className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
+                    <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span> <span className="shrink-0 text-slate-400">{humanSize(form.cv.size)}</span>
+                  </div>
+                )
               )}
             </>
           )}
@@ -715,6 +724,17 @@ function CvPicker({
       {cv && (
         <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-slate-100 py-1.5 ps-2.5 pe-1 text-[11px] font-medium text-slate-600">
           <FileText size={12} /> <span className="max-w-[10rem] truncate">{cv.name}</span>
+          {cv.dataUrl && (
+            <a
+              href={cv.dataUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-gate-700"
+              aria-label={L('Open CV', 'فتح السيرة')}
+            >
+              <ExternalLink size={11} />
+            </a>
+          )}
           <button type="button" onClick={onRemove} className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-slate-700" aria-label={L('Remove', 'إزالة')}>
             <X size={11} />
           </button>
