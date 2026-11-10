@@ -28,3 +28,4 @@ android/local.properties
 *.keystore
 !debug.keystore
 .idea/
+.env*

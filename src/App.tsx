@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n'
 import { useTheme } from '@/theme'
 import { AppShell } from '@/components/AppShell'
 import { applyStatusBarStyle } from '@/native'
+import { startSync } from '@/lib/sync'
 import { Onboarding } from '@/screens/Onboarding'
 import { Home } from '@/screens/Home'
 import { Messages } from '@/screens/Messages'
@@ -77,6 +78,10 @@ export default function App() {
   useEffect(() => {
     sweepDeadlines()
   }, [sweepDeadlines])
+
+  // Keep the shared world in sync across devices (pull + poll + debounced push).
+  // No-ops gracefully when /api is absent (static build) or offline.
+  useEffect(() => startSync(), [])
 
   // Reflect language on <html> for global dir + font.
   useEffect(() => {
