@@ -123,6 +123,28 @@ function humanSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+/**
+ * Open an attachment (e.g. a CV) in a new tab. A `data:` URL can't be opened as
+ * a top-level navigation in most browsers (and iOS Safari), so convert it to a
+ * Blob object-URL first, which can.
+ */
+function openAttachment(att?: AttachmentMeta): void {
+  const d = att?.dataUrl
+  if (!d) return
+  try {
+    const comma = d.indexOf(',')
+    const mime = /data:(.*?)(;base64)?$/.exec(d.slice(0, comma))?.[1] || att?.type || 'application/octet-stream'
+    const bin = atob(d.slice(comma + 1))
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime }))
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch {
+    /* ignore malformed data URL */
+  }
+}
+
 /** Natural-person master data — full editable form, persisted to the store. */
 export function PersonalMasterData() {
   const nav = useNavigate()
@@ -509,6 +531,9 @@ export function PersonalMasterData() {
               <Field label={L('PhD', 'الدكتوراه')} hint={t('optional')}>
                 <Input value={form.phd} onChange={(e) => set('phd', e.target.value)} />
               </Field>
+              <Field label={t('trainingCertifications')} hint={t('optional')}>
+                <Textarea rows={3} value={form.trainingCertifications} onChange={(e) => set('trainingCertifications', e.target.value)} />
+              </Field>
             </div>
           ) : (
             <>
@@ -516,6 +541,12 @@ export function PersonalMasterData() {
               <RO label={L('University', 'الجامعة')} value={form.university} />
               <RO label={L('Postgraduate', 'الدراسات العليا')} value={form.postgraduate} />
               <RO label={L('PhD', 'الدكتوراه')} value={form.phd} />
+              {form.trainingCertifications && (
+                <div className="pt-1">
+                  <div className="text-xs text-slate-500">{t('trainingCertifications')}</div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-700">{form.trainingCertifications}</p>
+                </div>
+              )}
             </>
           )}
         </Card>
@@ -545,9 +576,6 @@ export function PersonalMasterData() {
               <Field label={t('projectExperience')} hint={t('optional')}>
                 <Textarea rows={3} value={form.projectExperience} onChange={(e) => set('projectExperience', e.target.value)} />
               </Field>
-              <Field label={t('trainingCertifications')} hint={t('optional')}>
-                <Textarea rows={3} value={form.trainingCertifications} onChange={(e) => set('trainingCertifications', e.target.value)} />
-              </Field>
               <Field label={t('targetJob')} hint={t('optional')}>
                 <Input value={form.targetJob} onChange={(e) => set('targetJob', e.target.value)} />
               </Field>
@@ -559,7 +587,12 @@ export function PersonalMasterData() {
               <RO label={L('Profession', 'المهنة')} value={form.profession} />
               <RO label={L('Industry', 'المجال')} value={form.industry} />
               <RO label={t('targetJob')} value={form.targetJob} />
-              {form.history && <p className="whitespace-pre-wrap pt-1 text-sm text-slate-700">{form.history}</p>}
+              {form.history && (
+                <div className="pt-1">
+                  <div className="text-xs text-slate-500">{L('History', 'السيرة المهنية')}</div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-700">{form.history}</p>
+                </div>
+              )}
               {form.specialtiesSkills && (
                 <div className="pt-1">
                   <div className="text-xs text-slate-500">{t('specialtiesSkills')}</div>
@@ -572,23 +605,16 @@ export function PersonalMasterData() {
                   <p className="whitespace-pre-wrap text-sm text-slate-700">{form.projectExperience}</p>
                 </div>
               )}
-              {form.trainingCertifications && (
-                <div className="pt-1">
-                  <div className="text-xs text-slate-500">{t('trainingCertifications')}</div>
-                  <p className="whitespace-pre-wrap text-sm text-slate-700">{form.trainingCertifications}</p>
-                </div>
-              )}
               {form.cv && (
                 form.cv.dataUrl ? (
-                  <a
-                    href={form.cv.dataUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => openAttachment(form.cv)}
                     className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-gate-700 transition hover:bg-slate-200"
                   >
                     <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span>
                     <ExternalLink size={12} className="shrink-0" />
-                  </a>
+                  </button>
                 ) : (
                   <div className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
                     <FileText size={13} className="shrink-0" /> <span className="min-w-0 truncate">{form.cv.name}</span> <span className="shrink-0 text-slate-400">{humanSize(form.cv.size)}</span>
@@ -638,7 +664,6 @@ export function PersonalMasterData() {
               { key: 'contactsInfo', label: L('Contacts', 'جهات الاتصال') },
               { key: 'education', label: L('Education', 'التعليم') },
               { key: 'career', label: L('Career', 'المسار المهني') },
-              { key: 'languages', label: L('Languages', 'اللغات') },
             ] as { key: keyof Form['privacy']; label: string }[]
           ).map(({ key, label }) => (
             <div key={key} className="flex items-center justify-between gap-3">
@@ -704,15 +729,14 @@ function CvPicker({
         <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-slate-100 py-1.5 ps-2.5 pe-1 text-[11px] font-medium text-slate-600">
           <FileText size={12} /> <span className="max-w-[10rem] truncate">{cv.name}</span>
           {cv.dataUrl && (
-            <a
-              href={cv.dataUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => openAttachment(cv)}
               className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-gate-700"
               aria-label={L('Open CV', 'فتح السيرة')}
             >
               <ExternalLink size={11} />
-            </a>
+            </button>
           )}
           <button type="button" onClick={onRemove} className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-slate-700" aria-label={L('Remove', 'إزالة')}>
             <X size={11} />
