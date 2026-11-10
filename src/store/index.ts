@@ -1676,7 +1676,7 @@ export const useStore = create<State>()(
         normals: state.normals.map((n) => {
           let out = n
           if (n.photo) out = { ...out, photo: undefined }
-          if (out.career?.cv?.dataUrl) out = { ...out, career: { ...out.career, cv: (({ dataUrl: _d, ...meta }) => meta)(out.career.cv) } }
+          if (out.career?.cv?.dataUrl && (out.career.cv.size ?? 0) > 2_000_000) out = { ...out, career: { ...out.career, cv: (({ dataUrl: _d, ...meta }) => meta)(out.career.cv) } }
           return out
         }),
         posts: state.posts.map((p) => (p.image ? { ...p, image: undefined } : p)),

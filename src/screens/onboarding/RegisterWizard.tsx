@@ -542,38 +542,42 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
                 ))}
               </Select>
             </Field>
-            <Field label={t('language1')} hint={t('optional')}>
-              <Select value={form.lang1} onChange={(e) => set('lang1', e.target.value as Language)}>
-                <option value="">—</option>
-                {LANGUAGES.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('fluencyLevel')} hint={t('optional')}>
-              <Select value={form.lang1Fluency} onChange={(e) => set('lang1Fluency', e.target.value as Fluency)}>
-                <option value="">—</option>
-                {FLUENCY.map((f) => (
-                  <option key={f} value={f}>{t('level' + f)}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('language2')} hint={t('optional')}>
-              <Select value={form.lang2} onChange={(e) => set('lang2', e.target.value as Language)}>
-                <option value="">—</option>
-                {LANGUAGES.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('fluencyLevel')} hint={t('optional')}>
-              <Select value={form.lang2Fluency} onChange={(e) => set('lang2Fluency', e.target.value as Fluency)}>
-                <option value="">—</option>
-                {FLUENCY.map((f) => (
-                  <option key={f} value={f}>{t('level' + f)}</option>
-                ))}
-              </Select>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('language1')} hint={t('optional')}>
+                <Select value={form.lang1} onChange={(e) => set('lang1', e.target.value as Language)}>
+                  <option value="">—</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('fluencyLevel')} hint={t('optional')}>
+                <Select value={form.lang1Fluency} onChange={(e) => set('lang1Fluency', e.target.value as Fluency)}>
+                  <option value="">—</option>
+                  {FLUENCY.map((f) => (
+                    <option key={f} value={f}>{t('level' + f)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('language2')} hint={t('optional')}>
+                <Select value={form.lang2} onChange={(e) => set('lang2', e.target.value as Language)}>
+                  <option value="">—</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('fluencyLevel')} hint={t('optional')}>
+                <Select value={form.lang2Fluency} onChange={(e) => set('lang2Fluency', e.target.value as Fluency)}>
+                  <option value="">—</option>
+                  {FLUENCY.map((f) => (
+                    <option key={f} value={f}>{t('level' + f)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
           </div>
 
           {/* 2 — Contacts Information */}
