@@ -1468,9 +1468,15 @@ export const useStore = create<State>()(
 
       // ── communication areas ─────────────────────────────────────────────────────
       addCommunicationArea: (name) => {
-        const id = uid('ca')
+        const trimmed = name.trim()
         const owner = get().normalId ?? undefined
-        set((s) => ({ communicationAreas: [...s.communicationAreas, { id, name: name.trim(), createdByNormalId: owner }] }))
+        // Prevent duplicates (case-insensitive) under the same personal account.
+        const exists = get().communicationAreas.some(
+          (a) => a.createdByNormalId === owner && a.name.trim().toLowerCase() === trimmed.toLowerCase(),
+        )
+        if (!trimmed || exists) return ''
+        const id = uid('ca')
+        set((s) => ({ communicationAreas: [...s.communicationAreas, { id, name: trimmed, createdByNormalId: owner }] }))
         return id
       },
       removeCommunicationArea: (id) =>

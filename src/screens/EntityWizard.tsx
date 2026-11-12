@@ -150,7 +150,7 @@ export function EntityWizard() {
       legalEntityType: (legalType || 'JSC') as LegalEntityType,
       mainIndustry: (industry || 'Manufacturing') as Industry,
       countryOfRegistration: (country || 'Egypt') as Country,
-      domain: (domain.trim() || cName.replace(/\s+/g, '')).slice(0, 20),
+      domain: domain.trim().slice(0, 20),
       status: 'draft',
       documents: {},
       adminNormalId: normalId ?? '',
@@ -169,7 +169,8 @@ export function EntityWizard() {
     !!orgType &&
     !!legalType &&
     !!industry &&
-    !!country
+    !!country &&
+    !!domain.trim()
 
   function goNext() {
     if (step === 1) ensureEntity()
@@ -221,7 +222,7 @@ export function EntityWizard() {
           <Field label={L('Search name', 'اسم البحث')} required>
             <Input value={searchName} onChange={(e) => setSearchName(e.target.value)} placeholder="acme" />
           </Field>
-          <Field label={L('Domain', 'النطاق')} hint={L('used in the address', 'يظهر في العنوان')}>
+          <Field label={L('Domain', 'النطاق')} hint={L('used in the address', 'يظهر في العنوان')} required>
             <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Acme" dir="ltr" className="font-mono" />
           </Field>
           <div className="grid grid-cols-2 gap-3">

@@ -23,6 +23,7 @@ export function CommunicationAreas() {
   const addCommunicationArea = useStore((s) => s.addCommunicationArea)
 
   const [name, setName] = useState('')
+  const [err, setErr] = useState('')
 
   const orgsIn = (id: string) => entities.filter((e) => e.communicationAreaId === id)
 
@@ -61,13 +62,19 @@ export function CommunicationAreas() {
             size="sm"
             disabled={!name.trim()}
             onClick={() => {
-              addCommunicationArea(name.trim())
+              const id = addCommunicationArea(name.trim())
+              if (!id) {
+                setErr(L('You already have a communication area with this name.', 'لديك بالفعل منطقة تواصل بهذا الاسم.'))
+                return
+              }
               setName('')
+              setErr('')
             }}
           >
             <Plus size={16} className="me-1" /> {t('create')}
           </Button>
         </div>
+        {err && <p className="mt-2 text-[11px] font-medium text-rose-500">{err}</p>}
       </Card>
 
       {visibleAreas.length === 0 ? (

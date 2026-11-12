@@ -51,6 +51,7 @@ import {
   Input,
   Modal,
   Row,
+  Select,
   Sheet,
 } from '@/ui/primitives'
 import type { Group } from '@/types'
@@ -394,6 +395,7 @@ export function EntityManage() {
                       onEdit={() => setVirtualEditId(v.id)}
                       onDisplay={() => setVirtualDisplayId(v.id)}
                       locked={isAdminV(v) && !otherActiveAdmin(v)}
+                      adminVirtual={isAdminV(v)}
                     />
                   ))
               })()}
@@ -568,9 +570,13 @@ function DelegationsTab({
 }) {
   const [subject, setSubject] = useState('')
   const [limit, setLimit] = useState('')
+  const [authReq, setAuthReq] = useState('')
+  const [delegateOthers, setDelegateOthers] = useState<'no' | 'yes'>('no')
   const [editId, setEditId] = useState<string | null>(null)
   const [editSubject, setEditSubject] = useState('')
   const [editLimit, setEditLimit] = useState('')
+  const [editAuthReq, setEditAuthReq] = useState('')
+  const [editDelegateOthers, setEditDelegateOthers] = useState<'no' | 'yes'>('no')
   return (
     <Card className="p-4 space-y-3">
       <Field label={L('Subject', 'الموضوع')}>
@@ -579,14 +585,32 @@ function DelegationsTab({
       <Field label={L('Max. amount per subject', 'أقصى مبلغ لكل موضوع')} hint={L('numeric', 'رقمي')}>
         <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} />
       </Field>
+      <Field label={L('Number of authorization required', 'عدد التفويضات المطلوبة')} hint={L('numeric', 'رقمي')}>
+        <Input inputMode="numeric" dir="ltr" value={authReq} onChange={(e) => setAuthReq(e.target.value.replace(/[^\d]/g, ''))} />
+      </Field>
+      <Field label={L('Delegate others', 'تفويض الآخرين')}>
+        <Select value={delegateOthers} onChange={(e) => setDelegateOthers(e.target.value as 'no' | 'yes')}>
+          <option value="no">{L('No', 'لا')}</option>
+          <option value="yes">{L('Yes', 'نعم')}</option>
+        </Select>
+      </Field>
       <Button
         size="sm"
         variant="secondary"
         disabled={!subject.trim()}
         onClick={() => {
-          addDelegation({ entityId, subject: subject.trim(), limit: limit.trim(), limitAmount: limit ? Number(limit) : undefined })
+          addDelegation({
+            entityId,
+            subject: subject.trim(),
+            limit: limit.trim(),
+            limitAmount: limit ? Number(limit) : undefined,
+            authorizationsRequired: authReq ? Number(authReq) : undefined,
+            delegateOthers: delegateOthers === 'yes',
+          })
           setSubject('')
           setLimit('')
+          setAuthReq('')
+          setDelegateOthers('no')
         }}
       >
         <Plus size={14} /> {L('Add', 'إضافة')}
@@ -597,7 +621,12 @@ function DelegationsTab({
             editId === d.id ? (
               <div key={d.id} className="space-y-2 rounded-xl bg-slate-50 p-2.5">
                 <Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder={L('Subject', 'الموضوع')} />
-                <Input inputMode="numeric" dir="ltr" value={editLimit} onChange={(e) => setEditLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder={L('Limit', 'الحد')} />
+                <Input inputMode="numeric" dir="ltr" value={editLimit} onChange={(e) => setEditLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder={L('Max. amount', 'أقصى مبلغ')} />
+                <Input inputMode="numeric" dir="ltr" value={editAuthReq} onChange={(e) => setEditAuthReq(e.target.value.replace(/[^\d]/g, ''))} placeholder={L('Number of authorization required', 'عدد التفويضات المطلوبة')} />
+                <Select value={editDelegateOthers} onChange={(e) => setEditDelegateOthers(e.target.value as 'no' | 'yes')}>
+                  <option value="no">{L('Delegate others: No', 'تفويض الآخرين: لا')}</option>
+                  <option value="yes">{L('Delegate others: Yes', 'تفويض الآخرين: نعم')}</option>
+                </Select>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -608,6 +637,8 @@ function DelegationsTab({
                       updateDelegation(d.id, {
                         subject: editSubject.trim(),
                         ...(editLimit ? { limit: editLimit, limitAmount: Number(editLimit) } : {}),
+                        authorizationsRequired: editAuthReq ? Number(editAuthReq) : undefined,
+                        delegateOthers: editDelegateOthers === 'yes',
                       })
                       setEditId(null)
                     }}
@@ -622,12 +653,16 @@ function DelegationsTab({
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium text-slate-700">{d.subject}</span>
                   {(d.limitAmount != null || d.limit) && <span className="text-slate-400"> · {d.limitAmount != null ? d.limitAmount.toLocaleString() : d.limit}</span>}
+                  {d.authorizationsRequired != null && <span className="text-slate-400"> · {L('auth', 'تفويضات')}: {d.authorizationsRequired}</span>}
+                  {d.delegateOthers && <span className="text-slate-400"> · {L('delegable', 'قابل للتفويض')}</span>}
                 </span>
                 <button
                   onClick={() => {
                     setEditId(d.id)
                     setEditSubject(d.subject)
                     setEditLimit(d.limitAmount != null ? String(d.limitAmount) : '')
+                    setEditAuthReq(d.authorizationsRequired != null ? String(d.authorizationsRequired) : '')
+                    setEditDelegateOthers(d.delegateOthers ? 'yes' : 'no')
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600"
                   aria-label={L('Edit', 'تعديل')}
@@ -652,6 +687,7 @@ function VirtualRow({
   onEdit,
   onDisplay,
   locked,
+  adminVirtual,
 }: {
   L: (en: string, ar: string) => string
   t: (k: string) => string
@@ -661,6 +697,7 @@ function VirtualRow({
   onEdit: () => void
   onDisplay: () => void
   locked?: boolean
+  adminVirtual?: boolean
 }) {
   const resolve = useResolveActor()
   const r = resolve({ kind: 'virtual', virtualId: v.id })
@@ -700,7 +737,7 @@ function VirtualRow({
         {links.length === 0 ? (
           <p className="text-[11px] text-slate-400">{L('No linked persons yet — use Link Request.', 'لا يوجد أشخاص مرتبطون — استخدم طلب الربط.')}</p>
         ) : (
-          links.map((l) => <LinkBox key={l.normalId} v={v} link={l} person={normals.find((n) => n.id === l.normalId)} L={L} t={t} />)
+          links.map((l) => <LinkBox key={l.normalId} v={v} link={l} person={normals.find((n) => n.id === l.normalId)} L={L} t={t} adminVirtual={adminVirtual} />)
         )}
       </div>
 
@@ -740,12 +777,14 @@ function LinkBox({
   person,
   L,
   t,
+  adminVirtual,
 }: {
   v: VirtualCharacter
   link: import('@/types').VirtualLink
   person?: import('@/types').NormalCharacter
   L: (en: string, ar: string) => string
   t: (k: string) => string
+  adminVirtual?: boolean
 }) {
   const setLinkStatus = useStore((s) => s.setLinkStatus)
   const updateLinkDelegation = useStore((s) => s.updateLinkDelegation)
@@ -760,6 +799,11 @@ function LinkBox({
     if (active) sendSystemMessage(active as ActorRef, [{ kind: 'normal', normalId: link.normalId }], L(subjEn, subjAr), L(bodyEn, bodyAr))
     setLinkStatus(v.id, link.normalId, next)
   }
+
+  // The admin virtual's sole linked person can't be unlinked/blocked — the org
+  // would be left with no administrator. Allowed once a second person is linked.
+  const soleActiveLink = (v.links ?? []).filter((l) => l.status === 'active').length <= 1
+  const lockLink = !!adminVirtual && soleActiveLink && link.status === 'active'
 
   const statusLabel: Record<string, string> = {
     waiting: L('Waiting response', 'بانتظار الرد'),
@@ -817,14 +861,20 @@ function LinkBox({
       )}
       <div className="flex flex-wrap gap-1.5">
         {link.status === 'active' && (
-          <>
-            <Button size="sm" variant="subtle" onClick={() => notifyLink('unlinked', 'Virtual account unlinked', 'تم فك ربط الحساب الافتراضي', `You have been unlinked from "${v.positionName}". This is an automated no-reply notice.`, `تم فك ربطك من "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
-              <Unlink size={12} /> {t('unlink')}
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => notifyLink('blocked', 'Virtual account blocked', 'تم حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been blocked. This is an automated no-reply notice.`, `تم حظر حسابك على "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
-              <Ban size={12} /> {t('block')}
-            </Button>
-          </>
+          lockLink ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
+              <Shield size={11} /> {L('Sole administrator — link another person to unlink or block.', 'المدير الوحيد — اربط شخصًا آخر لإلغاء الربط أو الحظر.')}
+            </span>
+          ) : (
+            <>
+              <Button size="sm" variant="subtle" onClick={() => notifyLink('unlinked', 'Virtual account unlinked', 'تم فك ربط الحساب الافتراضي', `You have been unlinked from "${v.positionName}". This is an automated no-reply notice.`, `تم فك ربطك من "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
+                <Unlink size={12} /> {t('unlink')}
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => notifyLink('blocked', 'Virtual account blocked', 'تم حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been blocked. This is an automated no-reply notice.`, `تم حظر حسابك على "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
+                <Ban size={12} /> {t('block')}
+              </Button>
+            </>
+          )
         )}
         {link.status === 'blocked' && (
           <Button size="sm" variant="secondary" onClick={() => notifyLink('active', 'Virtual account unblocked', 'تم إلغاء حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been unblocked and is active again.`, `تم إلغاء حظر حسابك على "${v.positionName}" وأصبح نشطًا.`)}>
