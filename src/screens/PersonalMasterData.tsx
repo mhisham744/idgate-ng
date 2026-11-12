@@ -212,8 +212,10 @@ export function PersonalMasterData() {
     !!form.nat1 &&
     !!form.residenceCountry &&
     !!form.motherTongue &&
-    !!form.motherFluency
-  // Language 1 & 2 (and their fluency) are optional when changing.
+    // Language 1 & 2 (and their fluency) are optional — but a filled language
+    // requires its fluency level. Mother-tongue fluency is no longer collected.
+    (!form.lang1 || !!form.lang1Fluency) &&
+    (!form.lang2 || !!form.lang2Fluency)
 
   const save = () => {
     if (!mandatoryOk) return
@@ -410,39 +412,36 @@ export function PersonalMasterData() {
               <Field label={L('Passport #', 'رقم الجواز')} hint={t('optional')}>
                 <Input value={form.passport} onChange={(e) => set('passport', e.target.value)} dir="ltr" />
               </Field>
-              {/* Languages */}
+              {/* Languages — mother tongue (no fluency); Language 1/2 optional,
+                  each paired with its fluency on one line. */}
+              <Field label={L('Mother tongue', 'اللغة الأم')} required>
+                <Select value={form.motherTongue} onChange={(e) => set('motherTongue', e.target.value as Language)}>
+                  <option value="">—</option>
+                  {LANGUAGES.filter((l) => l === form.motherTongue || (l !== form.lang1 && l !== form.lang2)).map((l) => <option key={l} value={l}>{l}</option>)}
+                </Select>
+              </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label={L('Mother tongue', 'اللغة الأم')} required>
-                  <Select value={form.motherTongue} onChange={(e) => set('motherTongue', e.target.value as Language)}>
-                    <option value="">—</option>
-                    {LANGUAGES.filter((l) => l === form.motherTongue || (l !== form.lang1 && l !== form.lang2)).map((l) => <option key={l} value={l}>{l}</option>)}
-                  </Select>
-                </Field>
-                <Field label={L('Fluency', 'المستوى')} required>
-                  <Select value={form.motherFluency} onChange={(e) => set('motherFluency', e.target.value as Fluency)}>
-                    <option value="">—</option>
-                    {FLUENCY.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </Select>
-                </Field>
-                <Field label={L('Language 1', 'اللغة ١')} required>
+                <Field label={L('Language 1', 'اللغة ١')} hint={t('optional')}>
                   <Select value={form.lang1} onChange={(e) => set('lang1', e.target.value as Language)}>
                     <option value="">—</option>
                     {LANGUAGES.filter((l) => l === form.lang1 || (l !== form.motherTongue && l !== form.lang2)).map((l) => <option key={l} value={l}>{l}</option>)}
                   </Select>
                 </Field>
-                <Field label={L('Fluency', 'المستوى')} required>
+                <Field label={L('Fluency', 'المستوى')} hint={t('optional')}>
                   <Select value={form.lang1Fluency} onChange={(e) => set('lang1Fluency', e.target.value as Fluency)}>
                     <option value="">—</option>
                     {FLUENCY.map((f) => <option key={f} value={f}>{f}</option>)}
                   </Select>
                 </Field>
-                <Field label={L('Language 2', 'اللغة ٢')} required>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={L('Language 2', 'اللغة ٢')} hint={t('optional')}>
                   <Select value={form.lang2} onChange={(e) => set('lang2', e.target.value as Language)}>
                     <option value="">—</option>
                     {LANGUAGES.filter((l) => l === form.lang2 || (l !== form.motherTongue && l !== form.lang1)).map((l) => <option key={l} value={l}>{l}</option>)}
                   </Select>
                 </Field>
-                <Field label={L('Fluency', 'المستوى')} required>
+                <Field label={L('Fluency', 'المستوى')} hint={t('optional')}>
                   <Select value={form.lang2Fluency} onChange={(e) => set('lang2Fluency', e.target.value as Fluency)}>
                     <option value="">—</option>
                     {FLUENCY.map((f) => <option key={f} value={f}>{f}</option>)}

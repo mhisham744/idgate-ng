@@ -347,7 +347,7 @@ export function Settings() {
         {t('logout')}
       </Button>
 
-      <div className="pt-2 text-center text-[11px] text-slate-400">IDGate · demo v1.0</div>
+      <div className="pt-2 text-center text-[11px] text-slate-400">IDGate · v{__APP_VERSION__}</div>
 
       <Modal open={confirmReset} onClose={() => setConfirmReset(false)}>
         <div className="space-y-4">

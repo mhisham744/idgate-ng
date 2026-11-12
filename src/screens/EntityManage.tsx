@@ -52,6 +52,7 @@ import {
   Input,
   Modal,
   Row,
+  Select,
   Sheet,
 } from '@/ui/primitives'
 import type { Group } from '@/types'
@@ -67,6 +68,9 @@ export function EntityManage() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const entity = useStore((s) => s.entity)
+  const active = useStore((s) => s.active)
+  const virtual = useStore((s) => s.virtual)
+  const can = useStore((s) => s.can)
   const activateEntity = useStore((s) => s.activateEntity)
   const verifyEntity = useStore((s) => s.verifyEntity)
   const [checking, setChecking] = useState(false)
@@ -81,6 +85,7 @@ export function EntityManage() {
   const addStructureNode = useStore((s) => s.addStructureNode)
   const removeStructureNode = useStore((s) => s.removeStructureNode)
   const addPosition = useStore((s) => s.addPosition)
+  const updatePosition = useStore((s) => s.updatePosition)
   const addDelegation = useStore((s) => s.addDelegation)
   const updateDelegation = useStore((s) => s.updateDelegation)
   const createLinkRequest = useStore((s) => s.createLinkRequest)
@@ -120,6 +125,35 @@ export function EntityManage() {
   const entPositions = positions.filter((p) => p.entityId === id)
   const entVirtuals = virtuals.filter((v) => v.entityId === id)
   const entDelegations = delegations.filter((d) => d.entityId === id)
+
+  // Org master data is managed by an authorized VIRTUAL account only — the
+  // Administrator virtual, or any virtual of this entity whose profile grants
+  // admin rights. The personal account (even the admin person) must switch.
+  const activeVirtual = active?.kind === 'virtual' ? virtual(active.virtualId) : undefined
+  const canManage =
+    !!activeVirtual &&
+    activeVirtual.entityId === id &&
+    (activeVirtual.positionName === 'Administrator' || can('admin.changeVirtualAccount', 'change'))
+
+  if (!canManage) {
+    return (
+      <div className="p-4 space-y-4 pb-8">
+        <button onClick={() => navigate('/settings/entities')} className="inline-flex items-center gap-1 text-xs font-medium text-gate-600">
+          <ArrowLeft size={14} className="rtl:rotate-180" /> {t('myEntities')}
+        </button>
+        <EmptyState
+          icon={<Shield size={40} />}
+          title={L('Switch to this organization’s account', 'بدّل إلى حساب هذه المؤسسة')}
+        />
+        <p className="text-center text-sm text-slate-500">
+          {L(
+            `To view or manage ${ent.commercialName}, switch to its Administrator account (or an authorized virtual account). A personal account can’t manage an organization’s master data.`,
+            `لعرض أو إدارة ${ent.commercialName}، بدّل إلى حساب المدير (أو حساب افتراضي مُصرَّح له). لا يمكن للحساب الشخصي إدارة البيانات الأساسية للمؤسسة.`,
+          )}
+        </p>
+      </div>
+    )
+  }
 
   const tabs: { key: Tab; label: string; n: number }[] = [
     { key: 'structures', label: t('communicationStructure'), n: entStructures.length },
@@ -325,7 +359,7 @@ export function EntityManage() {
       )}
 
       {tab === 'positions' && (
-        <PositionsTab L={L} entityId={id} positions={entPositions} addPosition={addPosition} query={positionQuery} setQuery={setPositionQuery} />
+        <PositionsTab L={L} entityId={id} positions={entPositions} addPosition={addPosition} updatePosition={updatePosition} query={positionQuery} setQuery={setPositionQuery} />
       )}
 
       {tab === 'virtuals' && (
@@ -360,6 +394,7 @@ export function EntityManage() {
                       onEdit={() => setVirtualEditId(v.id)}
                       onDisplay={() => setVirtualDisplayId(v.id)}
                       locked={isAdminV(v) && !otherActiveAdmin(v)}
+                      adminVirtual={isAdminV(v)}
                     />
                   ))
               })()}
@@ -447,6 +482,7 @@ function PositionsTab({
   entityId,
   positions,
   addPosition,
+  updatePosition,
   query,
   setQuery,
 }: {
@@ -454,10 +490,13 @@ function PositionsTab({
   entityId: string
   positions: import('@/types').Position[]
   addPosition: (entityId: string, name: string) => string
+  updatePosition: (id: string, name: string) => void
   query: string
   setQuery: (v: string) => void
 }) {
   const [name, setName] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
   const shown = positions.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <Card className="p-4 space-y-3">
@@ -480,12 +519,36 @@ function PositionsTab({
         <EmptyState icon={<Briefcase size={32} />} title={L('No positions', 'لا توجد وظائف')} />
       ) : (
         <div className="space-y-1.5">
-          {shown.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-              <Briefcase size={14} className="text-gate-600" />
-              <span className="text-sm font-medium text-slate-700">{p.name}</span>
-            </div>
-          ))}
+          {shown.map((p) =>
+            editId === p.id ? (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-2">
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1" />
+                <Button
+                  size="sm"
+                  disabled={!editName.trim()}
+                  onClick={() => {
+                    updatePosition(p.id, editName.trim())
+                    setEditId(null)
+                  }}
+                >
+                  {L('Save', 'حفظ')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>{L('Cancel', 'إلغاء')}</Button>
+              </div>
+            ) : (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                <Briefcase size={14} className="text-gate-600" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{p.name}</span>
+                <button
+                  onClick={() => { setEditId(p.id); setEditName(p.name) }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600"
+                  aria-label={L('Edit', 'تعديل')}
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+            ),
+          )}
         </div>
       )}
     </Card>
@@ -507,9 +570,13 @@ function DelegationsTab({
 }) {
   const [subject, setSubject] = useState('')
   const [limit, setLimit] = useState('')
+  const [authReq, setAuthReq] = useState('')
+  const [delegateOthers, setDelegateOthers] = useState<'no' | 'yes'>('no')
   const [editId, setEditId] = useState<string | null>(null)
   const [editSubject, setEditSubject] = useState('')
   const [editLimit, setEditLimit] = useState('')
+  const [editAuthReq, setEditAuthReq] = useState('')
+  const [editDelegateOthers, setEditDelegateOthers] = useState<'no' | 'yes'>('no')
   return (
     <Card className="p-4 space-y-3">
       <Field label={L('Subject', 'الموضوع')}>
@@ -518,14 +585,32 @@ function DelegationsTab({
       <Field label={L('Max. amount per subject', 'أقصى مبلغ لكل موضوع')} hint={L('numeric', 'رقمي')}>
         <Input inputMode="numeric" dir="ltr" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} />
       </Field>
+      <Field label={L('Number of authorization required', 'عدد التفويضات المطلوبة')} hint={L('numeric', 'رقمي')}>
+        <Input inputMode="numeric" dir="ltr" value={authReq} onChange={(e) => setAuthReq(e.target.value.replace(/[^\d]/g, ''))} />
+      </Field>
+      <Field label={L('Delegate others', 'تفويض الآخرين')}>
+        <Select value={delegateOthers} onChange={(e) => setDelegateOthers(e.target.value as 'no' | 'yes')}>
+          <option value="no">{L('No', 'لا')}</option>
+          <option value="yes">{L('Yes', 'نعم')}</option>
+        </Select>
+      </Field>
       <Button
         size="sm"
         variant="secondary"
         disabled={!subject.trim()}
         onClick={() => {
-          addDelegation({ entityId, subject: subject.trim(), limit: limit.trim(), limitAmount: limit ? Number(limit) : undefined })
+          addDelegation({
+            entityId,
+            subject: subject.trim(),
+            limit: limit.trim(),
+            limitAmount: limit ? Number(limit) : undefined,
+            authorizationsRequired: authReq ? Number(authReq) : undefined,
+            delegateOthers: delegateOthers === 'yes',
+          })
           setSubject('')
           setLimit('')
+          setAuthReq('')
+          setDelegateOthers('no')
         }}
       >
         <Plus size={14} /> {L('Add', 'إضافة')}
@@ -536,7 +621,12 @@ function DelegationsTab({
             editId === d.id ? (
               <div key={d.id} className="space-y-2 rounded-xl bg-slate-50 p-2.5">
                 <Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder={L('Subject', 'الموضوع')} />
-                <Input inputMode="numeric" dir="ltr" value={editLimit} onChange={(e) => setEditLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder={L('Limit', 'الحد')} />
+                <Input inputMode="numeric" dir="ltr" value={editLimit} onChange={(e) => setEditLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder={L('Max. amount', 'أقصى مبلغ')} />
+                <Input inputMode="numeric" dir="ltr" value={editAuthReq} onChange={(e) => setEditAuthReq(e.target.value.replace(/[^\d]/g, ''))} placeholder={L('Number of authorization required', 'عدد التفويضات المطلوبة')} />
+                <Select value={editDelegateOthers} onChange={(e) => setEditDelegateOthers(e.target.value as 'no' | 'yes')}>
+                  <option value="no">{L('Delegate others: No', 'تفويض الآخرين: لا')}</option>
+                  <option value="yes">{L('Delegate others: Yes', 'تفويض الآخرين: نعم')}</option>
+                </Select>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -547,6 +637,8 @@ function DelegationsTab({
                       updateDelegation(d.id, {
                         subject: editSubject.trim(),
                         ...(editLimit ? { limit: editLimit, limitAmount: Number(editLimit) } : {}),
+                        authorizationsRequired: editAuthReq ? Number(editAuthReq) : undefined,
+                        delegateOthers: editDelegateOthers === 'yes',
                       })
                       setEditId(null)
                     }}
@@ -561,12 +653,16 @@ function DelegationsTab({
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium text-slate-700">{d.subject}</span>
                   {(d.limitAmount != null || d.limit) && <span className="text-slate-400"> · {d.limitAmount != null ? d.limitAmount.toLocaleString() : d.limit}</span>}
+                  {d.authorizationsRequired != null && <span className="text-slate-400"> · {L('auth', 'تفويضات')}: {d.authorizationsRequired}</span>}
+                  {d.delegateOthers && <span className="text-slate-400"> · {L('delegable', 'قابل للتفويض')}</span>}
                 </span>
                 <button
                   onClick={() => {
                     setEditId(d.id)
                     setEditSubject(d.subject)
                     setEditLimit(d.limitAmount != null ? String(d.limitAmount) : '')
+                    setEditAuthReq(d.authorizationsRequired != null ? String(d.authorizationsRequired) : '')
+                    setEditDelegateOthers(d.delegateOthers ? 'yes' : 'no')
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-gate-600"
                   aria-label={L('Edit', 'تعديل')}
@@ -591,6 +687,7 @@ function VirtualRow({
   onEdit,
   onDisplay,
   locked,
+  adminVirtual,
 }: {
   L: (en: string, ar: string) => string
   t: (k: string) => string
@@ -600,6 +697,7 @@ function VirtualRow({
   onEdit: () => void
   onDisplay: () => void
   locked?: boolean
+  adminVirtual?: boolean
 }) {
   const resolve = useResolveActor()
   const r = resolve({ kind: 'virtual', virtualId: v.id })
@@ -639,7 +737,7 @@ function VirtualRow({
         {links.length === 0 ? (
           <p className="text-[11px] text-slate-400">{L('No linked persons yet — use Link Request.', 'لا يوجد أشخاص مرتبطون — استخدم طلب الربط.')}</p>
         ) : (
-          links.map((l) => <LinkBox key={l.normalId} v={v} link={l} person={normals.find((n) => n.id === l.normalId)} L={L} t={t} />)
+          links.map((l) => <LinkBox key={l.normalId} v={v} link={l} person={normals.find((n) => n.id === l.normalId)} L={L} t={t} adminVirtual={adminVirtual} />)
         )}
       </div>
 
@@ -679,15 +777,21 @@ function LinkBox({
   person,
   L,
   t,
+  adminVirtual,
 }: {
   v: VirtualCharacter
   link: import('@/types').VirtualLink
   person?: import('@/types').NormalCharacter
   L: (en: string, ar: string) => string
   t: (k: string) => string
+  adminVirtual?: boolean
 }) {
   const setLinkStatus = useStore((s) => s.setLinkStatus)
   const updateLinkDelegation = useStore((s) => s.updateLinkDelegation)
+  // The admin virtual's sole linked person can't be unlinked/blocked — the org
+  // would be left with no administrator. Allowed once a second person is linked.
+  const soleActiveLink = (v.links ?? []).filter((l) => l.status === 'active').length <= 1
+  const lockLink = !!adminVirtual && soleActiveLink && link.status === 'active'
   const [editVal, setEditVal] = useState(false)
   const [from, setFrom] = useState(link.delegation?.validity?.from ?? '')
   const [to, setTo] = useState(link.delegation?.validity?.to ?? '')
@@ -751,14 +855,20 @@ function LinkBox({
       )}
       <div className="flex flex-wrap gap-1.5">
         {link.status === 'active' && (
-          <>
-            <Button size="sm" variant="subtle" onClick={() => setLinkStatus(v.id, link.normalId, 'unlinked')}>
-              <Unlink size={12} /> {t('unlink')}
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => setLinkStatus(v.id, link.normalId, 'blocked')}>
-              <Ban size={12} /> {t('block')}
-            </Button>
-          </>
+          lockLink ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
+              <Shield size={11} /> {L('Sole administrator — link another person to unlink or block.', 'المدير الوحيد — اربط شخصًا آخر لإلغاء الربط أو الحظر.')}
+            </span>
+          ) : (
+            <>
+              <Button size="sm" variant="subtle" onClick={() => setLinkStatus(v.id, link.normalId, 'unlinked')}>
+                <Unlink size={12} /> {t('unlink')}
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => setLinkStatus(v.id, link.normalId, 'blocked')}>
+                <Ban size={12} /> {t('block')}
+              </Button>
+            </>
+          )
         )}
         {link.status === 'blocked' && (
           <Button size="sm" variant="secondary" onClick={() => setLinkStatus(v.id, link.normalId, 'active')}>

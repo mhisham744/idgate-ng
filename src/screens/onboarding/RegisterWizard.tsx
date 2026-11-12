@@ -228,6 +228,9 @@ export function RegisterWizard({ onBack }: { onBack: () => void }) {
     form.mobile.trim() &&
     form.dateOfBirth.trim() &&
     nidOk &&
+    // A filled language requires its fluency level.
+    (!form.lang1 || !!form.lang1Fluency) &&
+    (!form.lang2 || !!form.lang2Fluency) &&
     !duplicate
   const emailOk = !form.email.trim() || emailState === 'verified'
 
