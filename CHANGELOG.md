@@ -15,6 +15,16 @@ The in-app version is shown in Settings; the per-build `version.json` also carri
 
 ---
 
+## v1.2.0 — 2026-11-13
+Concept Note 3/11 — Link & Contact requests, virtual-account lifecycle messaging, delegation.
+
+- **Reject notices:** rejecting a link or contact request sends the requester (link → entity admins) an automated no-reply message.
+- **Directory counter:** the Settings → Directory row shows a red badge counting incoming link/contact requests awaiting your approval.
+- **Virtual lifecycle notices:** blocking/unblocking a virtual entity notifies every attached person; blocking/unblocking/unlinking a single person's virtual account notifies that person. All no-reply.
+- **Link-request permission:** only an authorized virtual account can send link requests (personal accounts are prompted to switch).
+- **Career history:** personal master data lists every virtual account (active + inactive) with status, dates, and its granted delegation(s) incl. validity and number of authorizations required.
+- **Grant delegation:** link requests can grant multiple delegations, each with its own validity; a person's link can be edited from the organization screen to set its validity and grant delegations.
+
 ## v1.1.0 — 2026-11-12
 Versioning introduced + Concept Note 2/11.
 

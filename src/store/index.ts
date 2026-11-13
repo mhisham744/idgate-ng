@@ -274,12 +274,16 @@ interface State extends AppData {
   disconnectContact: (other: ActorRef, note?: { subject: string; body: string }) => void
   createLinkRequest: (entityId: string, virtualId: string, targetNormalId: string) => void
   /** Rich link request: adds a 'waiting' link + a pending LinkRequest. Returns false if a duplicate (same entity/virtual/person already waiting or active). */
-  requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation'] }) => boolean
+  requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation']; delegations?: VirtualLink['delegations'] }) => boolean
   respondLinkRequest: (id: string, status: 'accepted' | 'rejected') => void
   /** Set one person's link status on a virtual entity (active/rejected/unlinked/blocked). */
   setLinkStatus: (virtualId: string, normalId: string, status: VirtualLink['status']) => void
   /** Edit the delegation granted to one person on a virtual entity. */
   updateLinkDelegation: (virtualId: string, normalId: string, delegation: VirtualLink['delegation']) => void
+  /** Replace the delegations (multi, each with its own validity) granted to one person on a virtual entity. */
+  setLinkDelegations: (virtualId: string, normalId: string, delegations: VirtualLink['delegations']) => void
+  /** Set one person's link validity window on a virtual entity. */
+  setLinkValidity: (virtualId: string, normalId: string, validity: Validity) => void
 
   // ── groups ─────────────────────────────────────────────────────────────────
   addGroup: (g: Omit<Group, 'id'>) => string
@@ -1364,7 +1368,7 @@ export const useStore = create<State>()(
           normalId: targetNormalId,
           status: 'waiting',
           validity: opts?.validity,
-          delegation: opts?.delegation,
+          delegations: opts?.delegations ?? (opts?.delegation ? [opts.delegation] : undefined),
         }
         const nextLinks = [...(v.links ?? []).filter((l) => l.normalId !== targetNormalId), link]
         const lr: LinkRequest = {
@@ -1451,6 +1455,26 @@ export const useStore = create<State>()(
           virtuals: s.virtuals.map((v) => {
             if (v.id !== virtualId) return v
             const links = (v.links ?? []).map((l) => (l.normalId === normalId ? { ...l, delegation } : l))
+            return syncMirror(v, links)
+          }),
+        }))
+      },
+      setLinkDelegations: (virtualId, normalId, delegations) => {
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const links = (v.links ?? []).map((l) =>
+              l.normalId === normalId ? { ...l, delegations, delegation: undefined } : l,
+            )
+            return syncMirror(v, links)
+          }),
+        }))
+      },
+      setLinkValidity: (virtualId, normalId, validity) => {
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const links = (v.links ?? []).map((l) => (l.normalId === normalId ? { ...l, validity } : l))
             return syncMirror(v, links)
           }),
         }))

@@ -72,12 +72,23 @@ export function LinkPosition() {
   const [nId, setNId] = useState('')
   const [query, setQuery] = useState('')
   const [linkValidity, setLinkValidity] = useState<Validity>({ open: true })
-  const [delId, setDelId] = useState('')
-  const [delValidity, setDelValidity] = useState<Validity>({ open: true })
+  // Multi-select grant delegation: delegationId → its own validity window.
+  const [sel, setSel] = useState<Record<string, Validity>>({})
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null)
 
   const entVirtuals = entId ? virtuals.filter((v) => v.entityId === entId) : []
   const entDelegations = entId ? delegations.filter((d) => d.entityId === entId) : []
+
+  const toggleDel = (id: string) =>
+    setSel((s) => {
+      if (id in s) {
+        const next = { ...s }
+        delete next[id]
+        return next
+      }
+      return { ...s, [id]: { open: true } }
+    })
+  const setDelValidity = (id: string, v: Validity) => setSel((s) => ({ ...s, [id]: v }))
 
   const q = query.trim().toLowerCase()
   const people = useMemo(
@@ -94,10 +105,15 @@ export function LinkPosition() {
 
   const send = () => {
     if (!authorized || !entId || !vId || !nId) return
-    const del = entDelegations.find((d) => d.id === delId)
+    const delegations = Object.keys(sel)
+      .map((id) => {
+        const d = entDelegations.find((x) => x.id === id)
+        return d ? { subject: d.subject, limit: d.limit, limitAmount: d.limitAmount, validity: sel[id] } : null
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
     const ok = requestLink(entId, vId, nId, {
       validity: linkValidity,
-      delegation: del ? { subject: del.subject, limit: del.limit, limitAmount: del.limitAmount, validity: delValidity } : undefined,
+      delegations: delegations.length ? delegations : undefined,
     })
     if (ok) {
       setMsg({ tone: 'ok', text: L('Link request sent — waiting for the person to accept (from their Directory).', 'تم إرسال طلب الربط — بانتظار قبول الشخص (من الدليل).') })
@@ -137,7 +153,7 @@ export function LinkPosition() {
       ) : (
         <Card className="p-4 space-y-3">
           <Field label={L('Organization', 'المؤسسة')} required>
-            <Select value={entId} onChange={(e) => { setEntId(e.target.value); setVId(''); setDelId(''); setMsg(null) }}>
+            <Select value={entId} onChange={(e) => { setEntId(e.target.value); setVId(''); setSel({}); setMsg(null) }}>
               <option value="">—</option>
               {myEntities.map((e) => (
                 <option key={e.id} value={e.id}>{e.commercialName}</option>
@@ -191,19 +207,40 @@ export function LinkPosition() {
           <ValidityPicker value={linkValidity} onChange={setLinkValidity} L={L} />
 
           <div className="border-t border-slate-100 pt-3 space-y-2">
-            <Field label={L('Grant delegation (optional)', 'منح تفويض (اختياري)')}>
-              <Select value={delId} onChange={(e) => setDelId(e.target.value)} disabled={!entId}>
-                <option value="">{L('None', 'بدون')}</option>
-                {entDelegations.map((d) => (
-                  <option key={d.id} value={d.id}>{d.subject}{d.limitAmount != null ? ` (${d.limitAmount.toLocaleString()})` : ''}</option>
-                ))}
-              </Select>
+            <Field label={L('Grant delegation (optional, multiple)', 'منح تفويض (اختياري، متعدد)')}>
+              <div />
             </Field>
-            {delId && (
-              <>
-                <div className="text-xs text-slate-500">{L('Delegation validity', 'صلاحية التفويض')}</div>
-                <ValidityPicker value={delValidity} onChange={setDelValidity} L={L} />
-              </>
+            {entDelegations.length === 0 ? (
+              <p className="text-[11px] text-slate-400">{L('This organization has no delegations to grant.', 'لا توجد تفويضات لهذه المؤسسة لمنحها.')}</p>
+            ) : (
+              <div className="space-y-2">
+                {entDelegations.map((d) => {
+                  const on = d.id in sel
+                  const v = sel[d.id] ?? { open: true }
+                  return (
+                    <div key={d.id} className={cx('rounded-2xl border p-3', on ? 'border-gate-300 bg-gate-50/50' : 'border-slate-100')}>
+                      <button type="button" onClick={() => toggleDel(d.id)} className="flex w-full items-center gap-2 text-start">
+                        <span className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-md border', on ? 'border-gate-500 bg-gate-600 text-light' : 'border-slate-300')}>
+                          {on && <Check size={13} />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-slate-800">{d.subject}</span>
+                          <span className="block text-[11px] text-slate-400">
+                            {d.limitAmount != null ? `${L('Max', 'أقصى')} ${d.limitAmount.toLocaleString()}` : d.limit || '—'}
+                            {d.authorizationsRequired != null ? ` · ${L('auth', 'تفويضات')} ${d.authorizationsRequired}` : ''}
+                          </span>
+                        </span>
+                      </button>
+                      {on && (
+                        <div className="mt-2 border-t border-slate-200/60 pt-2">
+                          <div className="mb-1 text-[11px] font-medium text-slate-500">{L('Delegation validity', 'صلاحية التفويض')}</div>
+                          <ValidityPicker value={v} onChange={(nv) => setDelValidity(d.id, nv)} L={L} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
 

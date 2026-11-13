@@ -152,6 +152,7 @@ export function PersonalMasterData() {
   const currentNormal = useStore((s) => s.currentNormal)
   const updateNormal = useStore((s) => s.updateNormal)
   const virtuals = useStore((s) => s.virtuals)
+  const entityDelegations = useStore((s) => s.delegations)
   const entity = useStore((s) => s.entity)
   const me = currentNormal()
 
@@ -309,6 +310,17 @@ export function PersonalMasterData() {
     .sort((a, b) => (b.link.connectedAt ?? b.v.createdAt).localeCompare(a.link.connectedAt ?? a.v.createdAt))
   const linkStatusLabel = (s: 'active' | 'blocked' | 'unlinked'): string =>
     s === 'active' ? t('statusPresent') : s === 'blocked' ? t('statusBlocked') : t('statusUnlinked')
+  const fmtVal = (val?: import('@/types').Validity) =>
+    !val || val.open ? L('Open', 'مفتوح') : `${val.from || '—'} → ${val.to || '—'}`
+  // Delegations granted on a link, with the entity's authorization count resolved by subject.
+  const linkDelegations = (entityId: string, link: unknown) => {
+    const anyLink = link as { delegations?: { subject: string; limitAmount?: number; validity?: import('@/types').Validity }[]; delegation?: { subject: string; limitAmount?: number; validity?: import('@/types').Validity } }
+    const list = anyLink.delegations ?? (anyLink.delegation ? [anyLink.delegation] : [])
+    return list.map((d) => ({
+      ...d,
+      authorizationsRequired: entityDelegations.find((ed) => ed.entityId === entityId && ed.subject === d.subject)?.authorizationsRequired,
+    }))
+  }
   const langSummary = (n: NormalCharacter) =>
     (n.languages ?? []).map((l) => `${l.language} (${l.level})`).join(', ')
 
@@ -646,6 +658,7 @@ export function PersonalMasterData() {
                 {myLinks.map(({ v, link }) => {
                   const ent = entity(v.entityId)
                   const isActive = link.status === 'active'
+                  const dels = linkDelegations(v.entityId, link)
                   return (
                     <div key={v.id} className="rounded-xl bg-slate-50 px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
@@ -665,6 +678,18 @@ export function PersonalMasterData() {
                           {L('Disconnected', 'انفصل')}: <span dir="ltr">{isActive ? t('statusPresent') : link.disconnectedAt ? formatDate(link.disconnectedAt, lang) : '—'}</span>
                         </span>
                       </div>
+                      {dels.length > 0 && (
+                        <div className="mt-1.5 space-y-1 border-t border-slate-200/60 pt-1.5">
+                          {dels.map((d, i) => (
+                            <div key={i} className="text-[11px] text-slate-500">
+                              <span className="font-medium text-slate-700">{d.subject}</span>
+                              {d.limitAmount != null && <span className="text-slate-400"> · {d.limitAmount.toLocaleString()}</span>}
+                              <span className="text-slate-400"> · {L('validity', 'الصلاحية')}: <span dir="ltr">{fmtVal(d.validity)}</span></span>
+                              {d.authorizationsRequired != null && <span className="text-slate-400"> · {L('auth. required', 'التفويضات المطلوبة')}: {d.authorizationsRequired}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
