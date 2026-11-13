@@ -341,8 +341,10 @@ export interface VirtualLink {
   connectedAt?: string
   disconnectedAt?: string
   validity?: Validity
-  /** A delegation granted to this person on this entity, with its own validity window. */
+  /** @deprecated single grant — read via `delegations`. Kept for back-compat. */
   delegation?: { subject: string; limit?: string; limitAmount?: number; validity?: Validity }
+  /** Delegations granted to this person on this entity, each with its own validity window. */
+  delegations?: { subject: string; limit?: string; limitAmount?: number; validity?: Validity }[]
 }
 
 /**

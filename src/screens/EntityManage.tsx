@@ -5,6 +5,7 @@ import {
   Ban,
   Briefcase,
   Building2,
+  Check,
   CheckCircle2,
   Eye,
   Layers,
@@ -31,7 +32,7 @@ import {
 } from '@/data/reference'
 import { STRUCTURE_ROOT_CODE } from '@/types'
 import type { Ability } from '@/store'
-import type { Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
+import type { ActorRef, Profile, StructureKind, StructureNode, VirtualCharacter } from '@/types'
 import { useResolveActor } from '@/components/identity'
 import { EntityVerificationBadge } from '@/components/VerificationBadge'
 import { personalAddress } from '@/lib/identity'
@@ -93,6 +94,7 @@ export function EntityManage() {
   const unlinkVirtual = useStore((s) => s.unlinkVirtual)
   const blockVirtual = useStore((s) => s.blockVirtual)
   const removeGroup = useStore((s) => s.removeGroup)
+  const sendSystemMessage = useStore((s) => s.sendSystemMessage)
 
   const [tab, setTab] = useState<Tab>('structures')
   const [profOpen, setProfOpen] = useState(false)
@@ -153,6 +155,25 @@ export function EntityManage() {
         </p>
       </div>
     )
+  }
+
+  // Entity-level block/unblock → notify every active-linked person (no-reply).
+  const handleBlockEntity = (v: VirtualCharacter) => {
+    const willBlock = v.status !== 'blocked'
+    const recipients = (v.links ?? [])
+      .filter((l) => l.status === 'active')
+      .map((l) => ({ kind: 'normal', normalId: l.normalId }) as ActorRef)
+    if (active && recipients.length) {
+      sendSystemMessage(
+        active as ActorRef,
+        recipients,
+        willBlock ? L('Virtual entity blocked', 'تم حظر الكيان الافتراضي') : L('Virtual entity unblocked', 'تم إلغاء حظر الكيان الافتراضي'),
+        willBlock
+          ? L(`The position "${v.positionName}" at ${ent.commercialName} has been blocked. This is an automated no-reply notice.`, `تم حظر المنصب "${v.positionName}" في ${ent.commercialName}. هذا إشعار آلي بلا رد.`)
+          : L(`The position "${v.positionName}" at ${ent.commercialName} has been unblocked.`, `تم إلغاء حظر المنصب "${v.positionName}" في ${ent.commercialName}.`),
+      )
+    }
+    blockVirtual(v.id, willBlock)
   }
 
   const tabs: { key: Tab; label: string; n: number }[] = [
@@ -390,7 +411,7 @@ export function EntityManage() {
                       t={t}
                       v={v}
                       normals={normals}
-                      onBlock={() => blockVirtual(v.id, v.status !== 'blocked')}
+                      onBlock={() => handleBlockEntity(v)}
                       onEdit={() => setVirtualEditId(v.id)}
                       onDisplay={() => setVirtualDisplayId(v.id)}
                       locked={isAdminV(v) && !otherActiveAdmin(v)}
@@ -788,13 +809,24 @@ function LinkBox({
 }) {
   const setLinkStatus = useStore((s) => s.setLinkStatus)
   const updateLinkDelegation = useStore((s) => s.updateLinkDelegation)
+  const setLinkDelegations = useStore((s) => s.setLinkDelegations)
+  const setLinkValidity = useStore((s) => s.setLinkValidity)
+  const entDelegations = useStore((s) => s.delegations).filter((d) => d.entityId === v.entityId)
+  const active = useStore((s) => s.active)
+  const sendSystemMessage = useStore((s) => s.sendSystemMessage)
+  // Change this person's link status, auto-notifying them with a no-reply message.
+  const notifyLink = (next: 'unlinked' | 'blocked' | 'active', subjEn: string, subjAr: string, bodyEn: string, bodyAr: string) => {
+    if (active) sendSystemMessage(active as ActorRef, [{ kind: 'normal', normalId: link.normalId }], L(subjEn, subjAr), L(bodyEn, bodyAr))
+    setLinkStatus(v.id, link.normalId, next)
+  }
   // The admin virtual's sole linked person can't be unlinked/blocked — the org
   // would be left with no administrator. Allowed once a second person is linked.
   const soleActiveLink = (v.links ?? []).filter((l) => l.status === 'active').length <= 1
   const lockLink = !!adminVirtual && soleActiveLink && link.status === 'active'
   const [editVal, setEditVal] = useState(false)
-  const [from, setFrom] = useState(link.delegation?.validity?.from ?? '')
-  const [to, setTo] = useState(link.delegation?.validity?.to ?? '')
+  const [lfrom, setLfrom] = useState(link.validity?.from ?? '')
+  const [lto, setLto] = useState(link.validity?.to ?? '')
+  const curDels = link.delegations ?? (link.delegation ? [link.delegation] : [])
 
   const statusLabel: Record<string, string> = {
     waiting: L('Waiting response', 'بانتظار الرد'),
@@ -815,41 +847,76 @@ function LinkBox({
         </div>
         <Badge tone={LINK_TONE[link.status] ?? 'slate'}>{statusLabel[link.status] ?? link.status}</Badge>
       </div>
-      <div className="text-[10px] text-slate-400">
-        {L('Validity', 'الصلاحية')}: <span dir="ltr">{fmtVal(link.validity)}</span>
+      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400">
+        <span>{L('Validity', 'الصلاحية')}: <span dir="ltr">{fmtVal(link.validity)}</span></span>
+        {link.status === 'active' && (
+          <button onClick={() => setEditVal((x) => !x)} className="font-medium text-gate-600">
+            {editVal ? L('Done', 'تم') : L('Manage validity & grants', 'إدارة الصلاحية والتفويضات')}
+          </button>
+        )}
       </div>
-      {link.delegation && (
-        <div className="rounded-lg bg-white px-2 py-1.5 text-[10px] text-slate-500">
-          <div className="flex items-center justify-between gap-2">
-            <span className="min-w-0 truncate">
-              {L('Delegation', 'تفويض')}: <span className="font-medium text-slate-700">{link.delegation.subject}</span>
-              {link.delegation.limitAmount != null && <span> · {link.delegation.limitAmount.toLocaleString()}</span>}
-              <span> · {fmtVal(link.delegation.validity)}</span>
-            </span>
-            <div className="flex shrink-0 gap-1">
-              <button onClick={() => setEditVal((x) => !x)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-gate-600" aria-label={L('Edit', 'تعديل')}>
-                <Pencil size={12} />
-              </button>
-              <button onClick={() => updateLinkDelegation(v.id, link.normalId, undefined)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label={L('Remove', 'إزالة')}>
+      {/* Granted delegations (multi) */}
+      {curDels.length > 0 && (
+        <div className="space-y-1">
+          {curDels.map((d, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1 text-[10px] text-slate-500">
+              <span className="min-w-0 truncate">
+                {L('Delegation', 'تفويض')}: <span className="font-medium text-slate-700">{d.subject}</span>
+                {d.limitAmount != null && <span> · {d.limitAmount.toLocaleString()}</span>}
+                <span> · {fmtVal(d.validity)}</span>
+              </span>
+              <button
+                onClick={() => setLinkDelegations(v.id, link.normalId, curDels.filter((_, j) => j !== i))}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500"
+                aria-label={L('Remove', 'إزالة')}
+              >
                 <Trash2 size={12} />
               </button>
             </div>
+          ))}
+        </div>
+      )}
+      {editVal && (
+        <div className="space-y-2 rounded-lg bg-white px-2 py-2">
+          {/* Link validity */}
+          <div className="text-[10px] font-semibold text-slate-500">{L('Link validity', 'صلاحية الربط')}</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button size="sm" variant="secondary" onClick={() => setLinkValidity(v.id, link.normalId, { open: true })}>{L('Open', 'مفتوح')}</Button>
+            <Input type="date" value={lfrom} onChange={(e) => setLfrom(e.target.value)} className="w-32" />
+            <Input type="date" value={lto} onChange={(e) => setLto(e.target.value)} className="w-32" />
+            <Button size="sm" variant="secondary" onClick={() => setLinkValidity(v.id, link.normalId, { open: false, from: lfrom, to: lto })}>{L('Save limited', 'حفظ محدود')}</Button>
           </div>
-          {editVal && (
-            <div className="mt-1.5 space-y-1.5">
-              <div className="flex gap-2">
-                <Button size="sm" variant="secondary" onClick={() => updateLinkDelegation(v.id, link.normalId, { ...link.delegation!, validity: { open: true } })}>
-                  {L('Open', 'مفتوح')}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => updateLinkDelegation(v.id, link.normalId, { ...link.delegation!, validity: { open: false, from, to } })}>
-                  {L('Save limited', 'حفظ محدود')}
-                </Button>
+          {/* Grant delegations (toggle entity delegations; each granted open by default) */}
+          {entDelegations.length > 0 && (
+            <>
+              <div className="text-[10px] font-semibold text-slate-500 pt-1">{L('Grant delegations', 'منح التفويضات')}</div>
+              <div className="space-y-1">
+                {entDelegations.map((d) => {
+                  const on = curDels.some((x) => x.subject === d.subject)
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() =>
+                        setLinkDelegations(
+                          v.id,
+                          link.normalId,
+                          on
+                            ? curDels.filter((x) => x.subject !== d.subject)
+                            : [...curDels, { subject: d.subject, limit: d.limit, limitAmount: d.limitAmount, validity: { open: true } }],
+                        )
+                      }
+                      className="flex w-full items-center gap-2 text-start text-[11px]"
+                    >
+                      <span className={cx('flex h-4 w-4 shrink-0 items-center justify-center rounded border', on ? 'border-gate-500 bg-gate-600 text-light' : 'border-slate-300')}>
+                        {on && <Check size={11} />}
+                      </span>
+                      <span className="truncate text-slate-700">{d.subject}{d.limitAmount != null ? ` · ${d.limitAmount.toLocaleString()}` : ''}</span>
+                    </button>
+                  )
+                })}
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-              </div>
-            </div>
+            </>
           )}
         </div>
       )}
@@ -861,17 +928,17 @@ function LinkBox({
             </span>
           ) : (
             <>
-              <Button size="sm" variant="subtle" onClick={() => setLinkStatus(v.id, link.normalId, 'unlinked')}>
+              <Button size="sm" variant="subtle" onClick={() => notifyLink('unlinked', 'Virtual account unlinked', 'تم فك ربط الحساب الافتراضي', `You have been unlinked from "${v.positionName}". This is an automated no-reply notice.`, `تم فك ربطك من "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
                 <Unlink size={12} /> {t('unlink')}
               </Button>
-              <Button size="sm" variant="danger" onClick={() => setLinkStatus(v.id, link.normalId, 'blocked')}>
+              <Button size="sm" variant="danger" onClick={() => notifyLink('blocked', 'Virtual account blocked', 'تم حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been blocked. This is an automated no-reply notice.`, `تم حظر حسابك على "${v.positionName}". هذا إشعار آلي بلا رد.`)}>
                 <Ban size={12} /> {t('block')}
               </Button>
             </>
           )
         )}
         {link.status === 'blocked' && (
-          <Button size="sm" variant="secondary" onClick={() => setLinkStatus(v.id, link.normalId, 'active')}>
+          <Button size="sm" variant="secondary" onClick={() => notifyLink('active', 'Virtual account unblocked', 'تم إلغاء حظر الحساب الافتراضي', `Your account on "${v.positionName}" has been unblocked and is active again.`, `تم إلغاء حظر حسابك على "${v.positionName}" وأصبح نشطًا.`)}>
             {L('Unblock', 'إلغاء الحظر')}
           </Button>
         )}

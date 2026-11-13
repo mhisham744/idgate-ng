@@ -6,7 +6,8 @@ import { useTheme } from '@/theme'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { AccountSwitcher, PresenceAvatar } from '@/components/AccountSwitcher'
 import { actorKey } from '@/lib/identity'
-import { Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal, Toggle } from '@/ui/primitives'
+import { useMyInbox } from '@/lib/userScope'
+import { Badge, Button, Card, Chip, Field, Input, Row, Select, SectionHeader, Sheet, Modal, Toggle } from '@/ui/primitives'
 import type { ActorRef } from '@/types'
 import {
   User,
@@ -112,6 +113,9 @@ export function Settings() {
   const L = (en: string, ar: string) => (isRtl ? ar : en)
 
   const Chevron = <ChevronRight size={18} className={isRtl ? 'rotate-180 text-slate-400' : 'text-slate-400'} />
+  // Incoming link/contact requests awaiting my approval → a counter on Directory.
+  const inbox = useMyInbox()
+  const pendingApprovals = inbox.incomingContacts.length + inbox.incomingLinks.length
 
   return (
     <div className="p-4 space-y-4 pb-8">
@@ -172,7 +176,12 @@ export function Settings() {
         <Row
           leading={<Users size={20} className="text-gate-600" />}
           title={t('directory')}
-          trailing={Chevron}
+          trailing={
+            <div className="flex items-center gap-1.5">
+              {pendingApprovals > 0 && <Badge tone="red">{pendingApprovals}</Badge>}
+              {Chevron}
+            </div>
+          }
           onClick={() => nav('/directory')}
         />
         <Row

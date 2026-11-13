@@ -22,6 +22,10 @@ export interface MyInbox {
   sentPendingContacts: import('@/types').ContactRequest[]
   /** Link requests I sent (I administer the entity) that are still pending (→ Pending button). */
   sentPendingLinks: import('@/types').LinkRequest[]
+  /** Contact requests awaiting MY approval (recipient side). */
+  incomingContacts: import('@/types').ContactRequest[]
+  /** Link requests awaiting MY approval (I'm the target person). */
+  incomingLinks: import('@/types').LinkRequest[]
 }
 
 const anyKey = (refs: ActorRef[] | undefined, keys: Set<string>) =>
@@ -132,8 +136,13 @@ export function useMyInbox(): MyInbox {
       const e = entities.find((x) => x.id === l.entityId)
       return !!e && (e.adminNormalId === normalId || e.managingDirectorNormalId === normalId)
     })
+    // Requests awaiting MY approval (recipient side).
+    const incomingContacts = contactRequests.filter(
+      (c) => c.status === 'pending' && keys.has(actorKey(c.to)) && !keys.has(actorKey(c.from)),
+    )
+    const incomingLinks = linkRequests.filter((l) => l.status === 'pending' && l.targetNormalId === normalId)
 
-    return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts, sentPendingLinks }
+    return { keys, unreadMessages, nonReactedNotes, senderPending, senderUnread, myDuties, datedItems, sentPendingContacts, sentPendingLinks, incomingContacts, incomingLinks }
   }, [normalId, active, virtuals, messages, notifications, contactRequests, linkRequests, entities, scope, myActorKeys])
 }
 

@@ -151,7 +151,8 @@ export function PersonalMasterData() {
   const { lang, t, isRtl } = useLang()
   const currentNormal = useStore((s) => s.currentNormal)
   const updateNormal = useStore((s) => s.updateNormal)
-  const virtualsFor = useStore((s) => s.virtualsFor)
+  const virtuals = useStore((s) => s.virtuals)
+  const entityDelegations = useStore((s) => s.delegations)
   const entity = useStore((s) => s.entity)
   const me = currentNormal()
 
@@ -295,7 +296,30 @@ export function PersonalMasterData() {
     </div>
   )
 
-  const myVirtuals = virtualsFor(me.id)
+  // Every virtual this person has / had a real link to (active/blocked/unlinked), newest first.
+  const myLinks = virtuals
+    .map((v) => {
+      const link: import('@/types').VirtualLink | undefined =
+        (v.links ?? []).find((l) => l.normalId === me.id) ??
+        (v.linkedNormalId === me.id
+          ? { normalId: me.id, status: v.status, connectedAt: v.connectedAt, disconnectedAt: v.disconnectedAt }
+          : undefined)
+      return { v, link }
+    })
+    .filter((x): x is { v: typeof x.v; link: import('@/types').VirtualLink } => !!x.link && x.link.status !== 'waiting' && x.link.status !== 'rejected')
+    .sort((a, b) => (b.link.connectedAt ?? b.v.createdAt).localeCompare(a.link.connectedAt ?? a.v.createdAt))
+  const linkStatusLabel = (s: 'active' | 'blocked' | 'unlinked') =>
+    s === 'active' ? L('Present', 'حتى الآن') : s === 'blocked' ? L('Blocked', 'محظور') : L('Unlinked', 'غير مرتبط')
+  const fmtVal = (val?: import('@/types').Validity) =>
+    !val || val.open ? L('Open', 'مفتوح') : `${val.from || '—'} → ${val.to || '—'}`
+  // Delegations granted on a link, with the entity's authorization count resolved by subject.
+  const linkDelegations = (v: (typeof virtuals)[number], link: import('@/types').VirtualLink) => {
+    const list = link.delegations ?? (link.delegation ? [link.delegation] : [])
+    return list.map((d) => ({
+      ...d,
+      authorizationsRequired: entityDelegations.find((ed) => ed.entityId === v.entityId && ed.subject === d.subject)?.authorizationsRequired,
+    }))
+  }
   const langSummary = (n: NormalCharacter) =>
     (n.languages ?? []).map((l) => `${l.language} (${l.level})`).join(', ')
 
@@ -623,27 +647,44 @@ export function PersonalMasterData() {
             </>
           )}
 
-          {/* Auto-filled career list — the person's linked virtual accounts */}
+          {/* Auto-filled career list — the person's virtual-account history */}
           <div className="border-t border-slate-100 pt-3">
             <div className="mb-1.5 text-xs font-semibold text-slate-500">{L('Virtual accounts', 'الحسابات الافتراضية')}</div>
-            {myVirtuals.length === 0 ? (
+            {myLinks.length === 0 ? (
               <p className="text-xs text-slate-400">{L('No linked positions.', 'لا توجد مناصب مرتبطة.')}</p>
             ) : (
               <div className="space-y-1.5">
-                {myVirtuals.map((v) => {
+                {myLinks.map(({ v, link }) => {
                   const ent = entity(v.entityId)
+                  const isActive = link.status === 'active'
+                  const dels = linkDelegations(v, link)
                   return (
                     <div key={v.id} className="rounded-xl bg-slate-50 px-3 py-2">
-                      <div className="text-sm font-medium text-slate-800">{v.positionName}</div>
-                      <div className="text-[11px] text-slate-500">{ent?.commercialName ?? v.entityId}</div>
-                      <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
-                        <span>
-                          {L('Connected', 'ارتبط')}: <span dir="ltr">{v.connectedAt ? formatDate(v.connectedAt, lang) : formatDate(v.createdAt, lang)}</span>
-                        </span>
-                        <span>
-                          {L('Disconnected', 'انفصل')}: <span dir="ltr">{v.disconnectedAt ? formatDate(v.disconnectedAt, lang) : L('Present', 'حتى الآن')}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-slate-800">{v.positionName}</div>
+                          <div className="truncate text-[11px] text-slate-500">{ent?.commercialName ?? v.entityId}</div>
+                        </div>
+                        <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold', isActive ? 'bg-emerald-100 text-emerald-700' : link.status === 'blocked' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600')}>
+                          {linkStatusLabel(link.status as 'active' | 'blocked' | 'unlinked')}
                         </span>
                       </div>
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
+                        <span>{L('Connected', 'ارتبط')}: <span dir="ltr">{formatDate(link.connectedAt ?? v.createdAt, lang)}</span></span>
+                        <span>{L('Disconnected', 'انفصل')}: <span dir="ltr">{isActive ? L('Present', 'حتى الآن') : link.disconnectedAt ? formatDate(link.disconnectedAt, lang) : '—'}</span></span>
+                      </div>
+                      {dels.length > 0 && (
+                        <div className="mt-1.5 space-y-1 border-t border-slate-200/60 pt-1.5">
+                          {dels.map((d, i) => (
+                            <div key={i} className="text-[11px] text-slate-500">
+                              <span className="font-medium text-slate-700">{d.subject}</span>
+                              {d.limitAmount != null && <span className="text-slate-400"> · {d.limitAmount.toLocaleString()}</span>}
+                              <span className="text-slate-400"> · {L('validity', 'الصلاحية')}: <span dir="ltr">{fmtVal(d.validity)}</span></span>
+                              {d.authorizationsRequired != null && <span className="text-slate-400"> · {L('auth. required', 'التفويضات المطلوبة')}: {d.authorizationsRequired}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

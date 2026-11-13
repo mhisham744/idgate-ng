@@ -39,6 +39,10 @@ import { buildSeed } from '@/data/seed'
 import type { AppData } from '@/data/seed'
 import { actorKey, colorFor, mergedPermission, uid } from '@/lib/identity'
 import { TRANSACTIONS, makeInternalCode, nextInternalSeq } from '@/data/reference'
+import { useI18n } from '@/i18n'
+
+// Bilingual string for store-originated no-reply system messages.
+const L2 = (en: string, ar: string) => (useI18n.getState().lang === 'ar' ? ar : en)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived-helper (pure) — resolve what an active account is allowed to do.
@@ -309,12 +313,16 @@ interface State extends AppData {
   respondContactRequest: (id: string, status: 'accepted' | 'rejected') => void
   createLinkRequest: (entityId: string, virtualId: string, targetNormalId: string) => void
   /** Rich link request: adds a 'waiting' link + a pending LinkRequest. Returns false if a duplicate (same entity/virtual/person already waiting or active). */
-  requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation'] }) => boolean
+  requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation']; delegations?: VirtualLink['delegations'] }) => boolean
   respondLinkRequest: (id: string, status: 'accepted' | 'rejected') => void
   /** Set one person's link status on a virtual entity (active/rejected/unlinked/blocked). */
   setLinkStatus: (virtualId: string, normalId: string, status: VirtualLink['status']) => void
   /** Edit the delegation granted to one person on a virtual entity. */
   updateLinkDelegation: (virtualId: string, normalId: string, delegation: VirtualLink['delegation']) => void
+  /** Replace the delegations (multi, each with its own validity) granted to one person on a virtual entity. */
+  setLinkDelegations: (virtualId: string, normalId: string, delegations: VirtualLink['delegations']) => void
+  /** Set one person's link validity window on a virtual entity. */
+  setLinkValidity: (virtualId: string, normalId: string, validity: Validity) => void
 
   // ── groups ─────────────────────────────────────────────────────────────────
   addGroup: (g: Omit<Group, 'id'>) => string
@@ -1424,12 +1432,28 @@ export const useStore = create<State>()(
         }
         set((s) => ({ contactRequests: [cr, ...s.contactRequests] }))
       },
-      respondContactRequest: (id, status) =>
-        set((s) => ({ contactRequests: s.contactRequests.map((c) => (c.id === id ? { ...c, status } : c)) })),
+      respondContactRequest: (id, status) => {
+        const cr = get().contactRequests.find((c) => c.id === id)
+        set((s) => ({ contactRequests: s.contactRequests.map((c) => (c.id === id ? { ...c, status } : c)) }))
+        if (cr && status === 'rejected') {
+          const name = (ref: ActorRef) =>
+            ref.kind === 'normal'
+              ? get().normals.find((n) => n.id === ref.normalId)?.fullName ?? ''
+              : get().virtual(ref.virtualId)?.positionName ?? ''
+          get().sendSystemMessage(
+            cr.to,
+            [cr.from],
+            L2('Contact request rejected', 'رفض طلب التواصل'),
+            L2(`${name(cr.to)} declined your contact request. This is an automated no-reply notice.`, `رفض ${name(cr.to)} طلب التواصل الخاص بك. هذا إشعار آلي بلا رد.`),
+          )
+        }
+      },
       createLinkRequest: (entityId, virtualId, targetNormalId) => {
         get().requestLink(entityId, virtualId, targetNormalId)
       },
       requestLink: (entityId, virtualId, targetNormalId, opts) => {
+        // Only an authorized virtual account may originate link requests.
+        if (get().active?.kind !== 'virtual' || !get().can('admin.createLinkRequest')) return false
         const v = get().virtual(virtualId)
         if (!v) return false
         // Dedup: same person already waiting, active, or blocked on this virtual
@@ -1440,7 +1464,7 @@ export const useStore = create<State>()(
           normalId: targetNormalId,
           status: 'waiting',
           validity: opts?.validity,
-          delegation: opts?.delegation,
+          delegations: opts?.delegations ?? (opts?.delegation ? [opts.delegation] : undefined),
         }
         const nextLinks = [...(v.links ?? []).filter((l) => l.normalId !== targetNormalId), link]
         const lr: LinkRequest = {
@@ -1478,6 +1502,28 @@ export const useStore = create<State>()(
           }),
           linkRequests: s.linkRequests.map((l) => (l.id === id ? { ...l, status } : l)),
         }))
+        // A rejection notifies the entity's admins (the link request's originators).
+        if (status === 'rejected') {
+          const ent = get().entity(lr.entityId)
+          const v = get().virtual(lr.virtualId)
+          const person = get().normals.find((n) => n.id === lr.targetNormalId)
+          const adminIds = Array.from(new Set([ent?.adminNormalId, ent?.managingDirectorNormalId])).filter(
+            (x): x is string => !!x && x !== lr.targetNormalId,
+          )
+          if (adminIds.length) {
+            const to = adminIds.map((nid) => ({ kind: 'normal', normalId: nid }) as ActorRef)
+            const from: ActorRef = { kind: 'normal', normalId: lr.targetNormalId }
+            get().sendSystemMessage(
+              from,
+              to,
+              L2('Link request rejected', 'رفض طلب الربط'),
+              L2(
+                `Your link request for ${v?.positionName ?? ''} at ${ent?.commercialName ?? ''} was rejected by ${person?.fullName ?? ''}. This is an automated no-reply notice.`,
+                `تم رفض طلب ربط الوظيفة ${v?.positionName ?? ''} في ${ent?.commercialName ?? ''} من قبل ${person?.fullName ?? ''}. هذا إشعار آلي بلا رد.`,
+              ),
+            )
+          }
+        }
       },
       setLinkStatus: (virtualId, normalId, status) => {
         const now = new Date().toISOString()
@@ -1506,6 +1552,26 @@ export const useStore = create<State>()(
           virtuals: s.virtuals.map((v) => {
             if (v.id !== virtualId) return v
             const links = (v.links ?? []).map((l) => (l.normalId === normalId ? { ...l, delegation } : l))
+            return syncMirror(v, links)
+          }),
+        }))
+      },
+      setLinkDelegations: (virtualId, normalId, delegations) => {
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const links = (v.links ?? []).map((l) =>
+              l.normalId === normalId ? { ...l, delegations, delegation: undefined } : l,
+            )
+            return syncMirror(v, links)
+          }),
+        }))
+      },
+      setLinkValidity: (virtualId, normalId, validity) => {
+        set((s) => ({
+          virtuals: s.virtuals.map((v) => {
+            if (v.id !== virtualId) return v
+            const links = (v.links ?? []).map((l) => (l.normalId === normalId ? { ...l, validity } : l))
             return syncMirror(v, links)
           }),
         }))
