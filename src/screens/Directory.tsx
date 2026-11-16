@@ -6,7 +6,8 @@ import { ORG_TYPE_LABELS, LEGAL_TYPE_LABELS, INDUSTRY_LABELS, STRUCTURE_LABELS }
 import { sameActor, actorKey } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { useDirectory } from '@/lib/userScope'
-import type { ActorRef, StructureKind } from '@/types'
+import { GroupMembersSheet } from '@/components/GroupMembers'
+import type { ActorRef, Group, StructureKind } from '@/types'
 import { Avatar, Badge, Button, Card, Chip, EmptyState, Input, SectionHeader } from '@/ui/primitives'
 
 type Seg = 'orgs' | 'people' | 'groups' | StructureKind
@@ -37,6 +38,7 @@ export function Directory() {
   const isVirtual = active?.kind === 'virtual'
   const [seg, setSeg] = useState<Seg>('orgs')
   const [q, setQ] = useState('')
+  const [membersOf, setMembersOf] = useState<Group | null>(null)
   const query = q.trim().toLowerCase()
 
   // incoming requests targeted at the active account / signed-in person
@@ -195,6 +197,9 @@ export function Directory() {
                       <div className="truncate text-xs text-slate-500">{g.positionNames.join(', ')}</div>
                     )}
                   </div>
+                  <Button size="sm" variant="subtle" onClick={() => setMembersOf(g)}>
+                    <Users size={13} /> {L('Members', 'الأعضاء')}
+                  </Button>
                 </div>
               </Card>
             ))
@@ -228,6 +233,8 @@ export function Directory() {
             </div>
           )
         })()}
+
+      <GroupMembersSheet group={membersOf} onClose={() => setMembersOf(null)} />
     </div>
   )
 }

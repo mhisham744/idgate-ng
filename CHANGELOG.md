@@ -15,6 +15,13 @@ The in-app version is shown in Settings; the per-build `version.json` also carri
 
 ---
 
+## v1.3.0 — 2026-11-16
+Concept Note 4/11 — Directory & Groups rework.
+- **Directory › People:** every entry is now classified **Auto** (added automatically via a shared communication area) or **Manual** (added via a contact request). Manual contacts get a **Disconnect** action that ends the connection on both sides and sends an automated no-reply notice; Auto virtuals drop off the list when they are unlinked, blocked, or deactivated.
+- **Directory › Communication Structure:** the single structure tab is replaced by four tabs — **Corporate**, **Relation**, **Organization**, **Geographical** — each listing the child nodes of that kind across every organization in the active virtual's communication area.
+- **Recipients:** structure child nodes are now selectable when composing a message, notification, valuation, voting, or election — picking a node sends to every virtual account attached to that node and its descendants.
+- **Groups:** a per-group **Members** view (reachable by any member) lists everyone the group reaches, including its creator; an authorized virtual account can now build a group from directory people, groups, and structure child nodes. Fixed a scoping bug where a group containing one of a person's virtual accounts wrongly appeared in that person's personal directory.
+
 ## v1.2.0 — 2026-11-13
 Concept Note 3/11 — Link & Contact requests, virtual-account lifecycle messaging, delegation.
 

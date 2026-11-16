@@ -31,6 +31,7 @@ export function GroupFormSheet({
   const active = useStore((s) => s.active)
   const virtual = useStore((s) => s.virtual)
   const structures = useStore((s) => s.structures)
+  const can = useStore((s) => s.can)
   const addGroup = useStore((s) => s.addGroup)
   const updateGroup = useStore((s) => s.updateGroup)
   const dir = useDirectory()
@@ -43,6 +44,9 @@ export function GroupFormSheet({
   const [nodeSel, setNodeSel] = useState<{ corporate?: string; relation?: string; organization?: string; geographical?: string }>({})
 
   const ownerEntityId = active?.kind === 'virtual' ? virtual(active.virtualId)?.entityId : undefined
+  // Structure-node selection is available only to an AUTHORIZED virtual account
+  // (CN 4/11 item 11): a virtual with the Create Group (Virtual) ability.
+  const authorized = active?.kind === 'virtual' && can('admin.createGroupVirtual')
   const entityNodes = useMemo(() => structures.filter((n) => n.entityId === ownerEntityId && n.level > 0), [structures, ownerEntityId])
 
   useEffect(() => {
@@ -89,11 +93,11 @@ export function GroupFormSheet({
       explicitMemberIds: memberIds.length ? memberIds : undefined,
       explicitNormalIds: normalIds.length ? normalIds : undefined,
       memberGroupIds: groupIds.length ? groupIds : undefined,
-      // Node criteria only resolve for a virtual (entity-owned) group.
-      corporateNodeId: nodeSel.corporate,
-      relationNodeId: nodeSel.relation,
-      organizationNodeId: nodeSel.organization,
-      geographicalNodeId: nodeSel.geographical,
+      // Node criteria only resolve for an authorized virtual (entity-owned) group.
+      corporateNodeId: authorized ? nodeSel.corporate : undefined,
+      relationNodeId: authorized ? nodeSel.relation : undefined,
+      organizationNodeId: authorized ? nodeSel.organization : undefined,
+      geographicalNodeId: authorized ? nodeSel.geographical : undefined,
     }
     if (editing && group) updateGroup(group.id, payload)
     else addGroup(payload)
@@ -153,8 +157,8 @@ export function GroupFormSheet({
           )}
         </div>
 
-        {/* Structure-node criteria — virtual (entity) owners only */}
-        {ownerEntityId && entityNodes.length > 0 && (
+        {/* Structure-node criteria — authorized virtual (entity) owners only */}
+        {authorized && ownerEntityId && entityNodes.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Network size={14} className="text-slate-400" />

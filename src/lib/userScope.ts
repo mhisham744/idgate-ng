@@ -184,6 +184,7 @@ export function useDirectory(): Directory {
   const entity = useStore((s) => s.entity)
   const virtual = useStore((s) => s.virtual)
   const virtualsFor = useStore((s) => s.virtualsFor)
+  const groupRecipients = useStore((s) => s.groupRecipients)
   const areaOf = useStore((s) => s.areaOf)
 
   return useMemo(() => {
@@ -235,10 +236,16 @@ export function useDirectory(): Directory {
       orgs = entities.filter((e) => ids.has(e.id))
     }
 
-    // Groups the active account OWNS (created) — not every group it's a member of.
-    const myGroups = groups.filter((g) =>
-      active.kind === 'virtual' ? g.ownerVirtualId === active.virtualId : g.ownerNormalId === normalId,
-    )
+    // Groups the active account OWNS or is a MEMBER of. Membership is scoped to
+    // the ACTIVE account's OWN key only (not the person∪owned-virtuals union), so
+    // a group whose member is one of the person's virtuals does NOT leak into the
+    // personal directory (CN 4/11 item 10), while member groups still appear for
+    // sub-group selection (item 11).
+    const myKey = active.kind === 'virtual' ? `v:${active.virtualId}` : normalId ? `n:${normalId}` : undefined
+    const myGroups = groups.filter((g) => {
+      if (active.kind === 'virtual' ? g.ownerVirtualId === active.virtualId : normalId && g.ownerNormalId === normalId) return true
+      return !!myKey && groupRecipients(g.id).some((r) => actorKey(r) === myKey)
+    })
 
     // Structure child nodes across all entities in the active account's communication area.
     const structureNodes = emptyStructureNodes()
@@ -252,7 +259,7 @@ export function useDirectory(): Directory {
     }
 
     return { orgs, people, peopleOrigin, groups: myGroups, structureNodes, peopleKeys: new Set(people.map(actorKey)) }
-  }, [active, normalId, entities, virtuals, groups, structures, contactRequests, entity, virtual, virtualsFor, areaOf])
+  }, [active, normalId, entities, virtuals, groups, structures, contactRequests, entity, virtual, virtualsFor, groupRecipients, areaOf])
 }
 
 /**
