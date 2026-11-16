@@ -1,21 +1,23 @@
-import { useMemo, useState } from 'react'
-import { Building2, Check, Layers, Users, UsersRound, X, Briefcase, Network } from 'lucide-react'
+import { useState } from 'react'
+import { Building2, Check, Layers, Users, UsersRound, X, Network } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { ORG_TYPE_LABELS, LEGAL_TYPE_LABELS, INDUSTRY_LABELS, STRUCTURE_LABELS } from '@/data/reference'
 import { sameActor, actorKey } from '@/lib/identity'
 import { ActorLine, useResolveActor } from '@/components/identity'
 import { useDirectory } from '@/lib/userScope'
-import type { ActorRef } from '@/types'
+import { GroupMembersSheet } from '@/components/GroupMembers'
+import type { ActorRef, Group, StructureKind } from '@/types'
 import { Avatar, Badge, Button, Card, Chip, EmptyState, Input, SectionHeader } from '@/ui/primitives'
 
-type Seg = 'orgs' | 'people' | 'groups' | 'nodes'
+type Seg = 'orgs' | 'people' | 'groups' | StructureKind
+const STRUCTURE_KINDS: StructureKind[] = ['corporate', 'relation', 'organization', 'geographical']
 
 /**
  * Directory — display-only view of what the ACTIVE account can see: linked
  * organizations, people it may reach (contacts + same-area virtuals), the groups
- * it belongs to, and (for a virtual) the structure nodes it is placed in.
- * Also where incoming contact / link requests are accepted.
+ * it belongs to, and (for a virtual) the structure nodes across its communication
+ * area, split into four structure kinds. Also where incoming requests are accepted.
  */
 export function Directory() {
   const { t, lang, isRtl } = useLang()
@@ -29,12 +31,14 @@ export function Directory() {
   const linkRequests = useStore((s) => s.linkRequests)
   const respondContactRequest = useStore((s) => s.respondContactRequest)
   const respondLinkRequest = useStore((s) => s.respondLinkRequest)
+  const disconnectContact = useStore((s) => s.disconnectContact)
   const resolve = useResolveActor()
   const dir = useDirectory()
 
   const isVirtual = active?.kind === 'virtual'
   const [seg, setSeg] = useState<Seg>('orgs')
   const [q, setQ] = useState('')
+  const [membersOf, setMembersOf] = useState<Group | null>(null)
   const query = q.trim().toLowerCase()
 
   // incoming requests targeted at the active account / signed-in person
@@ -46,16 +50,15 @@ export function Directory() {
   const orgs = dir.orgs.filter((e) => !query || e.commercialName.toLowerCase().includes(query) || e.formalName.toLowerCase().includes(query))
   const people = dir.people.filter((r) => !query || resolve(r).displayName.toLowerCase().includes(query))
   const groups = dir.groups.filter((g) => !query || g.name.toLowerCase().includes(query))
-  const nodes = dir.nodes.filter((n) => !query || n.name.toLowerCase().includes(query))
 
   const tabs: { key: Seg; label: string }[] = [
     { key: 'orgs', label: L('Organizations', 'المؤسسات') },
     { key: 'people', label: L('People', 'الأشخاص') },
     { key: 'groups', label: t('groups') },
-    ...(isVirtual ? [{ key: 'nodes' as Seg, label: t('communicationStructure') }] : []),
+    ...(isVirtual ? STRUCTURE_KINDS.map((k) => ({ key: k as Seg, label: bl(STRUCTURE_LABELS[k], lang) })) : []),
   ]
   // Fall back to the first tab if the current segment isn't available (e.g. after
-  // switching from a virtual to a normal account, where the 'nodes' tab disappears).
+  // switching from a virtual to a normal account, where the structure tabs disappear).
   const activeSeg: Seg = tabs.some((tb) => tb.key === seg) ? seg : 'orgs'
 
   return (
@@ -144,11 +147,37 @@ export function Directory() {
           {people.length === 0 ? (
             <EmptyState icon={<Users size={36} />} title={t('empty')} />
           ) : (
-            people.map((r) => (
-              <Card key={actorKey(r)} className="p-3.5">
-                <ActorLine actor={r} size={42} />
-              </Card>
-            ))
+            people.map((r) => {
+              const origin = dir.peopleOrigin.get(actorKey(r)) ?? 'auto'
+              return (
+                <Card key={actorKey(r)} className="p-3.5">
+                  <ActorLine
+                    actor={r}
+                    size={42}
+                    trailing={<Badge tone={origin === 'manual' ? 'gate' : 'teal'}>{origin === 'manual' ? t('connManual') : t('connAuto')}</Badge>}
+                  />
+                  {origin === 'manual' && (
+                    <div className="mt-2 flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() =>
+                          disconnectContact(r, {
+                            subject: L('Connection ended', 'انتهى الاتصال'),
+                            body: L(
+                              `${resolve(active as ActorRef).displayName} has ended the connection. This is an automated no-reply notice.`,
+                              `${resolve(active as ActorRef).displayName} أنهى الاتصال. هذه رسالة تلقائية بلا رد.`,
+                            ),
+                          })
+                        }
+                      >
+                        <X size={13} /> {t('disconnect')}
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })
           )}
         </div>
       )}
@@ -168,6 +197,9 @@ export function Directory() {
                       <div className="truncate text-xs text-slate-500">{g.positionNames.join(', ')}</div>
                     )}
                   </div>
+                  <Button size="sm" variant="subtle" onClick={() => setMembersOf(g)}>
+                    <Users size={13} /> {L('Members', 'الأعضاء')}
+                  </Button>
                 </div>
               </Card>
             ))
@@ -175,25 +207,34 @@ export function Directory() {
         </div>
       )}
 
-      {activeSeg === 'nodes' && (
-        <div className="space-y-2">
-          {nodes.length === 0 ? (
-            <EmptyState icon={<Layers size={36} />} title={t('empty')} />
-          ) : (
-            nodes.map((n) => (
-              <Card key={n.id} className="flex items-center gap-2.5 p-3.5">
-                <Avatar name={n.name} color="#4f46e5" size={38} square icon={<Network size={16} />} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-800">{n.name}</div>
-                  <div className="text-xs text-slate-500">
-                    {bl(STRUCTURE_LABELS[n.kind], lang)} · <span dir="ltr" className="font-mono">{n.code}</span>
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
-      )}
+      {STRUCTURE_KINDS.includes(activeSeg as StructureKind) &&
+        (() => {
+          const list = dir.structureNodes[activeSeg as StructureKind].filter((n) => !query || n.name.toLowerCase().includes(query))
+          return (
+            <div className="space-y-2">
+              {list.length === 0 ? (
+                <EmptyState icon={<Layers size={36} />} title={t('empty')} />
+              ) : (
+                list.map((n) => {
+                  const ent = entities.find((e) => e.id === n.entityId)
+                  return (
+                    <Card key={n.id} className="flex items-center gap-2.5 p-3.5">
+                      <Avatar name={n.name} color="#4f46e5" size={38} square icon={<Network size={16} />} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-slate-800">{n.name}</div>
+                        <div className="truncate text-xs text-slate-500">
+                          {ent?.commercialName} · <span dir="ltr" className="font-mono">{n.code}</span>
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                })
+              )}
+            </div>
+          )
+        })()}
+
+      <GroupMembersSheet group={membersOf} onClose={() => setMembersOf(null)} />
     </div>
   )
 }

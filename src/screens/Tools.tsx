@@ -5,7 +5,7 @@ import { useStore } from '@/store'
 import { useLang, bl } from '@/i18n'
 import { actorKey } from '@/lib/identity'
 import { useResolveActor } from '@/components/identity'
-import { useDirectory } from '@/lib/userScope'
+import { useRecipientSources } from '@/lib/userScope'
 import { RecipientPicker } from '@/components/RecipientPicker'
 import type { PickerGroup } from '@/components/RecipientPicker'
 import { CreateNotificationSheet } from '@/components/CreateNotificationSheet'
@@ -62,20 +62,7 @@ export function Tools() {
   const canIssue = !!active && can('tool.issueCredential') && isVerifiedIssuer(active)
 
   // Recipients + groups are scoped to the acting account's Directory.
-  const dir = useDirectory()
-  const recipientOptions = dir.people
-  const pickerGroups = useMemo<PickerGroup[]>(
-    () =>
-      dir.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length,
-      })),
-    [dir.groups, groupRecipients, meKey],
-  )
-
-  const expandGroup = (id: string): ActorRef[] =>
-    groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+  const { options: recipientOptions, pickerGroups, expandGroup } = useRecipientSources()
 
   function openTool(key: TransactionKey) {
     if (key === 'tool.createVacancy' || key === 'tool.displayVacancy') return navigate('/tools/vacancies')

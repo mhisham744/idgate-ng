@@ -1,7 +1,12 @@
 import { useMemo } from 'react'
 import { useStore } from '@/store'
 import { actorKey } from '@/lib/identity'
-import type { ActorRef, Group, LegalEntity, Message, Notification, NoteRecipient, StructureNode } from '@/types'
+import { useLang, bl } from '@/i18n'
+import { STRUCTURE_LABELS } from '@/data/reference'
+import type { ActorRef, Group, LegalEntity, Message, Notification, NoteRecipient, StructureKind, StructureNode } from '@/types'
+
+const STRUCTURE_KINDS: StructureKind[] = ['corporate', 'relation', 'organization', 'geographical']
+const emptyStructureNodes = (): Record<StructureKind, StructureNode[]> => ({ corporate: [], relation: [], organization: [], geographical: [] })
 
 export interface MyInbox {
   /** Every actorKey the signed-in person acts through (personal + owned virtuals). */
@@ -154,10 +159,12 @@ export interface Directory {
   orgs: LegalEntity[]
   /** People the account may reach: accepted contacts + (virtual) same-area active virtuals. */
   people: ActorRef[]
+  /** How each person entered the directory: 'manual' (contact request) or 'auto' (shared area). Keyed by actorKey. */
+  peopleOrigin: Map<string, 'auto' | 'manual'>
   /** Groups the account is a member of. */
   groups: Group[]
-  /** (Virtual only) structure nodes the account is part of. */
-  nodes: StructureNode[]
+  /** (Virtual only) child structure nodes across every org in the active virtual's communication area, by kind. */
+  structureNodes: Record<StructureKind, StructureNode[]>
   /** actorKeys of `people` (for gating recipient lists). */
   peopleKeys: Set<string>
 }
@@ -181,37 +188,38 @@ export function useDirectory(): Directory {
   const areaOf = useStore((s) => s.areaOf)
 
   return useMemo(() => {
-    if (!active) return { orgs: [], people: [], groups: [], nodes: [], peopleKeys: new Set<string>() }
+    if (!active) return { orgs: [], people: [], peopleOrigin: new Map(), groups: [], structureNodes: emptyStructureNodes(), peopleKeys: new Set<string>() }
     const meKey = actorKey(active)
 
-    // Accepted contacts (both directions) → the other party.
-    const contacts: ActorRef[] = []
-    for (const c of contactRequests) {
-      if (c.status !== 'accepted') continue
-      if (actorKey(c.from) === meKey) contacts.push(c.to)
-      else if (actorKey(c.to) === meKey) contacts.push(c.from)
+    // People, with origin. Manual (contact request) takes precedence over auto on dedupe.
+    const people: ActorRef[] = []
+    const peopleOrigin = new Map<string, 'auto' | 'manual'>()
+    const add = (r: ActorRef, origin: 'auto' | 'manual') => {
+      const k = actorKey(r)
+      if (k === meKey) return
+      if (!peopleOrigin.has(k)) {
+        peopleOrigin.set(k, origin)
+        people.push(r)
+      } else if (origin === 'manual' && peopleOrigin.get(k) === 'auto') {
+        peopleOrigin.set(k, 'manual') // upgrade: a manual contact overrides an auto classification
+      }
     }
 
-    // Virtual accounts sharing the acting virtual's communication area.
-    const areaVirtuals: ActorRef[] = []
+    // Accepted contacts (both directions) → the other party = MANUAL.
+    for (const c of contactRequests) {
+      if (c.status !== 'accepted') continue
+      if (actorKey(c.from) === meKey) add(c.to, 'manual')
+      else if (actorKey(c.to) === meKey) add(c.from, 'manual')
+    }
+
+    // Virtual accounts sharing the acting virtual's communication area = AUTO.
     if (active.kind === 'virtual') {
       const areaId = areaOf(active)
       if (areaId) {
         for (const v of virtuals) {
           if (v.status !== 'active' || v.id === active.virtualId) continue
-          if (entity(v.entityId)?.communicationAreaId === areaId) areaVirtuals.push({ kind: 'virtual', virtualId: v.id })
+          if (entity(v.entityId)?.communicationAreaId === areaId) add({ kind: 'virtual', virtualId: v.id }, 'auto')
         }
-      }
-    }
-
-    // Dedup people, excluding self.
-    const seen = new Set<string>()
-    const people: ActorRef[] = []
-    for (const r of [...contacts, ...areaVirtuals]) {
-      const k = actorKey(r)
-      if (k !== meKey && !seen.has(k)) {
-        seen.add(k)
-        people.push(r)
       }
     }
 
@@ -226,28 +234,65 @@ export function useDirectory(): Directory {
       orgs = entities.filter((e) => ids.has(e.id))
     }
 
-    // Scope keys for group membership: normal → person + owned virtuals; virtual → itself.
-    const scopeKeys = new Set<string>()
-    if (active.kind === 'virtual') scopeKeys.add(`v:${active.virtualId}`)
-    else if (normalId) {
-      scopeKeys.add(`n:${normalId}`)
-      virtualsFor(normalId).forEach((v) => scopeKeys.add(`v:${v.id}`))
-    }
+    // Group membership is scoped to the ACTIVE account's OWN key only — NOT the
+    // person∪owned-virtuals union. This stops a group whose member is one of the
+    // person's virtuals from leaking into the personal directory (CN 4/11 item 10),
+    // and lets groups the active account is a member of appear for sub-group selection.
+    const myKey = active.kind === 'virtual' ? `v:${active.virtualId}` : normalId ? `n:${normalId}` : undefined
     const myGroups = groups.filter((g) => {
       // Groups I own always appear in my directory (even if I'm not a member)…
       if (active.kind === 'virtual' ? g.ownerVirtualId === active.virtualId : normalId && g.ownerNormalId === normalId) return true
-      // …as do groups I'm a member of.
-      return groupRecipients(g.id).some((r) => scopeKeys.has(actorKey(r)))
+      // …as do groups the active account itself is a member of.
+      return !!myKey && groupRecipients(g.id).some((r) => actorKey(r) === myKey)
     })
 
-    // Nodes (virtual only) — the structure nodes the acting virtual is placed in.
-    let nodes: StructureNode[] = []
+    // Child structure nodes (virtual only) across every org in the active virtual's
+    // communication area, bucketed by kind (level>0 = real child nodes, not roots).
+    const structureNodes = emptyStructureNodes()
     if (active.kind === 'virtual') {
-      const v = virtual(active.virtualId)
-      const nodeIds = v ? [v.structure.corporate, v.structure.relation, v.structure.organization, v.structure.geographical] : []
-      nodes = nodeIds.filter(Boolean).map((id) => structures.find((n) => n.id === id)).filter(Boolean) as StructureNode[]
+      const areaId = areaOf(active)
+      if (areaId) {
+        const areaEntityIds = new Set(entities.filter((e) => e.communicationAreaId === areaId).map((e) => e.id))
+        for (const n of structures) {
+          if (n.level > 0 && areaEntityIds.has(n.entityId) && STRUCTURE_KINDS.includes(n.kind)) {
+            structureNodes[n.kind].push(n)
+          }
+        }
+      }
     }
 
-    return { orgs, people, groups: myGroups, nodes, peopleKeys: new Set(people.map(actorKey)) }
+    return { orgs, people, peopleOrigin, groups: myGroups, structureNodes, peopleKeys: new Set(people.map(actorKey)) }
   }, [active, normalId, entities, virtuals, groups, structures, contactRequests, entity, virtual, virtualsFor, groupRecipients, areaOf])
+}
+
+/**
+ * Shared recipient sources for the message / notification / assessment composers:
+ * directory people as options, plus pickerGroups = real groups ++ structure-node
+ * pseudo-groups (id `node:<nodeId>`). expandGroup resolves either kind to refs.
+ */
+export function useRecipientSources() {
+  const dir = useDirectory()
+  const active = useStore((s) => s.active)
+  const groupRecipients = useStore((s) => s.groupRecipients)
+  const nodeRecipients = useStore((s) => s.nodeRecipients)
+  const { lang } = useLang()
+  const meKey = active ? actorKey(active) : ''
+
+  return useMemo(() => {
+    const options = dir.people
+    const pickerGroups = [
+      ...dir.groups.map((g) => ({ id: g.id, name: g.name, count: groupRecipients(g.id).filter((r) => actorKey(r) !== meKey).length })),
+      ...STRUCTURE_KINDS.flatMap((k) => dir.structureNodes[k]).map((n) => ({
+        id: `node:${n.id}`,
+        name: `${n.name} · ${bl(STRUCTURE_LABELS[n.kind], lang)}`,
+        count: nodeRecipients(n.id).filter((r) => actorKey(r) !== meKey).length,
+        node: true,
+      })),
+    ]
+    const expandGroup = (id: string): ActorRef[] =>
+      id.startsWith('node:')
+        ? nodeRecipients(id.slice(5)).filter((r) => actorKey(r) !== meKey)
+        : groupRecipients(id).filter((r) => actorKey(r) !== meKey)
+    return { options, pickerGroups, expandGroup }
+  }, [dir, meKey, groupRecipients, nodeRecipients, lang])
 }

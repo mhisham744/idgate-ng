@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, UsersRound, Plus, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, UsersRound, Plus, Pencil, Trash2, Users } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLang } from '@/i18n'
 import { Button, Card, Badge, EmptyState, Modal } from '@/ui/primitives'
 import { GroupFormSheet } from '@/components/GroupForm'
+import { GroupMembersSheet } from '@/components/GroupMembers'
 import type { Group } from '@/types'
 
 /**
@@ -28,6 +29,7 @@ export function GroupsScreen() {
   const [formOpen, setFormOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Group | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
+  const [membersOf, setMembersOf] = useState<Group | null>(null)
 
   const memberCount = (g: Group) =>
     (g.explicitMemberIds?.length ?? 0) + (g.explicitNormalIds?.length ?? 0) + (g.memberGroupIds?.length ?? 0)
@@ -69,6 +71,13 @@ export function GroupsScreen() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
+                    onClick={() => setMembersOf(g)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                    aria-label={L('Members', 'الأعضاء')}
+                  >
+                    <Users size={15} />
+                  </button>
+                  <button
                     onClick={() => { setEditTarget(g); setFormOpen(true) }}
                     className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-gate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gate-400"
                     aria-label={L('Edit', 'تعديل')}
@@ -95,6 +104,8 @@ export function GroupsScreen() {
       )}
 
       <GroupFormSheet open={formOpen} onClose={() => setFormOpen(false)} group={editTarget} />
+
+      <GroupMembersSheet group={membersOf} onClose={() => setMembersOf(null)} />
 
       <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
         <div className="space-y-4">

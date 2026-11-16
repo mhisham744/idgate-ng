@@ -147,6 +147,8 @@ interface State extends AppData {
   canCommunicate: (a: ActorRef, b: ActorRef) => boolean
   /** Resolve a group's membership criteria + explicit members into concrete recipients. */
   groupRecipients: (groupId: string) => ActorRef[]
+  /** All active virtual accounts attached to a structure node or any of its descendants. */
+  nodeRecipients: (nodeId: string) => ActorRef[]
 
   // ── strategy edition selectors ───────────────────────────────────────────────
   credential: (id: string) => Credential | undefined
@@ -311,6 +313,8 @@ interface State extends AppData {
   // ── contact / link ────────────────────────────────────────────────────────────
   sendContactRequest: (to: ActorRef) => void
   respondContactRequest: (id: string, status: 'accepted' | 'rejected') => void
+  /** End an accepted contact connection (both directions) and notify the other side (no-reply). */
+  disconnectContact: (other: ActorRef, note?: { subject: string; body: string }) => void
   createLinkRequest: (entityId: string, virtualId: string, targetNormalId: string) => void
   /** Rich link request: adds a 'waiting' link + a pending LinkRequest. Returns false if a duplicate (same entity/virtual/person already waiting or active). */
   requestLink: (entityId: string, virtualId: string, targetNormalId: string, opts?: { validity?: Validity; delegation?: VirtualLink['delegation']; delegations?: VirtualLink['delegations'] }) => boolean
@@ -425,6 +429,22 @@ function syncMirror(v: VirtualCharacter, links: VirtualLink[]): VirtualCharacter
     status: v.status === 'blocked' ? 'blocked' : primary ? 'active' : 'unlinked',
     connectedAt: primary?.connectedAt ?? v.connectedAt,
   }
+}
+
+/** A structure node plus all its descendant nodes. Shared by groupRecipients and nodeRecipients. */
+function descendantSet(structures: StructureNode[], rootId: string): Set<string> {
+  const out = new Set<string>([rootId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const n of structures) {
+      if (n.parentId && out.has(n.parentId) && !out.has(n.id)) {
+        out.add(n.id)
+        changed = true
+      }
+    }
+  }
+  return out
 }
 
 export const useStore = create<State>()(
@@ -575,6 +595,24 @@ export const useStore = create<State>()(
         }
 
         walk(groupId)
+        return out
+      },
+      nodeRecipients: (nodeId) => {
+        const s = get()
+        const cov = descendantSet(s.structures, nodeId)
+        const seen = new Set<string>()
+        const out: ActorRef[] = []
+        for (const v of s.virtuals) {
+          if (v.status !== 'active') continue
+          const slots = [v.structure.corporate, v.structure.relation, v.structure.organization, v.structure.geographical]
+          if (slots.some((id) => id && cov.has(id))) {
+            const k = `v:${v.id}`
+            if (!seen.has(k)) {
+              seen.add(k)
+              out.push({ kind: 'virtual', virtualId: v.id })
+            }
+          }
+        }
         return out
       },
 
@@ -1447,6 +1485,27 @@ export const useStore = create<State>()(
             L2(`${name(cr.to)} declined your contact request. This is an automated no-reply notice.`, `رفض ${name(cr.to)} طلب التواصل الخاص بك. هذا إشعار آلي بلا رد.`),
           )
         }
+      },
+      disconnectContact: (other, note) => {
+        const { active } = get()
+        if (!active) return
+        const meKey = actorKey(active)
+        const otherKey = actorKey(other)
+        const toEnd = get().contactRequests.filter(
+          (c) =>
+            c.status === 'accepted' &&
+            ((actorKey(c.from) === meKey && actorKey(c.to) === otherKey) ||
+              (actorKey(c.from) === otherKey && actorKey(c.to) === meKey)),
+        )
+        if (toEnd.length === 0) return
+        const endIds = new Set(toEnd.map((c) => c.id))
+        set((s) => ({ contactRequests: s.contactRequests.map((c) => (endIds.has(c.id) ? { ...c, status: 'ended' as const } : c)) }))
+        get().sendSystemMessage(
+          active as ActorRef,
+          [other],
+          note?.subject ?? L2('Connection ended', 'انتهى الاتصال'),
+          note?.body ?? L2('This connection has ended. This is an automated no-reply notice.', 'انتهى هذا الاتصال. هذه رسالة تلقائية بلا رد.'),
+        )
       },
       createLinkRequest: (entityId, virtualId, targetNormalId) => {
         get().requestLink(entityId, virtualId, targetNormalId)
